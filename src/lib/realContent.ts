@@ -21,12 +21,25 @@ function encodePath(path: string) {
 }
 
 export function realContentUrl(path: string) {
-  const cleanPath = path.replace(/^\/?real-content\/?/, "").replace(/^\/+/, "");
+  const cleanPath = decodeURIComponent(path.replace(/^\/?real-content\/?/, "").replace(/^\/+/, ""));
   return `${REAL_CONTENT_BASE_URL}/${encodePath(cleanPath)}`;
 }
 
 export function resolveMediaUrl(url?: string | null) {
   if (!url) return url ?? null;
-  if (!url.startsWith("/real-content/")) return url;
-  return realContentUrl(url);
+
+  if (url.startsWith("/real-content/")) {
+    return realContentUrl(url);
+  }
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname.startsWith("/real-content/")) {
+      return realContentUrl(parsed.pathname);
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
 }

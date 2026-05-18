@@ -23,11 +23,9 @@ function realContentCdnPlugin(realContentBaseUrl?: string) {
     transform(code: string, id: string) {
       if (!base || !/\.(tsx?|jsx?)$/.test(id)) return null;
       if (!code.includes("/real-content/")) return null;
-      return code
-        .replace(/(["'`])\/real-content\/([^"'`]+)\1/g, (_match, quote, realPath) => {
-          return `${quote}${base}/${encodePath(realPath)}${quote}`;
-        })
-        .replace(/\/real-content\//g, `${base}/`);
+      return code.replace(/(["'`])\/real-content\/([^"'`]+)\1/g, (_match, quote, realPath) => {
+        return `${quote}${base}/${encodePath(realPath)}${quote}`;
+      });
     },
   };
 }

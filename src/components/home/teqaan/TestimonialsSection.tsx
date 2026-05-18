@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { Quote, ChevronRight, ChevronLeft, Play } from "lucide-react";
 import Reveal from "@/components/ui-luxe/Reveal";
-import { TESTIMONIALS_AR, REVIEW_VIDEOS } from "@/data/site";
-import { supabase } from "@/integrations/supabase/client";
+import { TESTIMONIALS_AR } from "@/data/site";
 import { useLang } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-import { getCmsReviews } from "@/lib/publicCms";
+import { fallbackReviewVideos, getCmsReviews } from "@/lib/publicCms";
+import { realContentUrl } from "@/lib/realContent";
 
 const STATIC_TESTIMONIALS = [
   {
@@ -78,7 +78,7 @@ export default function TestimonialsSection({ section }: { section?: any }) {
   };
 
   const currentReview = reviews[currentIndex] || STATIC_TESTIMONIALS[0];
-  const featuredVideoObj = REVIEW_VIDEOS[0];
+  const featuredVideoObj = fallbackReviewVideos().find((video) => video.id === "rv2") || fallbackReviewVideos()[0];
 
   return (
     <section className="relative py-24 md:py-32 overflow-hidden bg-white" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -193,7 +193,7 @@ export default function TestimonialsSection({ section }: { section?: any }) {
                 ) : (
                   <>
                     <img
-                      src={featuredVideoObj?.cover || "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp"}
+                      src={featuredVideoObj?.cover || realContentUrl("Designs/Landscape/Screenshot_14-5-2026_185926_.webp")}
                       alt="Review Video Cover"
                       className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-1000"
                     />
