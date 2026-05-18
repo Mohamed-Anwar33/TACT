@@ -3,8 +3,11 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
 
+const DEFAULT_REAL_CONTENT_BASE_URL =
+  "https://lnzxissivnzpjvvxulvc.supabase.co/storage/v1/object/public/real-content";
+
 function realContentCdnPlugin(realContentBaseUrl?: string) {
-  const base = realContentBaseUrl?.replace(/\/+$/, "");
+  const base = (realContentBaseUrl || DEFAULT_REAL_CONTENT_BASE_URL).replace(/\/+$/, "");
   const safeSegment = (segment: string) => {
     if (/^[A-Za-z0-9._-]+$/.test(segment)) return segment;
     return `u_${Buffer.from(segment, "utf8").toString("base64url")}`;

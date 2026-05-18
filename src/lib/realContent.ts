@@ -1,6 +1,9 @@
+const DEFAULT_REAL_CONTENT_BASE_URL =
+  "https://lnzxissivnzpjvvxulvc.supabase.co/storage/v1/object/public/real-content";
+
 const configuredBase = import.meta.env.VITE_REAL_CONTENT_BASE_URL as string | undefined;
 
-export const REAL_CONTENT_BASE_URL = (configuredBase || "/real-content").replace(/\/+$/, "");
+export const REAL_CONTENT_BASE_URL = (configuredBase || DEFAULT_REAL_CONTENT_BASE_URL).replace(/\/+$/, "");
 
 function encodePath(path: string) {
   return path
