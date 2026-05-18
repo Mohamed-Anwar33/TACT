@@ -4,6 +4,19 @@ import { useEffect, useState } from "react";
 import { SITE } from "@/data/site";
 import { fallbackContact, getCmsContact, type CmsContact } from "@/lib/publicCms";
 
+function formatWhatsappNumber(num: string): string {
+  let clean = num.replace(/\D/g, "");
+  if (clean.startsWith("00")) {
+    clean = clean.slice(2);
+  }
+  if (clean.startsWith("01") && clean.length === 11) {
+    clean = "2" + clean;
+  } else if (clean.startsWith("1") && clean.length === 10) {
+    clean = "20" + clean;
+  }
+  return clean;
+}
+
 export default function WhatsAppFloat() {
   const { t, dir } = useLang();
   const [contact, setContact] = useState<CmsContact>(() => fallbackContact());
@@ -17,9 +30,11 @@ export default function WhatsAppFloat() {
     };
   }, []);
 
+  const whatsappNum = formatWhatsappNumber(contact.whatsapp || SITE.whatsapp);
+
   return (
     <a
-      href={`https://wa.me/${contact.whatsapp || SITE.whatsapp}`}
+      href={`https://wa.me/${whatsappNum}`}
       target="_blank"
       rel="noreferrer"
       aria-label={t("cta_whatsapp")}
