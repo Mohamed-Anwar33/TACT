@@ -31,8 +31,8 @@ export default function Home() {
   });
   const [sections, setSections] = useState<Record<string, CmsSection>>({});
   const heroSection = sections.hero;
-  const heroVideo = heroSection?.media.find((item) => item.role === "video" && item.mediaType === "video")?.url || "/real-content/Finishing videos/Luxury modern.mp4";
-  const heroPoster = heroSection?.media.find((item) => item.role === "poster" || item.role === "cover")?.url || "/real-content/Finishing videos/Luxury modern-thumb.webp";
+  const heroVideo = heroSection?.media.find((item) => (item.role === "video" || item.role === "section") && item.mediaType === "video")?.url || "/real-content/Finishing videos/Luxury modern.mp4";
+  const heroPoster = heroSection?.media.find((item) => item.role === "poster" || item.role === "cover" || (item.role === "section" && item.mediaType === "image"))?.url || "/real-content/Finishing videos/Luxury modern-thumb.webp";
   const heroTitle = lang === "ar" ? heroSection?.titleAr || t("hero_headline") : heroSection?.titleEn || t("hero_headline");
   const heroBody = lang === "ar" ? heroSection?.bodyAr || t("hero_subtitle") : heroSection?.bodyEn || t("hero_subtitle");
   const heroCtaLabel = lang === "ar" ? heroSection?.ctaLabelAr || t("cta_start") : heroSection?.ctaLabelEn || t("cta_start");

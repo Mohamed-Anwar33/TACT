@@ -93,13 +93,22 @@ export default function TeamPreview({ section }: { section?: any }) {
                name.toLowerCase().includes("rajeh") || name.toLowerCase().includes("domiaty") || name.toLowerCase().includes("sabiha");
       };
 
-      const owners = rows.filter((m: any) => {
-        const name = m.nameAr || m.name || "";
-        return isOwnerName(name);
-      });
+      // Check if there are explicitly pinned team members for the homepage section
+      const selectedIds: string[] = section?.metadata?.selectedIds || [];
+      let displayRows: CmsTeamMember[] = [];
 
-      // Show the 3 owners
-      const displayRows = owners.length > 0 ? owners.slice(0, 3) : rows.slice(0, 3);
+      if (selectedIds.length > 0) {
+        displayRows = selectedIds
+          .map(id => rows.find(r => String(r.id) === String(id)))
+          .filter(Boolean) as CmsTeamMember[];
+      } else {
+        const owners = rows.filter((m: any) => {
+          const name = m.nameAr || m.name || "";
+          return isOwnerName(name);
+        });
+        // Show the 3 owners or first 3 members
+        displayRows = owners.length > 0 ? owners.slice(0, 3) : rows.slice(0, 3);
+      }
 
       setMembers(displayRows.map((member, idx) => {
         let img = member.imageUrl;
@@ -137,7 +146,7 @@ export default function TeamPreview({ section }: { section?: any }) {
     return () => {
       alive = false;
     };
-  }, [section]);
+  }, [lang, section]);
 
   return (
     <section className="relative w-full py-24 md:py-32 overflow-hidden bg-[#0C363A]" dir={isRtl ? "rtl" : "ltr"}>
