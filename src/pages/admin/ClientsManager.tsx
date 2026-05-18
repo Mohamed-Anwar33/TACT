@@ -55,9 +55,7 @@ export default function ClientsManager() {
         const selectedIds: string[] = section.metadata?.selectedIds || [];
         let newIds = [...selectedIds];
         if (pinOnHome) {
-          if (!newIds.includes(String(savedId))) {
-            newIds.push(String(savedId));
-          }
+          newIds = [String(savedId), ...newIds.filter(x => x !== String(savedId))];
         } else {
           newIds = newIds.filter(x => x !== String(savedId));
         }
@@ -94,7 +92,7 @@ export default function ClientsManager() {
     if (newIds.includes(idStr)) {
       newIds = newIds.filter(x => x !== idStr);
     } else {
-      newIds.push(idStr);
+      newIds = [idStr, ...newIds];
     }
     
     const nextSection = {

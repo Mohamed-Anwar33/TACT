@@ -184,7 +184,7 @@ function ClientReviewsEditor({ clientReviews, onRefresh, editing, setEditing }: 
     if (newIds.includes(idStr)) {
       newIds = newIds.filter(x => x !== idStr);
     } else {
-      newIds.push(idStr);
+      newIds = [idStr, ...newIds];
     }
     const nextEditing = {
       ...editing,
@@ -232,9 +232,7 @@ function ClientReviewsEditor({ clientReviews, onRefresh, editing, setEditing }: 
       if (savedId) {
         let newIds = [...selectedIds];
         if (pinOnHome) {
-          if (!newIds.includes(String(savedId))) {
-            newIds.push(String(savedId));
-          }
+          newIds = [String(savedId), ...newIds.filter(x => x !== String(savedId))];
         } else {
           newIds = newIds.filter(x => x !== String(savedId));
         }

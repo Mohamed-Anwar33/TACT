@@ -55,12 +55,15 @@ export default function TestimonialsSection({ section }: { section?: any }) {
           }
         }
         setReviews(displayReviews.map((item) => ({
+          id: item.id,
           quote: lang === "en" ? item.quote : item.quoteAr,
           nameAr: item.nameAr,
           nameEn: item.name,
           locationAr: item.roleAr,
           locationEn: item.role,
           rating: item.rating || 5,
+          videoUrl: item.videoUrl,
+          videoCoverUrl: item.videoCoverUrl,
         })));
       } else {
         setReviews(STATIC_TESTIMONIALS);
@@ -78,7 +81,14 @@ export default function TestimonialsSection({ section }: { section?: any }) {
   };
 
   const currentReview = reviews[currentIndex] || STATIC_TESTIMONIALS[0];
-  const featuredVideoObj = fallbackReviewVideos().find((video) => video.id === "rv2") || fallbackReviewVideos()[0];
+  const selectedVideoReview = reviews.find((review) => review.videoUrl);
+  const fallbackVideo = fallbackReviewVideos().find((video) => video.id === "rv2") || fallbackReviewVideos()[0];
+  const featuredVideoObj = selectedVideoReview
+    ? {
+        videoUrl: selectedVideoReview.videoUrl,
+        cover: selectedVideoReview.videoCoverUrl || fallbackVideo?.cover,
+      }
+    : fallbackVideo;
 
   return (
     <section className="relative py-24 md:py-32 overflow-hidden bg-white" dir={lang === "ar" ? "rtl" : "ltr"}>
