@@ -513,7 +513,7 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
         toast.warning("يمكنك اختيار 12 مشروعاً كحد أقصى للعرض في هذا القسم!");
         return;
       }
-      newIds.push(id);
+      newIds = [id, ...newIds];
     }
     const nextEditing = {
       ...editing,
@@ -563,9 +563,7 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
       if (savedId) {
         let newIds = [...selectedIds];
         if (pinOnHome) {
-          if (!newIds.includes(String(savedId))) {
-            newIds.push(String(savedId));
-          }
+          newIds = [String(savedId), ...newIds.filter(x => x !== String(savedId))];
         } else {
           newIds = newIds.filter(x => x !== String(savedId));
         }
@@ -827,7 +825,7 @@ function ServicesSectionEditor({ dbServices, onRefresh, editing, setEditing }: {
         toast.warning("يمكنك اختيار 4 خدمات كحد أقصى للعرض في الصفحة الرئيسية!");
         return;
       }
-      newIds.push(idStr);
+      newIds = [idStr, ...newIds];
     }
     const nextEditing = {
       ...editing,
@@ -1106,7 +1104,7 @@ function TeamSectionEditor({ dbTeam, onRefresh, editing, setEditing }: { dbTeam:
         toast.warning("يمكنك اختيار 4 أعضاء كحد أقصى للعرض في هذا القسم!");
         return;
       }
-      newIds.push(id);
+      newIds = [id, ...newIds];
     }
     const nextEditing = {
       ...editing,
@@ -1157,9 +1155,7 @@ function TeamSectionEditor({ dbTeam, onRefresh, editing, setEditing }: { dbTeam:
       if (savedId) {
         let newIds = [...selectedIds];
         if (pinOnHome) {
-          if (!newIds.includes(String(savedId))) {
-            newIds.push(String(savedId));
-          }
+          newIds = [String(savedId), ...newIds.filter(x => x !== String(savedId))];
         } else {
           newIds = newIds.filter(x => x !== String(savedId));
         }

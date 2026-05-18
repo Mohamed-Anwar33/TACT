@@ -45,7 +45,7 @@ export default function ServicesGrid({ section }: ServicesGridProps) {
         const pinned = selectedIds
           .map(id => rows.find(r => String(r.id) === String(id)))
           .filter(Boolean) as CmsService[];
-        setServices(pinned);
+        setServices(pinned.length ? pinned : rows);
       } else {
         setServices(rows);
       }

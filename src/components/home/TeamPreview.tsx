@@ -95,19 +95,25 @@ export default function TeamPreview({ section }: { section?: any }) {
 
       // Check if there are explicitly pinned team members for the homepage section
       const selectedIds: string[] = section?.metadata?.selectedIds || [];
+      const defaultRows = () => {
+        const owners = rows.filter((m: any) => {
+          const name = m.nameAr || m.name || "";
+          return isOwnerName(name);
+        });
+        return owners.length > 0 ? owners.slice(0, 3) : rows.slice(0, 3);
+      };
+
       let displayRows: CmsTeamMember[] = [];
 
       if (selectedIds.length > 0) {
         displayRows = selectedIds
           .map(id => rows.find(r => String(r.id) === String(id)))
           .filter(Boolean) as CmsTeamMember[];
+        if (displayRows.length === 0) {
+          displayRows = defaultRows();
+        }
       } else {
-        const owners = rows.filter((m: any) => {
-          const name = m.nameAr || m.name || "";
-          return isOwnerName(name);
-        });
-        // Show the 3 owners or first 3 members
-        displayRows = owners.length > 0 ? owners.slice(0, 3) : rows.slice(0, 3);
+        displayRows = defaultRows();
       }
 
       setMembers(displayRows.map((member, idx) => {

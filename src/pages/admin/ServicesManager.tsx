@@ -98,9 +98,7 @@ export default function ServicesManager() {
         const selectedIds: string[] = section.metadata?.selectedIds || [];
         let newIds = [...selectedIds];
         if (pinOnHome) {
-          if (!newIds.includes(String(savedId))) {
-            newIds.push(String(savedId));
-          }
+          newIds = [String(savedId), ...newIds.filter(x => x !== String(savedId))];
         } else {
           newIds = newIds.filter(x => x !== String(savedId));
         }
@@ -149,7 +147,7 @@ export default function ServicesManager() {
         toast.warning("يمكنك اختيار 4 خدمات كحد أقصى للعرض في الصفحة الرئيسية!");
         return;
       }
-      newIds.push(idStr);
+      newIds = [idStr, ...newIds];
     }
     
     const nextSection = {
