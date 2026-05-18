@@ -11,7 +11,8 @@ import {
   Edit2, 
   Trash2, 
   Plus,
-  RefreshCw
+  RefreshCw,
+  Star
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminHeader from "@/components/admin/AdminHeader";
@@ -66,23 +67,55 @@ const blank = {
 
 export default function ServicesManager() {
   const [items, setItems] = useState<any[]>([]);
+  const [section, setSection] = useState<any | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
   async function load() { 
-    const { data } = await db.from("cms_services").select("*").order("sort_order"); 
-    setItems(data || []); 
+    const [iRes, sRes] = await Promise.all([
+      db.from("cms_services").select("*").order("sort_order"),
+      db.from("cms_sections").select("*").eq("page_slug", "home").eq("section_key", "services-preview").maybeSingle()
+    ]);
+    setItems(iRes.data || []); 
+    setSection(sRes.data || null);
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
+      const pinOnHome = !!editing.pinOnHome;
       const payload = { ...editing, id: editing.id || undefined, sort_order: Number(editing.sort_order) || 0 };
-      const { error } = await db.from("cms_services").upsert(payload, { onConflict: "slug" });
+      delete (payload as any).pinOnHome;
+
+      const { data, error } = await db.from("cms_services").upsert(payload, { onConflict: "slug" }).select("id");
       if (error) throw error;
+
+      const savedId = data?.[0]?.id ? String(data[0].id) : editing.id;
+      if (savedId && section) {
+        const selectedIds: string[] = section.metadata?.selectedIds || [];
+        let newIds = [...selectedIds];
+        if (pinOnHome) {
+          if (!newIds.includes(String(savedId))) {
+            newIds.push(String(savedId));
+          }
+        } else {
+          newIds = newIds.filter(x => x !== String(savedId));
+        }
+
+        await db.from("cms_sections").upsert({
+          ...section,
+          id: section.id || undefined,
+          sort_order: Number(section.sort_order) || 0,
+          metadata: {
+            ...section.metadata,
+            selectedIds: newIds
+          }
+        }, { onConflict: "page_slug,section_key" });
+      }
+
       toast.success("تم حفظ الخدمة"); 
       setEditing(null); 
       await load();
@@ -99,6 +132,47 @@ export default function ServicesManager() {
     toast.success("تم الحذف"); 
     await load(); 
     setDeleteId(null); 
+  }
+
+  async function togglePin(id: string | number) {
+    if (!section) {
+      toast.error("فشل العثور على إعدادات قسم الصفحة الرئيسية");
+      return;
+    }
+    const selectedIds: string[] = section.metadata?.selectedIds || [];
+    const idStr = String(id);
+    let newIds = [...selectedIds];
+    if (newIds.includes(idStr)) {
+      newIds = newIds.filter(x => x !== idStr);
+    } else {
+      if (newIds.length >= 4) {
+        toast.warning("يمكنك اختيار 4 خدمات كحد أقصى للعرض في الصفحة الرئيسية!");
+        return;
+      }
+      newIds.push(idStr);
+    }
+    
+    const nextSection = {
+      ...section,
+      metadata: {
+        ...section.metadata,
+        selectedIds: newIds
+      }
+    };
+    
+    try {
+      const { error } = await db.from("cms_sections").upsert({
+        ...nextSection,
+        id: nextSection.id || undefined,
+        sort_order: Number(nextSection.sort_order) || 0
+      }, { onConflict: "page_slug,section_key" });
+      
+      if (error) throw error;
+      toast.success(newIds.includes(idStr) ? "تم عرض الخدمة بالصفحة الرئيسية" : "تم إلغاء عرض الخدمة بالصفحة الرئيسية");
+      await load();
+    } catch (err: any) {
+      toast.error("فشل التحديث: " + err.message);
+    }
   }
 
   async function resetToDefault() {
@@ -244,6 +318,8 @@ export default function ServicesManager() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1.5rem" }}>
           {items.map((s, i) => {
             const IconComponent = ICON_MAP[s.number_label] || Layout;
+            const selectedIds: string[] = section?.metadata?.selectedIds || [];
+            const isPinned = selectedIds.includes(String(s.id));
             return (
               <div 
                 key={s.id} 
@@ -261,17 +337,28 @@ export default function ServicesManager() {
                   transition: "all 0.3s ease"
                 }}
               >
-                {/* Numbering */}
+                {/* Numbering & Pin badge */}
                 <div style={{ 
                   position: "absolute", 
                   top: "1.25rem", 
                   left: "1.25rem", 
-                  fontSize: "0.85rem", 
-                  fontWeight: 850, 
-                  color: "rgba(193, 133, 86, 0.35)", 
-                  fontFamily: "serif" 
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6
                 }}>
-                  {s.number_label || String(i + 1).padStart(2, "0")}
+                  {isPinned && (
+                    <span style={{ fontSize: "0.6rem", background: "#fdf2e9", color: "#c18556", border: "1px solid #f5d6c1", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                      ★ بالرئيسية
+                    </span>
+                  )}
+                  <span style={{ 
+                    fontSize: "0.85rem", 
+                    fontWeight: 850, 
+                    color: "rgba(193, 133, 86, 0.35)", 
+                    fontFamily: "serif" 
+                  }}>
+                    {s.number_label || String(i + 1).padStart(2, "0")}
+                  </span>
                 </div>
 
                 <div>
@@ -324,11 +411,35 @@ export default function ServicesManager() {
                   paddingTop: "0.75rem", 
                   marginTop: "0.5rem" 
                 }}>
-                  <StatusBadge visible={s.visible} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <StatusBadge visible={s.visible} />
+                    
+                    <button
+                      type="button"
+                      onClick={() => togglePin(s.id)}
+                      style={{
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        fontSize: "0.62rem",
+                        fontWeight: 600,
+                        border: "1px solid",
+                        cursor: "pointer",
+                        background: isPinned ? "#0C363A" : "#ffffff",
+                        color: isPinned ? "#ffffff" : "#0C363A",
+                        borderColor: "#0C363A",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 2,
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      {isPinned ? "✕ إزالة" : "★ تثبيت"}
+                    </button>
+                  </div>
                   
                   <div style={{ display: "flex", gap: 6 }}>
                     <button 
-                      onClick={() => setEditing({ ...s })} 
+                      onClick={() => setEditing({ ...s, pinOnHome: isPinned })} 
                       style={{ 
                         padding: "6px 12px", 
                         borderRadius: 6, 
@@ -436,6 +547,19 @@ export default function ServicesManager() {
                   <option value="1">ظاهر</option><option value="0">مخفي</option>
                 </select>
               </div>
+            </div>
+
+            <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <input 
+                type="checkbox" 
+                id="servicePinHome"
+                checked={!!editing.pinOnHome}
+                onChange={e => setEditing({ ...editing, pinOnHome: e.target.checked })}
+                style={{ cursor: "pointer", width: 16, height: 16 }}
+              />
+              <label htmlFor="servicePinHome" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#C18556", cursor: "pointer", userSelect: "none" }}>
+                عرض هذه الخدمة في الصفحة الرئيسية
+              </label>
             </div>
           </form>
         )}

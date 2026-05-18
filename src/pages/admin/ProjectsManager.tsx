@@ -23,6 +23,7 @@ const blank = {
 export default function ProjectsManager() {
   const [projects, setProjects] = useState<any[]>([]);
   const [projectMedia, setProjectMedia] = useState<any[]>([]);
+  const [section, setSection] = useState<any | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -37,12 +38,14 @@ export default function ProjectsManager() {
   }, [editing]);
 
   async function load() {
-    const [pRes, mRes] = await Promise.all([
+    const [pRes, mRes, sRes] = await Promise.all([
       db.from("cms_projects").select("*").order("sort_order"),
       db.from("cms_project_media").select("*").order("sort_order"),
+      db.from("cms_sections").select("*").eq("page_slug", "home").eq("section_key", "works-preview").maybeSingle(),
     ]);
     setProjects(pRes.data || []);
     setProjectMedia(mRes.data || []);
+    setSection(sRes.data || null);
   }
 
   function getMedia(projectId: string) { return projectMedia.filter(m => m.project_id === projectId); }
@@ -62,11 +65,13 @@ export default function ProjectsManager() {
         finalCoverUrl = tempGallery[0];
       }
       
+      const pinOnHome = !!editing.pinOnHome;
       const payload = { 
         ...editing, 
         cover_url: finalCoverUrl, 
         sort_order: Number(editing.sort_order) || 0 
       };
+      delete (payload as any).pinOnHome;
       
       const { error } = await db.from("cms_projects").upsert(payload, { onConflict: "id" });
       if (error) throw error;
@@ -85,6 +90,29 @@ export default function ProjectsManager() {
         if (mediaErr) console.error("Error inserting temp gallery:", mediaErr);
       }
 
+      const savedId = editing.id;
+      if (savedId && section) {
+        const selectedIds: string[] = section.metadata?.selectedIds || [];
+        let newIds = [...selectedIds];
+        if (pinOnHome) {
+          if (!newIds.includes(String(savedId))) {
+            newIds.push(String(savedId));
+          }
+        } else {
+          newIds = newIds.filter(x => x !== String(savedId));
+        }
+        
+        await db.from("cms_sections").upsert({
+          ...section,
+          id: section.id || undefined,
+          sort_order: Number(section.sort_order) || 0,
+          metadata: {
+            ...section.metadata,
+            selectedIds: newIds
+          }
+        }, { onConflict: "page_slug,section_key" });
+      }
+
       toast.success("تم حفظ المشروع ومرفقاته بنجاح");
       setEditing(null);
       setTempGallery([]);
@@ -99,6 +127,47 @@ export default function ProjectsManager() {
     if (error) toast.error(error.message);
     else { toast.success("تم الحذف"); await load(); }
     setDeleteId(null);
+  }
+
+  async function togglePin(id: string) {
+    if (!section) {
+      toast.error("فشل العثور على إعدادات قسم الصفحة الرئيسية");
+      return;
+    }
+    const selectedIds: string[] = section.metadata?.selectedIds || [];
+    const idStr = String(id);
+    let newIds = [...selectedIds];
+    if (newIds.includes(idStr)) {
+      newIds = newIds.filter(x => x !== idStr);
+    } else {
+      if (newIds.length >= 12) {
+        toast.warning("يمكنك اختيار 12 مشروعاً كحد أقصى للعرض في الصفحة الرئيسية!");
+        return;
+      }
+      newIds.push(idStr);
+    }
+    
+    const nextSection = {
+      ...section,
+      metadata: {
+        ...section.metadata,
+        selectedIds: newIds
+      }
+    };
+    
+    try {
+      const { error } = await db.from("cms_sections").upsert({
+        ...nextSection,
+        id: nextSection.id || undefined,
+        sort_order: Number(nextSection.sort_order) || 0
+      }, { onConflict: "page_slug,section_key" });
+      
+      if (error) throw error;
+      toast.success(newIds.includes(idStr) ? "تم عرض المشروع بالصفحة الرئيسية" : "تم إلغاء عرض المشروع بالصفحة الرئيسية");
+      await load();
+    } catch (err: any) {
+      toast.error("فشل التحديث: " + err.message);
+    }
   }
 
   async function moveMedia(mediaId: string, direction: 'forward' | 'backward') {
@@ -231,12 +300,23 @@ export default function ProjectsManager() {
                   )}
                 </div>
                 <div style={{ padding: "1rem" }}>
-                  <div style={{ fontSize: "0.65rem", color: "#C18556", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                    {p.category_ar || p.category_en || "مشروع"}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: "0.65rem", color: "#C18556", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                      {p.category_ar || p.category_en || "مشروع"}
+                    </div>
+                    {(() => {
+                      const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                      const isPinned = selectedIds.includes(String(p.id));
+                      return isPinned ? (
+                        <span style={{ fontSize: "0.6rem", background: "#fdf2e9", color: "#c18556", border: "1px solid #f5d6c1", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                          ★ بالرئيسية
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
-                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0C363A", marginTop: 4 }}>{p.title_ar || p.title_en}</h3>
+                  <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0C363A", marginTop: 4 }}>{p.title_ar || p.title_en}</h3>
                   {p.area && <span style={{ fontSize: "0.7rem", color: "#999" }}>{p.area}</span>}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                     <StatusBadge visible={p.visible} />
                     <span style={{ fontSize: "0.65rem", color: "#888", background: "#f5f5f4", padding: "2px 8px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
                       <ImageIcon size={10} /> {imgCount(p.id)}
@@ -246,11 +326,42 @@ export default function ProjectsManager() {
                     </span>
                   </div>
                 </div>
-                <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #f0ece4", display: "flex", justifyContent: "space-between" }}>
+                <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #f0ece4", display: "flex", justifyContent: "space-between", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <button onClick={() => setEditing({ ...p })} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
+                    <button onClick={() => {
+                      const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                      setEditing({ ...p, pinOnHome: selectedIds.includes(String(p.id)) });
+                    }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
                       <Edit2 size={12} /> تعديل
                     </button>
+                    
+                    {(() => {
+                      const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                      const isPinned = selectedIds.includes(String(p.id));
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => togglePin(p.id)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            border: "1px solid",
+                            cursor: "pointer",
+                            background: isPinned ? "#0C363A" : "#ffffff",
+                            color: isPinned ? "#ffffff" : "#0C363A",
+                            borderColor: "#0C363A",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            transition: "all 0.2s"
+                          }}
+                        >
+                          {isPinned ? "✕ إزالة" : "★ تثبيت"}
+                        </button>
+                      );
+                    })()}
                   </div>
                   <button onClick={() => setDeleteId(p.id)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #F1C5BA", background: "#fff", cursor: "pointer", color: "#D84728" }}>
                     <Trash2 size={14} />
@@ -265,7 +376,7 @@ export default function ProjectsManager() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>الصورة</th><th>المشروع</th><th>التصنيف</th><th>المساحة</th><th>صور</th><th>فيديو</th><th>الحالة</th><th>إجراءات</th>
+                    <th>الصورة</th><th>المشروع</th><th>التصنيف</th><th>المساحة</th><th>صور</th><th>فيديو</th><th>الحالة</th><th>الرئيسية</th><th>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,8 +392,40 @@ export default function ProjectsManager() {
                       <td>{vidCount(p.id)}</td>
                       <td><StatusBadge visible={p.visible} /></td>
                       <td>
+                        {(() => {
+                          const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                          const isPinned = selectedIds.includes(String(p.id));
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => togglePin(p.id)}
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: 4,
+                                fontSize: "0.65rem",
+                                fontWeight: 600,
+                                border: "1px solid",
+                                cursor: "pointer",
+                                background: isPinned ? "#C18556" : "#ffffff",
+                                color: isPinned ? "#ffffff" : "#C18556",
+                                borderColor: "#C18556",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3,
+                                transition: "all 0.2s"
+                              }}
+                            >
+                              {isPinned ? "★ مثبت" : "➕ تثبيت"}
+                            </button>
+                          );
+                        })()}
+                      </td>
+                      <td>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button onClick={() => setEditing({ ...p })} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer" }}><Edit2 size={12} /></button>
+                          <button onClick={() => {
+                            const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                            setEditing({ ...p, pinOnHome: selectedIds.includes(String(p.id)) });
+                          }} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer" }}><Edit2 size={12} /></button>
                           <button onClick={() => setDeleteId(p.id)} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #F1C5BA", background: "#fff", cursor: "pointer", color: "#D84728" }}><Trash2 size={12} /></button>
                         </div>
                       </td>
@@ -444,6 +587,19 @@ export default function ProjectsManager() {
                   <option value="1">ظاهر</option><option value="0">مخفي</option>
                 </select>
               </div>
+            </div>
+            
+            <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <input 
+                type="checkbox" 
+                id="projectPinHome"
+                checked={!!editing.pinOnHome}
+                onChange={e => setEditing({ ...editing, pinOnHome: e.target.checked })}
+                style={{ cursor: "pointer", width: 16, height: 16 }}
+              />
+              <label htmlFor="projectPinHome" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#C18556", cursor: "pointer", userSelect: "none" }}>
+                تثبيت وعرض هذا المشروع في الصفحة الرئيسية
+              </label>
             </div>
           </form>
         )}
