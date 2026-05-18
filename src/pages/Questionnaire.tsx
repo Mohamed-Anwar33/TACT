@@ -1,0 +1,694 @@
+import { useState } from "react";
+import { useLang } from "@/i18n/LanguageProvider";
+import { useAuth } from "@/auth/AuthProvider";
+import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, ArrowRight, Check, Sparkles, User, Home, Layers, Users, Heart, Lightbulb } from "lucide-react";
+import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+
+const STEPS_META = [
+  { id: "basic", labelAr: "المعلومات الأساسية", labelEn: "Basic Info", icon: User },
+  { id: "project", labelAr: "معلومات عن المشروع", labelEn: "Project Details", icon: Home },
+  { id: "family", labelAr: "عدد الأفراد المستخدمين", labelEn: "Family Size", icon: Users },
+  { id: "services", labelAr: "الخدمات المطلوبة", labelEn: "Required Services", icon: Layers },
+  { id: "expectations", labelAr: "التوقعات والتجربة", labelEn: "Expectations & History", icon: Heart },
+  { id: "problems", labelAr: "المشكلات والطموحات", labelEn: "Goals & Notes", icon: Lightbulb },
+];
+
+export default function Questionnaire() {
+  const { lang } = useLang();
+  const { user } = useAuth();
+  const [step, setStep] = useState(0);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Form structured state matching exact columns
+  const [data, setData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    project_type: "",
+    project_type_custom: "",
+    stage: "",
+    stage_custom: "",
+    family: "",
+    family_custom: "",
+    service: "",
+    service_custom: "",
+    expectations_factor: "",
+    expectations_factor_custom: "",
+    source: "",
+    source_custom: "",
+    history: "",
+    history_challenges: "",
+    prev_problems: "",
+    new_ambitions: "",
+    notes: "",
+  });
+
+  const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
+
+  const nextStep = () => {
+    // Validate required fields on step 0
+    if (step === 0) {
+      if (!data.name || !data.phone) {
+        toast.error(lang === "ar" ? "يرجى إدخال الاسم الكريم ورقم الهاتف للمتابعة" : "Please provide your name and phone number");
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, STEPS_META.length - 1));
+    window.scrollTo({ top: 300, behavior: "smooth" });
+  };
+
+  const prevStep = () => {
+    setStep((s) => Math.max(s - 1, 0));
+    window.scrollTo({ top: 300, behavior: "smooth" });
+  };
+
+  const submit = async () => {
+    setBusy(true);
+
+    // Combine strings cleanly to map perfectly to DB schema columns
+    const finalType = data.project_type === "أخرى" || data.project_type === "Other" ? data.project_type_custom || data.project_type : data.project_type;
+    const finalStage = data.stage === "أخرى" || data.stage === "Other" ? data.stage_custom || data.stage : data.stage;
+    const finalFamily = data.family === "أخرى" || data.family === "Other" ? data.family_custom || data.family : data.family;
+    const finalService = data.service === "أخرى" || data.service === "Other" ? data.service_custom || data.service : data.service;
+    const finalSource = data.source === "أخرى" || data.source === "Other" ? data.source_custom || data.source : data.source;
+
+    const finalExpectationsFactor = data.expectations_factor === "أخرى" || data.expectations_factor === "Other" ? data.expectations_factor_custom || data.expectations_factor : data.expectations_factor;
+    const combinedExpectations = `أهم عامل: ${finalExpectationsFactor}`;
+    const combinedHistory = `هل سبق التعامل: ${data.history} | التحديات المتوقعة: ${data.history_challenges}`;
+    const combinedGoals = `المشكلات السابقة: ${data.prev_problems} | الطموحات الجديدة: ${data.new_ambitions}`;
+
+    const { error } = await supabase.from("questionnaires").insert({
+      user_id: user?.id ?? null,
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      address: data.address,
+      project_type: finalType,
+      stage: finalStage,
+      family: finalFamily,
+      service: finalService,
+      expectations: combinedExpectations,
+      source: finalSource,
+      history: combinedHistory,
+      goals: combinedGoals,
+      notes: data.notes,
+    });
+
+    setBusy(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setDone(true);
+    toast.success(lang === "ar" ? "تم استلام متطلبات مشروعك بنجاح" : "Project brief submitted successfully");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const currentMeta = STEPS_META[step];
+  const StepIcon = currentMeta.icon;
+
+  if (done) {
+    return (
+      <section className="pt-40 pb-32 min-h-screen flex items-center bg-[#FBF7F0]" dir="rtl">
+        <div className="container-luxe max-w-2xl text-center">
+          <div className="w-24 h-24 rounded-full bg-teal-deep text-gold border-2 border-gold flex items-center justify-center mx-auto mb-8 animate-bounce">
+            <Sparkles size={42} fill="currentColor" />
+          </div>
+          <SectionEyebrow label={lang === "ar" ? "اكتمل التحديد" : "Completed"} />
+          <h1 className="display-2 mt-4 text-teal-deep font-serif-ar">
+            {lang === "ar" ? "شكرًا لثقتك في رؤية تاكت الهندسية" : "Thank you for trusting Tact"}
+          </h1>
+          <p className="text-muted-foreground mt-6 leading-relaxed text-base max-w-lg mx-auto">
+            {lang === "ar"
+              ? "لقد استلمنا تفاصيل متطلباتك ورغباتك المعمارية بدقة. سيقوم فريقنا الهندسي بدراستها والتواصل معك خلال 24 ساعة لترتيب جلسة استشارة مخصصة لبدء رحلة التميز."
+              : "We have received your specific project parameters. Our executive design team will review your scope and get in touch within 24 hours."}
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 mt-10">
+            <Link to="/packages" className="btn-gold">
+              {lang === "ar" ? "استعراض تفاصيل الباقات" : "Explore Finishing Packages"}
+            </Link>
+            <Link to="/" className="btn-ghost-light !text-teal-deep !border-teal-deep/30">
+              {lang === "ar" ? "العودة للرئيسية" : "Back to Home"}
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      {/* HERO BANNER */}
+      <section className="pt-40 pb-16 bg-teal-deep text-ivory relative overflow-hidden" dir="rtl">
+        <div className="absolute inset-0 arch-grid opacity-20" />
+        <div className="absolute top-0 right-1/3 w-80 h-80 bg-gold/5 blur-[100px] rounded-full pointer-events-none" />
+
+        <div className="container-luxe relative z-10 text-center md:text-right">
+          <SectionEyebrow label={lang === "ar" ? "صمم مساحتك بدقة" : "Precision Design"} />
+          <h1 className="display-2 mt-4 text-gold font-serif-ar">
+            {lang === "ar" ? "استبيان متطلبات العميل الجديد" : "Client Project Questionnaire"}
+          </h1>
+          <p className="text-ivory/70 max-w-xl mt-3 text-sm leading-relaxed">
+            {lang === "ar"
+              ? "مشاركة تفاصيل ورغبات المساحة الخاصة بك هي الخطوة الأولى نحو تحويلها إلى تحفة معمارية متكاملة تناسب أسلوب حياتك."
+              : "Defining your requirements allows our architects to curate an absolute bespoke premium finishing roadmap."}
+          </p>
+        </div>
+      </section>
+
+      {/* MULTI-STEP INTERACTIVE WORKFLOW */}
+      <section className="py-16 bg-[#FBF7F0] text-foreground min-h-[600px]" dir="rtl">
+        <div className="container-luxe max-w-4xl">
+          {/* Header Dashboard Steps Indicators */}
+          <div className="hidden md:flex items-center justify-between border-b border-border/80 pb-8 mb-12">
+            {STEPS_META.map((m, idx) => {
+              const Icon = m.icon;
+              const isActive = idx === step;
+              const isPassed = idx < step;
+              return (
+                <div key={m.id} className="flex flex-col items-center gap-2 relative flex-1 text-center">
+                  <div
+                    onClick={() => idx <= step && setStep(idx)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      idx <= step ? "cursor-pointer" : "cursor-default"
+                    } ${
+                      isActive
+                        ? "bg-teal-deep text-gold shadow-lg scale-110 border border-gold"
+                        : isPassed
+                        ? "bg-gold text-teal-deep"
+                        : "bg-white border border-border text-muted-foreground/50"
+                    }`}
+                  >
+                    {isPassed ? <Check size={16} strokeWidth={3} /> : <Icon size={16} />}
+                  </div>
+                  <span
+                    className={`text-[11px] font-serif font-medium transition-colors ${
+                      isActive ? "text-teal-deep font-bold" : "text-muted-foreground/70"
+                    }`}
+                  >
+                    {lang === "ar" ? m.labelAr : m.labelEn}
+                  </span>
+                  {/* Connector Line */}
+                  {idx < STEPS_META.length - 1 && (
+                    <div className="absolute top-5 left-0 w-full h-[2px] bg-border/60 -z-10 transform -translate-x-1/2" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Mobile Step Status */}
+          <div className="md:hidden flex items-center justify-between text-xs font-serif uppercase tracking-wider text-teal-deep mb-3">
+            <span className="flex items-center gap-1.5 font-bold">
+              <StepIcon size={14} className="text-gold" />
+              {lang === "ar" ? currentMeta.labelAr : currentMeta.labelEn}
+            </span>
+            <span>
+              {step + 1} / {STEPS_META.length}
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          <Progress value={((step + 1) / STEPS_META.length) * 100} className="h-1.5 mb-10 bg-border" />
+
+          {/* FORM CONTAINER */}
+          <div className="bg-white border border-border/80 rounded-2xl p-6 md:p-12 shadow-xl shadow-teal-deep/5 transition-all duration-300">
+            {/* STEP 1: المعلومات الأساسية */}
+            {step === 0 && (
+              <div className="grid gap-6 animate-fade-in">
+                <div className="border-b border-border pb-4 mb-2">
+                  <h3 className="font-serif-ar text-xl text-teal-deep font-bold">
+                    {lang === "ar" ? "المعلومات الأساسية" : "Basic Contact Information"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar" ? "يرجى تزويدنا ببيانات الاتصال ليتسنى لمهندسينا التواصل معك." : "Please fill out your core credentials."}
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2 font-bold">
+                      {lang === "ar" ? "الاسم الكامل" : "Full Name"} *
+                    </label>
+                    <Input
+                      placeholder={lang === "ar" ? "الاسم ثلاثي" : "John Doe"}
+                      value={data.name}
+                      onChange={(e) => update("name", e.target.value)}
+                      className="h-12 border-border focus:border-gold"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2 font-bold">
+                      {lang === "ar" ? "رقم الهاتف" : "Phone / WhatsApp"} *
+                    </label>
+                    <Input
+                      placeholder="01xxxxxxxxx"
+                      value={data.phone}
+                      onChange={(e) => update("phone", e.target.value)}
+                      className="h-12 border-border focus:border-gold text-right md:text-left"
+                      dir="ltr"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2">
+                      {lang === "ar" ? "البريد الإلكتروني" : "Email Address"}
+                    </label>
+                    <Input
+                      placeholder="name@example.com"
+                      type="email"
+                      value={data.email}
+                      onChange={(e) => update("email", e.target.value)}
+                      className="h-12 border-border focus:border-gold text-right md:text-left"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2">
+                      {lang === "ar" ? "عنوان الوحدة المراد تشطيبها" : "Unit Location / District"}
+                    </label>
+                    <Input
+                      placeholder={lang === "ar" ? "التجمع الخامس، الشيخ زايد، إلخ" : "District / City"}
+                      value={data.address}
+                      onChange={(e) => update("address", e.target.value)}
+                      className="h-12 border-border focus:border-gold"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: معلومات عن المشروع */}
+            {step === 1 && (
+              <div className="grid gap-8 animate-fade-in">
+                <div className="border-b border-border pb-4">
+                  <h3 className="font-serif-ar text-xl text-teal-deep font-bold">
+                    {lang === "ar" ? "القسم الأول: معلومات عن المشروع" : "Section 1: Project Details"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar" ? "حدد نوع العقار ومرحلة المشروع الحالية." : "Select your property archetype and initial condition."}
+                  </p>
+                </div>
+
+                {/* Property Type */}
+                <div>
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-3 font-bold">
+                    {lang === "ar" ? "نوع العقار" : "Property Type"}
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {(lang === "ar" ? ["شقة", "فيلا", "مكتب", "محل تجاري", "أخرى"] : ["Apartment", "Villa", "Office", "Retail Shop", "Other"]).map((t) => (
+                      <button
+                        type="button"
+                        key={t}
+                        onClick={() => update("project_type", t)}
+                        className={`p-4 rounded-xl text-sm font-serif-ar border transition-all duration-300 text-center flex flex-col items-center justify-center gap-1 ${
+                          data.project_type === t
+                            ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-sm"
+                            : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(data.project_type === "أخرى" || data.project_type === "Other") && (
+                    <div className="mt-3 animate-fade-in">
+                      <Input
+                        placeholder={lang === "ar" ? "يرجى تحديد نوع العقار..." : "Specify property type..."}
+                        value={data.project_type_custom}
+                        onChange={(e) => update("project_type_custom", e.target.value)}
+                        className="h-11 border-gold/40 focus:border-gold"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Current Stage */}
+                <div>
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-3 font-bold">
+                    {lang === "ar" ? "المرحلة الحالية من المشروع" : "Current Structural Condition"}
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(lang === "ar" ? ["على الطوب الأحمر", "على المحارة", "متشطبه بالفعل", "أخرى"] : ["Red Brick", "Plastered", "Already finished", "Other"]).map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        onClick={() => update("stage", s)}
+                        className={`p-4 rounded-xl text-sm font-serif-ar border transition-all duration-300 text-center ${
+                          data.stage === s
+                            ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-sm"
+                            : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(data.stage === "أخرى" || data.stage === "Other") && (
+                    <div className="mt-3 animate-fade-in">
+                      <Input
+                        placeholder={lang === "ar" ? "يرجى تحديد المرحلة الحالية..." : "Specify condition..."}
+                        value={data.stage_custom}
+                        onChange={(e) => update("stage_custom", e.target.value)}
+                        className="h-11 border-gold/40 focus:border-gold"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: عدد الأفراد المستخدمين */}
+            {step === 2 && (
+              <div className="grid gap-6 animate-fade-in">
+                <div className="border-b border-border pb-4">
+                  <h3 className="font-serif-ar text-xl text-teal-deep font-bold">
+                    {lang === "ar" ? "القسم الثاني : عدد الأفراد المستخدمين" : "Section 2: Target Occupants"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar" ? "يساعدنا ذلك في توزيع الفراغات واختيار الخامات المناسبة لحركة الأسرة." : "Helps optimize space distribution and flow."}
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  {(lang === "ar" ? ["زوج + زوجة", "زوج وزوجة + طفل", "أخرى"] : ["Couple", "Family with Kid", "Other"]).map((f) => (
+                    <button
+                      type="button"
+                      key={f}
+                      onClick={() => update("family", f)}
+                      className={`p-5 rounded-xl text-base font-serif-ar border transition-all duration-300 text-center ${
+                        data.family === f
+                          ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-md"
+                          : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+
+                {(data.family === "أخرى" || data.family === "Other") && (
+                  <div className="mt-2 animate-fade-in">
+                    <label className="text-xs text-muted-foreground block mb-2">
+                      {lang === "ar" ? "يرجى كتابة تفاصيل الأفراد (مثل: فرد واحد، أسرة كبيرة مع والدين، إلخ):" : "Specify custom arrangement:"}
+                    </label>
+                    <Input
+                      placeholder={lang === "ar" ? "تفاصيل المستخدمين..." : "Custom occupant structure..."}
+                      value={data.family_custom}
+                      onChange={(e) => update("family_custom", e.target.value)}
+                      className="h-12 border-gold/40 focus:border-gold"
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 4: الخدمات المطلوبة */}
+            {step === 3 && (
+              <div className="grid gap-6 animate-fade-in">
+                <div className="border-b border-border pb-4">
+                  <h3 className="font-serif-ar text-xl text-teal-deep font-bold">
+                    {lang === "ar" ? "القسم الثالث: الخدمات المطلوبة" : "Section 3: Required Services"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar" ? "يرجى تحديد الخدمات التي ترغب في الحصول عليها." : "Please select the services you wish to get."}
+                  </p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {(lang === "ar" 
+                    ? ["تصميم داخلي", "تنفيذ وتشطيب كامل", "أثاث وديكور", "أخرى"] 
+                    : ["Interior Design", "Full Execution and Finishing", "Furniture & Decor", "Other"]
+                  ).map((srv) => (
+                    <button
+                      type="button"
+                      key={srv}
+                      onClick={() => update("service", srv)}
+                      className={`p-6 rounded-xl text-right md:text-center text-sm md:text-base font-serif-ar border transition-all duration-300 ${
+                        data.service === srv
+                          ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-md"
+                          : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                      }`}
+                    >
+                      {srv}
+                    </button>
+                  ))}
+                </div>
+
+                {(data.service === "أخرى" || data.service === "Other") && (
+                  <div className="mt-2 animate-fade-in">
+                    <Input
+                      placeholder={lang === "ar" ? "حدد الخدمة المخصصة..." : "Specify customized scope..."}
+                      value={data.service_custom}
+                      onChange={(e) => update("service_custom", e.target.value)}
+                      className="h-12 border-gold/40 focus:border-gold"
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 5: التوقعات والتجربة */}
+            {step === 4 && (
+              <div className="grid gap-6 animate-fade-in">
+                <div className="border-b border-border pb-4">
+                  <h3 className="font-serif-ar text-xl text-teal-deep font-bold">
+                    {lang === "ar" ? "القسم الرابع: التوقعات والتجربة" : "Section 4: Expectations & Experience"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar" ? "ما هي أولوياتك الرئيسية عند اختيار شريك التشطيب؟" : "What is your critical factor for success?"}
+                  </p>
+                </div>
+
+                {/* Important Factor */}
+                <div>
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-3 font-bold">
+                    {lang === "ar" ? "1. ما أهم العوامل التي تبحث عنها في شركة التشطيبات؟" : "1. What are the most important factors you look for in a finishing company?"}
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {(lang === "ar" ? ["الجودة", "الالتزام بالوقت", "السعر المناسب", "خدمة العملاء", "أخرى"] : ["Quality", "Time commitment", "Reasonable price", "Customer service", "Other"]).map((fac) => (
+                      <button
+                        type="button"
+                        key={fac}
+                        onClick={() => update("expectations_factor", fac)}
+                        className={`p-3.5 rounded-xl text-xs md:text-sm font-serif-ar border transition-all duration-300 text-center ${
+                          data.expectations_factor === fac
+                            ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-sm"
+                            : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                        }`}
+                      >
+                        {fac}
+                      </button>
+                    ))}
+                  </div>
+                  {(data.expectations_factor === "أخرى" || data.expectations_factor === "Other") && (
+                    <div className="mt-3 animate-fade-in">
+                      <Input
+                        placeholder={lang === "ar" ? "يرجى تحديد العامل المخصص..." : "Specify custom factor..."}
+                        value={data.expectations_factor_custom}
+                        onChange={(e) => update("expectations_factor_custom", e.target.value)}
+                        className="h-11 border-gold/40 focus:border-gold"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Source */}
+                <div>
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-3 font-bold">
+                    {lang === "ar" ? "2. كيف سمعت عن الشركة؟" : "2. How did you hear about the company?"}
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(lang === "ar" ? ["توصية من صديق", "وسائل التواصل الاجتماعي", "إعلان", "أخرى"] : ["Friend recommendation", "Social media", "Advertisement", "Other"]).map((src) => (
+                      <button
+                        type="button"
+                        key={src}
+                        onClick={() => update("source", src)}
+                        className={`p-3 rounded-lg text-xs font-serif-ar border transition-all text-center ${
+                          data.source === src
+                            ? "border-gold bg-gold/10 text-teal-deep font-bold"
+                            : "border-border bg-background text-muted-foreground"
+                        }`}
+                      >
+                        {src}
+                      </button>
+                    ))}
+                  </div>
+                  {(data.source === "أخرى" || data.source === "Other") && (
+                    <Input
+                      placeholder={lang === "ar" ? "حدد المصدر..." : "Specify source..."}
+                      value={data.source_custom}
+                      onChange={(e) => update("source_custom", e.target.value)}
+                      className="h-10 mt-2 border-gold/40 text-xs"
+                      autoFocus
+                    />
+                  )}
+                </div>
+
+                {/* Previous interaction */}
+                <div className="grid md:grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="text-xs text-teal-deep block mb-2 font-bold">
+                      {lang === "ar" ? "3. هل سبق التعامل مع شركات تشطيبات أخرى؟" : "3. Have you dealt with other finishing companies before?"}
+                    </label>
+                    <div className="flex gap-3">
+                      {(lang === "ar" ? ["نعم", "لا"] : ["Yes", "No"]).map((opt) => (
+                        <button
+                          type="button"
+                          key={opt}
+                          onClick={() => update("history", opt)}
+                          className={`flex-1 py-2.5 border rounded-lg text-xs font-serif-ar text-center ${
+                            data.history === opt ? "border-gold bg-gold/10 text-teal-deep font-bold" : "border-border text-muted-foreground"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    {(data.history === "نعم" || data.history === "Yes") && (
+                      <div className="animate-fade-in">
+                        <label className="text-xs text-teal-deep block mb-2 font-bold">
+                          {lang === "ar" ? "إذا كانت الإجابة نعم، ما أبرز التحديات التي واجهتها؟" : "If yes, what were the main challenges you faced?"}
+                        </label>
+                        <Input
+                          placeholder={lang === "ar" ? "تأخر التسليم، زيادة الميزانية، إلخ" : "Delays, over-budgeting..."}
+                          value={data.history_challenges}
+                          onChange={(e) => update("history_challenges", e.target.value)}
+                          className="h-10 text-xs border-gold/40 focus:border-gold"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 6: المشكلات وحلها وملاحظات إضافية */}
+            {step === 5 && (
+              <div className="grid gap-6 animate-fade-in">
+                <div className="border-b border-border pb-4">
+                  <h3 className="font-serif-ar text-xl text-teal-deep font-bold">
+                    {lang === "ar" ? "القسم الخامس والسادس" : "Sections 5 & 6: Goals & Notes"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar" ? "أخبرنا عن التجارب السابقة غير المريحة وما تحلم برؤيته في مساحتك الجديدة." : "Help us cure past concerns and meet absolute aesthetic targets."}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2 font-bold">
+                    {lang === "ar" ? "القسم الخامس: المشكلات وحلها" : "Section 5: Problems & Solutions"}
+                  </label>
+                  <div className="grid gap-4">
+                    <div>
+                      <span className="text-xs text-muted-foreground block mb-2">
+                        {lang === "ar" ? "1. المشاكل التي واجهتها في المشروع السابق" : "1. Problems faced in the previous project"}
+                      </span>
+                      <Textarea
+                        placeholder={lang === "ar" ? "مثل: سوء تأسيس السباكة، عدم تناسق الألوان، سوء الخامات..." : "Example: Bad plumbing, lack of alignment, unverified material..."}
+                        value={data.prev_problems}
+                        onChange={(e) => update("prev_problems", e.target.value)}
+                        className="min-h-24 leading-relaxed font-serif-ar text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="text-xs text-muted-foreground block mb-2">
+                        {lang === "ar" ? "2. ايه الحاجات اللي نفسك تحققها في مشروعك الجديد" : "2. What are the things you want to achieve in your new project"}
+                      </span>
+                      <Textarea
+                        placeholder={lang === "ar" ? "مثل: إضاءة ذكية، مطبخ مفتوح بتصميم مودرن، ألوان هادئة..." : "Example: Smart ambient lighting, sleek minimalist open kitchen..."}
+                        value={data.new_ambitions}
+                        onChange={(e) => update("new_ambitions", e.target.value)}
+                        className="min-h-24 leading-relaxed font-serif-ar text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2 font-bold">
+                    {lang === "ar" ? "القسم السادس: ملاحظات إضافية" : "Section 6: Additional Notes"}
+                  </label>
+                  <Textarea
+                    placeholder={lang === "ar" ? "أي متطلبات خاصة أو ملاحظات حرة تود إضافتها لفريق العمل..." : "Feel free to append raw feedback or drive folder link..."}
+                    value={data.notes}
+                    onChange={(e) => update("notes", e.target.value)}
+                    className="min-h-20 leading-relaxed font-serif-ar text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Footer note matching paper form */}
+            <div className="mt-8 pt-4 border-t border-border/40 text-center">
+              <p className="text-xs md:text-sm font-serif-ar text-gold italic font-bold">
+                {lang === "ar" ? "شكراً لثقتكم... يسعدنا أن نبدأ معكم الرحلة" : "Thank you for your trust... we are happy to start this journey with you"}
+              </p>
+            </div>
+          </div>
+
+          {/* Bottom Action Controllers */}
+          <div className="flex items-center justify-between mt-10 pt-4 border-t border-border/60">
+            <button
+              type="button"
+              onClick={prevStep}
+              disabled={step === 0}
+              className="btn-ghost-light !text-teal-deep !border-teal-deep/30 disabled:opacity-30 flex items-center gap-2"
+            >
+              <ArrowLeft size={16} />
+              <span>{lang === "ar" ? "الخطوة السابقة" : "Back"}</span>
+            </button>
+
+            {step < STEPS_META.length - 1 ? (
+              <button
+                type="button"
+                onClick={nextStep}
+                className="btn-gold flex items-center gap-2 px-8 py-3.5 font-bold"
+              >
+                <span>{lang === "ar" ? "الخطوة التالية" : "Continue"}</span>
+                <ArrowRight size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={submit}
+                disabled={busy}
+                className="btn-gold flex items-center gap-2 px-10 py-3.5 font-bold shadow-lg shadow-gold/20 disabled:opacity-50"
+              >
+                <span>{busy ? "..." : lang === "ar" ? "إرسال المتطلبات للتسعير" : "Submit Scope"}</span>
+                <Check size={16} strokeWidth={3} />
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}

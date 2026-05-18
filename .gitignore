@@ -1,0 +1,53 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables - NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Large media files
+original-assets-backup/
+compressed-media/
+circular_png/
+فولدرات شركة التشطيب/
+ffmpeg.zip
+public/real-content/
+
+# Supabase temp files
+supabase/.temp/
+
+# CMS backups
+cms-backups/
+
+# Utility/debug scripts
+check-cms-projects.js
+check-db.js
+
+# Binary tools
+bin/
+
+# Lock files (optional - keep bun.lockb if using bun)
+# bun.lockb
