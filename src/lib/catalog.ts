@@ -29,6 +29,16 @@ export type CatalogOption = {
   description_en?: string | null;
   description_ar?: string | null;
   image_url?: string | null;
+  media?: CatalogOptionMedia[];
+  sort_order: number;
+};
+
+export type CatalogOptionMedia = {
+  id: string;
+  media_type: string;
+  url: string;
+  alt_en?: string | null;
+  alt_ar?: string | null;
   sort_order: number;
 };
 
@@ -159,15 +169,30 @@ export const fallbackPackageStyles = (packageId: string): CatalogStyle[] => {
       name_en: section.nameEn,
       name_ar: section.nameAr,
       sort_order: sectionIndex + 1,
-      options: section.options.map((option, optionIndex) => ({
-        id: option.id,
-        name_en: option.nameEn,
-        name_ar: option.nameAr,
-        description_en: option.descEn,
-        description_ar: option.descAr,
-        image_url: normalizePackageImageUrl(option.img),
-        sort_order: optionIndex + 1,
-      })),
+      options: section.options.map((option, optionIndex) => {
+        const imageUrl = normalizePackageImageUrl(option.img);
+        return {
+          id: option.id,
+          name_en: option.nameEn,
+          name_ar: option.nameAr,
+          description_en: option.descEn,
+          description_ar: option.descAr,
+          image_url: imageUrl,
+          media: imageUrl
+            ? [
+                {
+                  id: `${option.id}-main`,
+                  media_type: "image",
+                  url: imageUrl,
+                  alt_en: option.nameEn,
+                  alt_ar: option.nameAr,
+                  sort_order: 0,
+                },
+              ]
+            : [],
+          sort_order: optionIndex + 1,
+        };
+      }),
     })),
   }));
 };
@@ -227,6 +252,15 @@ export async function getPackageStyles(packageId: string): Promise<CatalogStyle[
         .order("sort_order", { ascending: true })
     : { data: [] };
 
+  const optionIds = (options ?? []).map((option: any) => option.id);
+  const { data: media } = optionIds.length
+    ? await db
+        .from("package_option_media")
+        .select("*")
+        .in("option_id", optionIds)
+        .order("sort_order", { ascending: true })
+    : { data: [] };
+
   return styles.map((style: any) => ({
     id: style.id,
     package_id: style.package_id,
@@ -243,15 +277,42 @@ export async function getPackageStyles(packageId: string): Promise<CatalogStyle[
         sort_order: category.sort_order ?? 0,
         options: (options ?? [])
           .filter((option: any) => option.category_id === category.id)
-          .map((option: any) => ({
-            id: option.id,
-            name_en: option.name_en,
-            name_ar: option.name_ar,
-            description_en: option.description_en,
-            description_ar: option.description_ar,
-            image_url: normalizePackageImageUrl(option.image_url),
-            sort_order: option.sort_order ?? 0,
-          })),
+          .map((option: any) => {
+            const optionMedia = (media ?? [])
+              .filter((item: any) => item.option_id === option.id)
+              .map((item: any) => ({
+                id: item.id,
+                media_type: item.media_type,
+                url: normalizePackageImageUrl(item.url) ?? item.url,
+                alt_en: item.alt_en,
+                alt_ar: item.alt_ar,
+                sort_order: item.sort_order ?? 0,
+              }));
+            const imageUrl = normalizePackageImageUrl(option.image_url) ?? optionMedia[0]?.url ?? null;
+            return {
+              id: option.id,
+              name_en: option.name_en,
+              name_ar: option.name_ar,
+              description_en: option.description_en,
+              description_ar: option.description_ar,
+              image_url: imageUrl,
+              media: optionMedia.length
+                ? optionMedia
+                : imageUrl
+                  ? [
+                      {
+                        id: `${option.id}-main`,
+                        media_type: "image",
+                        url: imageUrl,
+                        alt_en: option.name_en,
+                        alt_ar: option.name_ar,
+                        sort_order: 0,
+                      },
+                    ]
+                  : [],
+              sort_order: option.sort_order ?? 0,
+            };
+          }),
       })),
   }));
 }

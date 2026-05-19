@@ -27,7 +27,7 @@ export default function Home() {
   const { t, lang } = useLang();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [heroMode, setHeroMode] = useState(() => {
-    return localStorage.getItem("tact_hero_bg_mode") || "video"; // Default to video as requested by user's preference update
+    return localStorage.getItem("tact_hero_bg_mode") || "video";
   });
   const [sections, setSections] = useState<Record<string, CmsSection>>({});
   const heroSection = sections.hero;
@@ -46,7 +46,6 @@ export default function Home() {
     };
 
     window.addEventListener("hero_bg_mode_changed", handleStorageChange);
-    // Also listen to storage events across browser tabs
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
@@ -78,7 +77,7 @@ export default function Home() {
   return (
     <>
       <section className="relative h-screen min-h-[600px] w-full overflow-hidden bg-[#0C363A]">
-        
+
         {/* CONDITIONAL HERO BACKGROUND: VIDEO OR SLIDESHOW */}
         {heroMode === "video" ? (
           <div className="absolute inset-0 w-full h-full z-0">
@@ -89,14 +88,14 @@ export default function Home() {
               loop
               muted
               playsInline
-              className="w-full h-full object-cover scale-105"
+              className="w-full h-full object-cover"
             />
-            {/* Dark overlay to guarantee pure readability of luxury text */}
+            {/* Dark overlay */}
             <div className="absolute inset-0 bg-[#0C363A]/72 pointer-events-none" />
             <div className={cn(
               "absolute inset-0 pointer-events-none",
-              lang === "ar" 
-                ? "bg-gradient-to-l from-[#0C363A] via-[#0C363A]/40 to-transparent" 
+              lang === "ar"
+                ? "bg-gradient-to-l from-[#0C363A] via-[#0C363A]/40 to-transparent"
                 : "bg-gradient-to-r from-[#0C363A] via-[#0C363A]/40 to-transparent"
             )} />
             <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(12,54,58,0.9)] pointer-events-none" />
@@ -110,10 +109,12 @@ export default function Home() {
                 idx === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
               )}
             >
-              <img 
-                src={src} 
-                alt="مشروع حقيقي لشركة تاكت" 
-                className="w-full h-full object-cover animate-ken-burns" 
+              <img
+                src={src}
+                alt="مشروع حقيقي لشركة تاكت"
+                className="w-full h-full object-cover image-crisp"
+                loading={idx === 0 ? "eager" : "lazy"}
+                decoding="async"
                 onError={(e) => {
                   (e.currentTarget as HTMLElement).style.display = "none";
                 }}
@@ -130,7 +131,7 @@ export default function Home() {
           <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#C18556]/60" />
           <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#C18556]/60" />
         </div>
-        
+
         <div className="container-luxe relative z-20 h-full flex flex-col justify-center text-white">
           <div className={cn(
             "flex flex-col",
@@ -144,29 +145,29 @@ export default function Home() {
                 <div className="h-px w-12 bg-[#C18556]/40" />
               </div>
             </Reveal>
-            
+
             <Reveal delay={150}>
               <h1 className="text-4xl md:text-7xl lg:text-8xl font-serif leading-[1.1] max-w-4xl text-balance">
                 {heroTitle}
               </h1>
             </Reveal>
-            
+
             <Reveal delay={300}>
               <p className="mt-8 max-w-lg text-sm md:text-lg text-white/85 leading-relaxed font-light">
                 {heroBody}
               </p>
             </Reveal>
-            
+
             <Reveal delay={450}>
               <div className="flex flex-wrap gap-5 mt-12 items-center">
-                <Link 
-                  to={heroCtaUrl} 
+                <Link
+                  to={heroCtaUrl}
                   className="bg-[#C18556] text-[#0C363A] px-10 py-4 rounded-sm text-xs font-bold uppercase tracking-[0.2em] transition-all hover:bg-[#DDB57C] hover:scale-105 active:scale-95 shadow-lg shadow-[#C18556]/20"
                 >
                   {heroCtaLabel}
                 </Link>
-                <Link 
-                  to="/portfolio" 
+                <Link
+                  to="/portfolio"
                   className="border border-[#C18556]/60 text-white px-10 py-4 rounded-sm text-xs font-bold uppercase tracking-[0.2em] transition-all hover:bg-[#C18556]/10 backdrop-blur-sm"
                 >
                   {t("cta_view_work")}
@@ -192,19 +193,14 @@ export default function Home() {
             </Reveal>
           )}
         </div>
-
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/40 flex flex-col items-center gap-3 text-[9px] uppercase tracking-[0.6em] z-20">
-          <div className="w-px h-12 bg-gradient-to-b from-[#C18556] to-transparent" />
-          <span className="animate-pulse">{t("scroll")}</span>
-        </div>
       </section>
 
       {/* Stats Strip */}
       <section className="bg-[#0C363A] text-white py-12 md:py-16 relative">
         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#C18556]/30 to-transparent" />
-        
+
         <div className="container-luxe grid grid-cols-2 md:grid-cols-4 gap-8">
-          { (() => {
+          {(() => {
             const fallback = [
               { value_ar: "+12", value_en: "+12", label_ar: "سنة خبرة", label_en: "Years Experience" },
               { value_ar: "+60", value_en: "+60", label_ar: "مشروع منفذ", label_en: "Completed Projects" },
@@ -228,21 +224,17 @@ export default function Home() {
             ));
           })()}
         </div>
-        
+
         <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#C18556]/15 to-transparent" />
       </section>
 
       <div className="relative z-[60]">
         <PhilosophySection />
-        <ServicesGrid section={sections["services-preview"]} />
-        <ProjectsShowcase section={sections["works-preview"]} />
-        <PdfBookletsSection />
-      </div>
-
-      <TeamPreview section={sections["team-preview"]} />
-
-      <div className="relative z-[60]">
+        <TeamPreview section={sections["team-preview"]} />
         <TestimonialsSection section={sections["testimonials"]} />
+        <ProjectsShowcase section={sections["works-preview"]} />
+        <ServicesGrid section={sections["services-preview"]} />
+        {sections["pdf-booklets"] && <PdfBookletsSection />}
         <FinalCTA />
       </div>
     </>

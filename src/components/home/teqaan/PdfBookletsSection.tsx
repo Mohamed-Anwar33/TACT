@@ -215,8 +215,9 @@ export default function PdfBookletsSection() {
                       <img
                         src={booklet.cover}
                         alt={lang === "ar" ? booklet.title : booklet.titleEn}
-                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                        className="w-full h-full object-cover image-crisp"
                         loading="lazy"
+                        decoding="async"
                       />
                       {/* Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0C363A]/85 via-[#0C363A]/20 to-transparent opacity-65 group-hover:opacity-85 transition-opacity duration-500" />

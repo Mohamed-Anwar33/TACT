@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import { useLang } from "@/i18n/LanguageProvider";
 
 const ABOUT_SLIDES = [
-  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.webp",
-  "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191721_.webp",
-  "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
-  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191955_.webp",
-  "/real-content/Designs/Landscape/Screenshot_14-5-2026_19049_.webp",
+  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.jpeg",
+  "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191721_.jpeg",
+  "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.jpeg",
+  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191955_.jpeg",
+  "/real-content/Designs/Landscape/Screenshot_14-5-2026_19049_.jpeg",
 ];
 
 export default function PhilosophySection() {
@@ -110,7 +110,10 @@ export default function PhilosophySection() {
                     <img 
                       src={src} 
                       alt="Tact Project" 
-                      className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" 
+                      className="w-full h-full object-cover"
+                      loading={idx === 0 ? "eager" : "lazy"}
+                      decoding="async"
+                      fetchpriority={idx === 0 ? "high" : "auto"}
                     />
                   </div>
                 ))}

@@ -116,7 +116,7 @@ function BlockRenderer({ block, lang, index, onPlay }: { block: ContentBlock; la
           {items.map((item: any) => (
             <article key={item.id || item.name} className="group overflow-hidden rounded-lg border bg-white shadow-sm">
               <div className="relative aspect-[4/3] bg-[#0C363A]">
-                <img src={item.img || item.cover} alt={pick(lang, item.name, item.nameAr)} className="h-full w-full object-cover transition group-hover:scale-105" loading="lazy" />
+                <img src={item.img || item.cover} alt={pick(lang, item.name, item.nameAr)} className="h-full w-full object-cover image-crisp" loading="lazy" decoding="async" />
                 {item.videoUrl && (
                   <button onClick={() => onPlay(item.videoUrl)} className="absolute inset-0 grid place-items-center bg-black/20 text-white">
                     <span className="grid h-14 w-14 place-items-center rounded-full bg-[#C18556] text-[#0C363A]"><Play fill="currentColor" /></span>

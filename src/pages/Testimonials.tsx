@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getCmsReviews } from "@/lib/publicCms";
+import { submitClientReview } from "@/lib/reviewSubmission";
 
 const STATIC_REVIEWS = [
   { id: "s1", name: "أ. محمد الشريف", role: "مشروع فيلا سكنية", quote: TESTIMONIALS_AR[0], rating: 5, date: "2026-04-12" },
@@ -68,6 +69,7 @@ export default function Testimonials() {
           rating: review.rating,
           date: "",
           videoUrl: review.videoUrl,
+          imageUrl: review.imageUrl,
         })));
       }
       setLoading(false);
@@ -83,22 +85,15 @@ export default function Testimonials() {
     }
 
     setSubmitting(true);
-    const { error } = await supabase.from("testimonials").insert({
-      name: form.name,
-      role_ar: form.role || "عميل تاكت",
-      role_en: form.role || "Tact Client",
-      quote_ar: form.quote,
-      quote_en: form.quote,
-      rating: form.rating,
-      published: false,
-    });
-    setSubmitting(false);
-
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await submitClientReview(form);
       setSubmitted(true);
       toast.success(lang === "ar" ? "تم إرسال تقييمك بنجاح!" : "Review submitted successfully!");
+      setForm({ name: "", role: "", quote: "", rating: 5 });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit review");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -180,6 +175,22 @@ export default function Testimonials() {
                       "{r.quote}"
                     </p>
 
+                    {r.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => window.open(r.imageUrl, "_blank", "noopener,noreferrer")}
+                        className="mb-6 block w-full overflow-hidden rounded-lg border border-border/60 bg-muted/30"
+                      >
+                        <img
+                          src={r.imageUrl}
+                          alt={r.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-56 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                        />
+                      </button>
+                    )}
+
                     <div className="pt-4 border-t border-border/50 flex items-center justify-between">
                       <div>
                         <h4 className="font-serif-ar text-base font-bold text-teal-deep">
@@ -244,7 +255,8 @@ export default function Testimonials() {
                     src={v.cover}
                     alt={v.title} 
                     loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    decoding="async"
+                    className="w-full h-full object-cover image-crisp"
                     onError={(e) => {
                       (e.currentTarget as HTMLElement).style.display = "none";
                     }}

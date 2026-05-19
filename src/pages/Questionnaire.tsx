@@ -38,9 +38,9 @@ export default function Questionnaire() {
     stage_custom: "",
     family: "",
     family_custom: "",
-    service: "",
+    service: [] as string[],
     service_custom: "",
-    expectations_factor: "",
+    expectations_factor: [] as string[],
     expectations_factor_custom: "",
     source: "",
     source_custom: "",
@@ -77,11 +77,22 @@ export default function Questionnaire() {
     const finalType = data.project_type === "أخرى" || data.project_type === "Other" ? data.project_type_custom || data.project_type : data.project_type;
     const finalStage = data.stage === "أخرى" || data.stage === "Other" ? data.stage_custom || data.stage : data.stage;
     const finalFamily = data.family === "أخرى" || data.family === "Other" ? data.family_custom || data.family : data.family;
-    const finalService = data.service === "أخرى" || data.service === "Other" ? data.service_custom || data.service : data.service;
-    const finalSource = data.source === "أخرى" || data.source === "Other" ? data.source_custom || data.source : data.source;
+    
+    // Multi-select: join arrays with commas, append custom if selected
+    const serviceArr = Array.isArray(data.service) ? data.service : [data.service].filter(Boolean);
+    const hasServiceOther = serviceArr.includes("أخرى") || serviceArr.includes("Other");
+    const finalService = hasServiceOther && data.service_custom
+      ? [...serviceArr.filter(s => s !== "أخرى" && s !== "Other"), data.service_custom].join(", ")
+      : serviceArr.join(", ");
 
-    const finalExpectationsFactor = data.expectations_factor === "أخرى" || data.expectations_factor === "Other" ? data.expectations_factor_custom || data.expectations_factor : data.expectations_factor;
-    const combinedExpectations = `أهم عامل: ${finalExpectationsFactor}`;
+    const factorArr = Array.isArray(data.expectations_factor) ? data.expectations_factor : [data.expectations_factor].filter(Boolean);
+    const hasFactorOther = factorArr.includes("أخرى") || factorArr.includes("Other");
+    const finalExpectationsFactor = hasFactorOther && data.expectations_factor_custom
+      ? [...factorArr.filter(s => s !== "أخرى" && s !== "Other"), data.expectations_factor_custom].join(", ")
+      : factorArr.join(", ");
+
+    const finalSource = data.source === "أخرى" || data.source === "Other" ? data.source_custom || data.source : data.source;
+    const combinedExpectations = `أهم عوامل: ${finalExpectationsFactor}`;
     const combinedHistory = `هل سبق التعامل: ${data.history} | التحديات المتوقعة: ${data.history_challenges}`;
     const combinedGoals = `المشكلات السابقة: ${data.prev_problems} | الطموحات الجديدة: ${data.new_ambitions}`;
 
@@ -432,7 +443,7 @@ export default function Questionnaire() {
                     {lang === "ar" ? "القسم الثالث: الخدمات المطلوبة" : "Section 3: Required Services"}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {lang === "ar" ? "يرجى تحديد الخدمات التي ترغب في الحصول عليها." : "Please select the services you wish to get."}
+                    {lang === "ar" ? "يمكنك اختيار أكثر من خيار (أضغط على الخدمة لتحديدها أو إلغائها)" : "You can select multiple services"}
                   </p>
                 </div>
 
@@ -440,23 +451,38 @@ export default function Questionnaire() {
                   {(lang === "ar" 
                     ? ["تصميم داخلي", "تنفيذ وتشطيب كامل", "أثاث وديكور", "أخرى"] 
                     : ["Interior Design", "Full Execution and Finishing", "Furniture & Decor", "Other"]
-                  ).map((srv) => (
-                    <button
-                      type="button"
-                      key={srv}
-                      onClick={() => update("service", srv)}
-                      className={`p-6 rounded-xl text-right md:text-center text-sm md:text-base font-serif-ar border transition-all duration-300 ${
-                        data.service === srv
-                          ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-md"
-                          : "border-border bg-background hover:border-gold/40 text-muted-foreground"
-                      }`}
-                    >
-                      {srv}
-                    </button>
-                  ))}
+                  ).map((srv) => {
+                    const selected = Array.isArray(data.service) ? data.service.includes(srv) : false;
+                    return (
+                      <button
+                        type="button"
+                        key={srv}
+                        onClick={() => {
+                          const arr = Array.isArray(data.service) ? [...data.service] : [];
+                          if (arr.includes(srv)) {
+                            update("service", arr.filter(s => s !== srv));
+                          } else {
+                            update("service", [...arr, srv]);
+                          }
+                        }}
+                        className={`p-6 rounded-xl text-right md:text-center text-sm md:text-base font-serif-ar border transition-all duration-300 flex items-center justify-between gap-2 ${
+                          selected
+                            ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-md"
+                            : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                        }`}
+                      >
+                        <span>{srv}</span>
+                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          selected ? "border-gold bg-gold" : "border-border"
+                        }`}>
+                          {selected && <Check size={10} strokeWidth={3} className="text-white" />}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {(data.service === "أخرى" || data.service === "Other") && (
+                {(Array.isArray(data.service) && (data.service.includes("أخرى") || data.service.includes("Other"))) && (
                   <div className="mt-2 animate-fade-in">
                     <Input
                       placeholder={lang === "ar" ? "حدد الخدمة المخصصة..." : "Specify customized scope..."}
@@ -482,28 +508,46 @@ export default function Questionnaire() {
                   </p>
                 </div>
 
-                {/* Important Factor */}
+                {/* Important Factor - MULTI SELECT */}
                 <div>
-                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-3 font-bold">
+                  <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-1 font-bold">
                     {lang === "ar" ? "1. ما أهم العوامل التي تبحث عنها في شركة التشطيبات؟" : "1. What are the most important factors you look for in a finishing company?"}
                   </label>
+                  <p className="text-[11px] text-muted-foreground mb-3">
+                    {lang === "ar" ? "يمكنك اختيار أكثر من عامل" : "You can select more than one factor"}
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {(lang === "ar" ? ["الجودة", "الالتزام بالوقت", "السعر المناسب", "خدمة العملاء", "أخرى"] : ["Quality", "Time commitment", "Reasonable price", "Customer service", "Other"]).map((fac) => (
-                      <button
-                        type="button"
-                        key={fac}
-                        onClick={() => update("expectations_factor", fac)}
-                        className={`p-3.5 rounded-xl text-xs md:text-sm font-serif-ar border transition-all duration-300 text-center ${
-                          data.expectations_factor === fac
-                            ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-sm"
-                            : "border-border bg-background hover:border-gold/40 text-muted-foreground"
-                        }`}
-                      >
-                        {fac}
-                      </button>
-                    ))}
+                    {(lang === "ar" ? ["الجودة", "الالتزام بالوقت", "السعر المناسب", "خدمة العملاء", "أخرى"] : ["Quality", "Time commitment", "Reasonable price", "Customer service", "Other"]).map((fac) => {
+                      const selected = Array.isArray(data.expectations_factor) ? data.expectations_factor.includes(fac) : false;
+                      return (
+                        <button
+                          type="button"
+                          key={fac}
+                          onClick={() => {
+                            const arr = Array.isArray(data.expectations_factor) ? [...data.expectations_factor] : [];
+                            if (arr.includes(fac)) {
+                              update("expectations_factor", arr.filter(f => f !== fac));
+                            } else {
+                              update("expectations_factor", [...arr, fac]);
+                            }
+                          }}
+                          className={`p-3.5 rounded-xl text-xs md:text-sm font-serif-ar border transition-all duration-300 text-center relative ${
+                            selected
+                              ? "border-gold bg-gold/10 text-teal-deep font-bold shadow-sm"
+                              : "border-border bg-background hover:border-gold/40 text-muted-foreground"
+                          }`}
+                        >
+                          {selected && (
+                            <span className="absolute top-1.5 left-1.5 w-4 h-4 bg-gold rounded-full flex items-center justify-center">
+                              <Check size={9} strokeWidth={3} className="text-white" />
+                            </span>
+                          )}
+                          {fac}
+                        </button>
+                      );
+                    })}
                   </div>
-                  {(data.expectations_factor === "أخرى" || data.expectations_factor === "Other") && (
+                  {(Array.isArray(data.expectations_factor) && (data.expectations_factor.includes("أخرى") || data.expectations_factor.includes("Other"))) && (
                     <div className="mt-3 animate-fade-in">
                       <Input
                         placeholder={lang === "ar" ? "يرجى تحديد العامل المخصص..." : "Specify custom factor..."}

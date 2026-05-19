@@ -11,10 +11,10 @@ export const whatsappLink = (msg = "") =>
   `https://wa.me/${SITE.whatsapp}${msg ? `?text=${encodeURIComponent(msg)}` : ""}`;
 
 export const SERVICES_AR = [
-  { num: "01", title: "التصميم الداخلي", desc: "رؤية هندسية متكاملة لكل غرفة، توازن بين الجمال والوظيفة." },
+  { num: "01", title: "التصميم الداخلي", desc: "رؤية هندسية متكاملة لتصميم وتنسيق الفراغات الداخلية بأعلى معايير الجمال والوظيفة." },
   { num: "02", title: "التصميم الخارجي", desc: "واجهات وحدائق ومداخل مصممة بهوية معمارية راقية." },
-  { num: "03", title: "التشطيبات المتكاملة", desc: "تشطيب من الألف إلى الياء بأعلى معايير الجودة والدقة." },
-  { num: "04", title: "تنفيذ الشقق والفيلات", desc: "إدارة كاملة لتنفيذ الوحدات السكنية بمختلف أحجامها." },
+  { num: "03", title: "تنفيذ تشطيبات خارجية", desc: "تنفيذ كلي لكافة بنود التشطيبات والواجهات الخارجية بأعلى معايير الجودة والدقة." },
+  { num: "04", title: "تنفيذ تشطيبات داخلية", desc: "سكني - إداري - تجاري (من الطوب الأحمر حتى تنفيذ الفرش المتكامل بأعلى مستويات الجودة)." },
   { num: "05", title: "تنفيذ المشروعات التجارية والإدارية", desc: "محلات، عيادات، مكاتب، ومقرات إدارية." },
   { num: "06", title: "الأثاث والديكور", desc: "قطع أثاث مفصلة وتنسيق ديكور يعكس هوية المساحة." },
   { num: "07", title: "الإشراف الهندسي", desc: "متابعة دقيقة على كل مرحلة لضمان جودة التنفيذ." },
@@ -22,10 +22,10 @@ export const SERVICES_AR = [
 ];
 
 export const SERVICES_EN = [
-  { num: "01", title: "Interior Design", desc: "Integrated architectural vision balancing beauty and function." },
+  { num: "01", title: "Interior & Space Design", desc: "Integrated architectural vision to design interior spaces with beauty and functionality." },
   { num: "02", title: "Exterior Design", desc: "Facades, gardens, and entrances with refined architectural identity." },
-  { num: "03", title: "Full Finishing", desc: "End-to-end finishing at the highest quality standards." },
-  { num: "04", title: "Apartment & Villa Execution", desc: "Full management for residential units of any size." },
+  { num: "03", title: "Exterior Finishing Execution", desc: "Complete execution of exterior finishing works and facades at the highest quality standards." },
+  { num: "04", title: "Interior Finishing Execution", desc: "Residential, administrative, and commercial - from red brick to fully furnished delivery." },
   { num: "05", title: "Commercial & Office Execution", desc: "Shops, clinics, offices, and corporate spaces." },
   { num: "06", title: "Furniture & Decor", desc: "Custom furniture pieces and styling that reflect your identity." },
   { num: "07", title: "Engineering Supervision", desc: "Precise oversight at every phase for guaranteed quality." },
@@ -61,70 +61,8 @@ export const TEAM = {
   ],
 };
 
-export const PROJECTS = [
-  {
-    id: "landscape-design",
-    img: "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
-    name: "Landscape & Gardens",
-    nameAr: "تنسيق حدائق ومناظر طبيعية",
-    type: "Designs",
-    typeAr: "تصاميم",
-    area: "850 m²",
-    desc: "Premium exterior landscaping layouts integrating natural stone, lighting, and serene greenery.",
-    descAr: "مخططات راقية لتنسيق الحدائق تدمج الحجر الطبيعي، الإضاءة المدروسة، والمساحات الخضراء الهادئة.",
-    pdf: "/real-content/Designs/Landscape.pdf",
-    images: [
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_185938_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_185952_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_19021_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_19031_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_19049_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_1907_.webp",
-      "/real-content/Designs/Landscape/Screenshot_14-5-2026_19111_.webp",
-    ]
-  },
-  {
-    id: "shop-facade",
-    img: "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191721_.webp",
-    name: "Commercial Shop Facade",
-    nameAr: "واجهة تجارية راقية",
-    type: "Commercial",
-    typeAr: "تجاري",
-    area: "140 m²",
-    desc: "Striking modern shop entrance designed to attract foot traffic while maintaining refined brand identity.",
-    descAr: "واجهة محل تجارية عصرية مصممة لجذب الأنظار مع الحفاظ على الهوية المعمارية الراقية للعلامة.",
-    pdf: "/real-content/Designs/Shop facade.pdf",
-    images: [
-      "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191721_.webp",
-      "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191737_.webp",
-    ]
-  },
-  {
-    id: "students-cafe",
-    img: "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.webp",
-    name: "Students Hub Cafe",
-    nameAr: "كافيه طلابي متكامل",
-    type: "Commercial",
-    typeAr: "تجاري",
-    area: "450 m²",
-    desc: "A vibrant yet sophisticated study and social cafe layout tailored for youth engagement.",
-    descAr: "تصميم كافيه طلابي نابض بالحياة يجمع بين مساحات الدراسة واللقاءات الاجتماعية بأرقى المعايير.",
-    pdf: "/real-content/Designs/students cafe.pdf",
-    images: [
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_191913_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_191929_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_191947_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_19194_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_191955_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_192016_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_192028_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_192037_.webp",
-      "/real-content/Designs/students cafe/Screenshot_14-5-2026_19206_.webp",
-    ]
-  },
-];
+export const PROJECTS = [];
+
 
 export const VIDEO_PROJECTS = [
   { id: "v1", name: "Luxury modern", nameAr: "شقة فاخرة مودرن", type: "Finishing Videos", typeAr: "فيديوهات التشطيب", area: "280 m²", videoUrl: "/real-content/Finishing videos/Luxury modern.mp4", cover: "/real-content/Finishing videos/Luxury modern-thumb.webp" },

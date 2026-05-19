@@ -17,10 +17,29 @@ const PKG_LABELS: Record<string, string> = {
   luxury: "باقة فاخرة (Luxury)" 
 };
 
+type ParsedSelectionItem = {
+  id: string;
+  styleName: string;
+  styleId?: string;
+  category: string;
+  categoryId?: string;
+  choice: string;
+  imageUrl: string | null;
+  description: string;
+  place: string;
+  qty: string;
+  imageNote: string;
+  categoryNotes: string;
+};
+
+type ParsedSelections = Record<string, ParsedSelectionItem[]>;
+
 export default function SelectionsManager() {
   const [selectionsList, setSelectionsList] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [packages, setPackages] = useState<any[]>([]);
+  const [stylesList, setStylesList] = useState<any[]>([]);
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [activeSelection, setActiveSelection] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,15 +51,19 @@ export default function SelectionsManager() {
   }, []);
 
   async function load() {
-    const [selRes, profRes, pkgRes] = await Promise.all([
+    const [selRes, profRes, pkgRes, styleRes, catRes] = await Promise.all([
       db.from("configurator_selections").select("*").order("created_at", { ascending: false }),
       db.from("profiles").select("*"),
-      db.from("packages").select("*")
+      db.from("packages").select("*"),
+      db.from("package_styles").select("*").order("sort_order", { ascending: true }),
+      db.from("package_categories").select("*").order("sort_order", { ascending: true })
     ]);
 
     setSelectionsList(selRes.data || []);
     setProfiles(profRes.data || []);
     setPackages(pkgRes.data || []);
+    setStylesList(styleRes?.data || []);
+    setCategoriesList(catRes?.data || []);
   }
 
   const getProfile = (uid: string) => profiles.find(p => p.id === uid);
@@ -57,6 +80,19 @@ export default function SelectionsManager() {
         );
       })
     : selectionsList;
+
+  const countSelectionItems = (rawSelections: any) => {
+    if (!rawSelections) return 0;
+    if (rawSelections.version === 2 && rawSelections.sections) {
+      return Object.values(rawSelections.sections).reduce((sum: number, section: any) => {
+        return sum + Object.keys(section?.selected ?? {}).length;
+      }, 0);
+    }
+    return Object.values(rawSelections).reduce((sum: number, val: any) => {
+      if (val?.selected && typeof val.selected === "object") return sum + Object.keys(val.selected).length;
+      return sum + 1;
+    }, 0);
+  };
 
   async function doDelete() {
     if (!deleteTarget) return;
@@ -78,6 +114,29 @@ export default function SelectionsManager() {
   const parseSelections = (rawSelections: any) => {
     if (!rawSelections) return {};
     const grouped: Record<string, any[]> = {};
+
+    if (rawSelections.version === 2 && rawSelections.sections) {
+      Object.values(rawSelections.sections).forEach((section: any) => {
+        const styleName = section.style || "عام (General)";
+        if (!grouped[styleName]) grouped[styleName] = [];
+        Object.values(section.selected ?? {}).forEach((item: any) => {
+          grouped[styleName].push({
+            category: section.category || item.category || "غير محدد",
+            choice: item.option_name || "غير محدد",
+            choiceObj: {
+              image_url: normalizePackageImageUrl(item.image_url),
+              description_ar: item.description,
+              name_ar: item.option_name,
+              name_en: item.option_name,
+            },
+            place: section.place || "غير محدد",
+            qty: section.qty || "غير محدد",
+            notes: item.note || section.notes || "لا توجد ملاحظات",
+          });
+        });
+      });
+      return grouped;
+    }
 
     Object.entries(rawSelections).forEach(([key, val]: [string, any]) => {
       let styleName = val.style || "عام (General)";
@@ -169,6 +228,197 @@ export default function SelectionsManager() {
     });
 
     return grouped;
+  };
+
+  const textOrDefault = (value: unknown, fallback: string) => {
+    if (typeof value !== "string") return fallback;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : fallback;
+  };
+
+  const normalizeImage = (url?: string | null) => normalizePackageImageUrl(url) || url || null;
+
+  const STYLE_ORDER_FALLBACK: Record<string, number> = {
+    "modern": 1,
+    "classic": 2,
+    "neoclassic": 3,
+    "style-preview": 0,
+    "مودرن": 1,
+    "كلاسيك": 2,
+    "نيوكلاسيك": 3,
+    "نيو كلاسيك": 3
+  };
+
+  const CATEGORY_ORDER_FALLBACK: Record<string, number> = {
+    "style-preview": 0,
+    "تحديد الاستايل": 0,
+    "صور الموديل قبل الاختيار": 0,
+    "doors": 1,
+    "internal-doors": 1,
+    "flooring": 2,
+    "ceiling": 3,
+    "suspended-ceilings": 3,
+    "walls": 4,
+    "plumbing": 5,
+    "fixtures": 5,
+    "ac": 6,
+    "air-conditioning": 6,
+    "windows": 7,
+    "heating": 8,
+    "الأبواب": 1,
+    "الأبواب الداخلية": 1,
+    "الأرضيات": 2,
+    "أرضيات": 2,
+    "الأسقف": 3,
+    "أسقف": 3,
+    "الأسقف المعلقة": 3,
+    "الحوائط": 4,
+    "حوائط": 4,
+    "دهانات": 4,
+    "السباكة": 5,
+    "سباكة": 5,
+    "سخانات": 6,
+    "تكييفات": 7,
+    "شبابيك": 8
+  };
+
+  const getStyleWeight = (styleId?: string, styleName?: string) => {
+    if (styleId) {
+      const dbStyle = stylesList.find(s => s.id === styleId);
+      if (dbStyle && typeof dbStyle.sort_order === "number") {
+        return dbStyle.sort_order;
+      }
+      const idLower = styleId.toLowerCase();
+      if (STYLE_ORDER_FALLBACK[idLower] !== undefined) {
+        return STYLE_ORDER_FALLBACK[idLower];
+      }
+    }
+    if (styleName) {
+      const trimmed = styleName.trim();
+      if (STYLE_ORDER_FALLBACK[trimmed] !== undefined) {
+        return STYLE_ORDER_FALLBACK[trimmed];
+      }
+      for (const [key, value] of Object.entries(STYLE_ORDER_FALLBACK)) {
+        if (trimmed.includes(key) || key.includes(trimmed)) {
+          return value;
+        }
+      }
+    }
+    return 999;
+  };
+
+  const getCategoryWeight = (categoryId?: string, categoryName?: string) => {
+    if (categoryId) {
+      const dbCat = categoriesList.find(c => c.id === categoryId || c.slug === categoryId);
+      if (dbCat && typeof dbCat.sort_order === "number") {
+        return dbCat.sort_order;
+      }
+      const slugLower = categoryId.toLowerCase();
+      if (CATEGORY_ORDER_FALLBACK[slugLower] !== undefined) {
+        return CATEGORY_ORDER_FALLBACK[slugLower];
+      }
+    }
+    if (categoryName) {
+      const trimmed = categoryName.trim();
+      if (CATEGORY_ORDER_FALLBACK[trimmed] !== undefined) {
+        return CATEGORY_ORDER_FALLBACK[trimmed];
+      }
+      for (const [key, value] of Object.entries(CATEGORY_ORDER_FALLBACK)) {
+        if (trimmed.includes(key) || key.includes(trimmed)) {
+          return value;
+        }
+      }
+    }
+    return 999;
+  };
+
+  const parseSelectionsForReport = (rawSelections: any): ParsedSelections => {
+    if (!rawSelections) return {};
+    const grouped: ParsedSelections = {};
+
+    const pushItem = (item: ParsedSelectionItem) => {
+      const styleName = textOrDefault(item.styleName, "عام (General)");
+      if (!grouped[styleName]) grouped[styleName] = [];
+      grouped[styleName].push({ ...item, styleName });
+    };
+
+    if (rawSelections.version === 2 && rawSelections.sections) {
+      Object.values(rawSelections.sections).forEach((section: any) => {
+        const styleName = textOrDefault(section.style, "عام (General)");
+        const sectionCategory = textOrDefault(section.category, "غير محدد");
+        const sectionPlace = textOrDefault(section.place, "غير محدد");
+        const sectionQty = textOrDefault(section.qty, "غير محدد");
+        const sectionNotes = textOrDefault(section.notes, "");
+
+        Object.values(section.selected ?? {}).forEach((item: any, index) => {
+          pushItem({
+            id: String(item.id || `${section.style_id || styleName}-${section.category_id || sectionCategory}-${item.option_id || index}`),
+            styleName,
+            styleId: section.style_id,
+            category: textOrDefault(item.category, sectionCategory),
+            categoryId: section.category_id,
+            choice: textOrDefault(item.option_name, "غير محدد"),
+            imageUrl: normalizeImage(item.image_url),
+            description: textOrDefault(item.description, "مواصفات المادة أو البند المحدد من الكتالوج الرسمي."),
+            place: sectionPlace,
+            qty: sectionQty,
+            imageNote: textOrDefault(item.note, "لا توجد ملاحظة خاصة بهذه الصورة"),
+            categoryNotes: sectionNotes,
+          });
+        });
+      });
+    } else {
+      Object.entries(rawSelections).forEach(([key, val]: [string, any]) => {
+        const legacySelected = val?.selected && typeof val.selected === "object" ? Object.values(val.selected) : [val];
+        let styleName = textOrDefault(val?.style, "عام (General)");
+        let categoryName = textOrDefault(val?.category, key);
+        let styleId = val?.style_id || "";
+        let categoryId = val?.category_id || key;
+
+        if (key.includes("_")) {
+          const idx = key.indexOf("_");
+          categoryName = key.substring(idx + 1);
+          const stylePrefix = key.substring(0, idx);
+          styleId = stylePrefix;
+          if (stylePrefix === "modern") styleName = "مودرن (Modern)";
+          else if (stylePrefix === "neoclassic" || stylePrefix === "classic") styleName = "نيو كلاسيك / كلاسيك";
+        }
+
+        legacySelected.forEach((legacyItem: any, index) => {
+          const choiceObj = legacyItem?.choiceObj || val?.choiceObj || null;
+          pushItem({
+            id: String(legacyItem?.id || `${key}-${index}`),
+            styleName,
+            styleId,
+            category: textOrDefault(legacyItem?.category, categoryName),
+            categoryId,
+            choice: textOrDefault(legacyItem?.option_name || legacyItem?.choice || val?.choice || choiceObj?.name_ar || choiceObj?.name_en, "غير محدد"),
+            imageUrl: normalizeImage(legacyItem?.image_url || choiceObj?.image_url),
+            description: textOrDefault(legacyItem?.description || choiceObj?.description_ar, "مواصفات المادة أو البند المحدد من الكتالوج الرسمي."),
+            place: textOrDefault(val?.place || legacyItem?.place, "غير محدد"),
+            qty: textOrDefault(val?.qty || legacyItem?.qty, "غير محدد"),
+            imageNote: textOrDefault(legacyItem?.note || legacyItem?.notes || val?.notes, "لا توجد ملاحظة خاصة بهذه الصورة"),
+            categoryNotes: textOrDefault(val?.categoryNotes || val?.section_notes, ""),
+          });
+        });
+      });
+    }
+
+    // Reconstruct the grouped object in sorted order of styles and categories
+    const sortedStylesKeys = Object.keys(grouped).sort((a, b) => {
+      const styleIdA = grouped[a][0]?.styleId;
+      const styleIdB = grouped[b][0]?.styleId;
+      return getStyleWeight(styleIdA, a) - getStyleWeight(styleIdB, b);
+    });
+
+    const sortedGrouped: ParsedSelections = {};
+    sortedStylesKeys.forEach(styleName => {
+      sortedGrouped[styleName] = grouped[styleName].sort((a, b) => {
+        return getCategoryWeight(a.categoryId, a.category) - getCategoryWeight(b.categoryId, b.category);
+      });
+    });
+
+    return sortedGrouped;
   };
 
   const handlePrint = async () => {
@@ -271,7 +521,7 @@ export default function SelectionsManager() {
   };
 
   const activeProfile = activeSelection ? getProfile(activeSelection.user_id) : null;
-  const activeParsed = activeSelection ? parseSelections(activeSelection.selections) : {};
+  const activeParsed = activeSelection ? parseSelectionsForReport(activeSelection.selections) : {};
 
   return (
     <>
@@ -312,7 +562,7 @@ export default function SelectionsManager() {
               <tbody>
                 {filtered.map(s => {
                   const pr = getProfile(s.user_id);
-                  const selectionKeys = s.selections ? Object.keys(s.selections) : [];
+                  const selectionCount = countSelectionItems(s.selections);
                   return (
                     <tr key={s.id}>
                       <td style={{ fontWeight: 600 }}>{pr?.full_name || "—"}</td>
@@ -322,7 +572,7 @@ export default function SelectionsManager() {
                           {getPkgName(s.package_id)}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700 }}>{selectionKeys.length} بند تشطيب</td>
+                      <td style={{ fontWeight: 700 }}>{selectionCount} صورة مختارة</td>
                       <td style={{ fontSize: "0.75rem", color: "#888" }}>
                         {new Date(s.created_at).toLocaleDateString("ar-EG")} · {new Date(s.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
                       </td>
@@ -466,11 +716,11 @@ export default function SelectionsManager() {
                         >
                           {/* Image preview */}
                           <div style={{ background: "#eee", display: "grid", placeItems: "center", borderInlineEnd: "1px solid #e5e0d5" }}>
-                            {item.choiceObj?.image_url ? (
+                            {item.imageUrl ? (
                               <img 
-                                src={item.choiceObj.image_url} 
-                                alt="" 
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                                src={item.imageUrl} 
+                                alt={item.choice} 
+                                style={{ width: "100%", height: "100%", objectFit: "contain", background: "#f8f5ee" }} 
                               />
                             ) : (
                               <div style={{ color: "#bbb", fontSize: "0.7rem", fontWeight: 600 }}>بدون صورة</div>
@@ -486,16 +736,63 @@ export default function SelectionsManager() {
                               </div>
                               <h5 style={{ fontWeight: 800, color: "#073b35", fontSize: "0.85rem", margin: "4px 0" }}>{item.choice}</h5>
                               <p style={{ fontSize: "0.72rem", color: "#666", margin: 0, lineHeight: 1.5 }}>
-                                {item.choiceObj?.description_ar || "لا يوجد وصف إضافي للمادة المحددة."}
+                                {item.description || "لا يوجد وصف إضافي للمادة المحددة."}
                               </p>
                             </div>
                             
-                            {/* Execution metrics */}
-                            <div style={{ borderTop: "1px dashed #eae5dc", paddingTop: 6, marginTop: 6, display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 8, fontSize: "0.68rem" }}>
-                              <div><span style={{ color: "#999" }}>مكان الاستخدام:</span> <strong style={{ color: "#073b35" }}>{item.place}</strong></div>
-                              <div><span style={{ color: "#999" }}>الكمية المطلوبة:</span> <strong style={{ color: "#073b35" }}>{item.qty}</strong></div>
-                              <div><span style={{ color: "#999" }}>ملاحظات:</span> <strong style={{ color: "#666" }}>{item.notes}</strong></div>
+                            {/* Execution metrics: Premium badges */}
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px", borderTop: "1px dashed #eae5dc", paddingTop: "8px" }}>
+                              <div style={{ background: "#f5f8f7", border: "1px solid #e1ebe8", borderRadius: "6px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.7rem" }}>
+                                <span style={{ color: "#888" }}>مكان الاستخدام:</span>
+                                <strong style={{ color: "#073b35" }}>{item.place}</strong>
+                              </div>
+                              <div style={{ background: "#f5f8f7", border: "1px solid #e1ebe8", borderRadius: "6px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.7rem" }}>
+                                <span style={{ color: "#888" }}>الكمية المطلوبة:</span>
+                                <strong style={{ color: "#073b35" }}>{item.qty}</strong>
+                              </div>
                             </div>
+
+                            {/* Image Note Callout */}
+                            {item.imageNote && item.imageNote !== "لا توجد ملاحظة خاصة بهذه الصورة" && item.imageNote.trim() !== "" ? (
+                              <div style={{ 
+                                marginTop: "8px", 
+                                padding: "8px 12px", 
+                                background: "#faf6f0", 
+                                borderRight: "3px solid #c9964c", 
+                                borderRadius: "6px", 
+                                fontSize: "0.72rem", 
+                                color: "#4a3c28", 
+                                lineHeight: 1.6 
+                              }}>
+                                <span style={{ fontWeight: 700, color: "#c9964c", display: "block", marginBottom: "3px", fontSize: "0.68rem" }}>
+                                  ملاحظة العميل على الصورة:
+                                </span>
+                                <span style={{ whiteSpace: "pre-line" }}>{item.imageNote}</span>
+                              </div>
+                            ) : (
+                              <div style={{ marginTop: "6px", fontSize: "0.68rem", color: "#bbb", fontStyle: "italic" }}>
+                                لا توجد ملاحظة خاصة بهذه الصورة.
+                              </div>
+                            )}
+
+                            {/* Category general notes */}
+                            {item.categoryNotes && item.categoryNotes.trim() !== "" && (
+                              <div style={{ 
+                                marginTop: "8px", 
+                                padding: "8px 12px", 
+                                background: "#f0f7f6", 
+                                borderRight: "3px solid #073b35", 
+                                borderRadius: "6px", 
+                                fontSize: "0.72rem", 
+                                color: "#052522", 
+                                lineHeight: 1.6 
+                              }}>
+                                <span style={{ fontWeight: 700, color: "#073b35", display: "block", marginBottom: "3px", fontSize: "0.68rem" }}>
+                                  ملاحظات عامة على التصنيف ({item.category}):
+                                </span>
+                                <span style={{ whiteSpace: "pre-line" }}>{item.categoryNotes}</span>
+                              </div>
+                            )}
                           </div>
 
                         </div>
@@ -624,7 +921,8 @@ export default function SelectionsManager() {
               .print-option-img {
                 width: 120px;
                 height: 104px;
-                object-fit: cover;
+                object-fit: contain;
+                background: #fbf9f5;
                 border-inline-end: 1px solid #eae5dc;
               }
               .print-option-details {
@@ -645,14 +943,63 @@ export default function SelectionsManager() {
                 color: #555;
                 margin: 0 0 8px 0;
               }
-              .print-meta-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr 1.5fr;
-                gap: 10px;
-                font-size: 0.75rem;
+              .print-meta-badges {
+                display: flex;
+                gap: 12px;
+                margin-top: 10px;
                 border-top: 1px dashed #eae5dc;
-                padding-top: 8px;
-                margin-top: 8px;
+                padding-top: 10px;
+              }
+              .print-badge {
+                background: #f5f8f7 !important;
+                border: 1px solid #e1ebe8 !important;
+                border-radius: 6px;
+                padding: 5px 12px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.8rem;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .badge-label {
+                color: #666;
+              }
+              .badge-value {
+                color: #073b35;
+                font-weight: bold;
+              }
+              .print-note-box {
+                margin-top: 10px;
+                padding: 10px 14px;
+                border-radius: 6px;
+                font-size: 0.82rem;
+                line-height: 1.5;
+                page-break-inside: avoid;
+              }
+              .print-note-box.image-note {
+                background: #faf6f0 !important;
+                border-right: 4px solid #c9964c;
+                color: #4a3c28;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .print-note-box.category-note {
+                background: #f0f7f6 !important;
+                border-right: 4px solid #073b35;
+                color: #052522;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .note-title {
+                display: block;
+                font-weight: bold;
+                font-size: 0.75rem;
+                margin-bottom: 4px;
+                text-transform: uppercase;
+              }
+              .note-text {
+                white-space: pre-line;
               }
               .print-signature-section {
                 display: grid;
@@ -707,11 +1054,11 @@ export default function SelectionsManager() {
               
               {items.map((item, idx) => (
                 <div key={idx} className="print-option-card">
-                  {item.choiceObj?.image_url && (
+                  {item.imageUrl && (
                     <img 
                       className="print-option-img" 
-                      src={item.choiceObj.image_url} 
-                      alt="" 
+                      src={item.imageUrl} 
+                      alt={item.choice} 
                     />
                   )}
                   <div className="print-option-details">
@@ -721,14 +1068,40 @@ export default function SelectionsManager() {
                         <span>بند {idx + 1}</span>
                       </div>
                       <h3 className="print-option-title">{item.choice}</h3>
-                      <p className="print-option-desc">{item.choiceObj?.description_ar || "مواصفات المادة أو البند المحدد من الكتالوج الرسمي."}</p>
+                      <p className="print-option-desc">{item.description || "مواصفات المادة أو البند المحدد من الكتالوج الرسمي."}</p>
                     </div>
 
-                    <div className="print-meta-grid">
-                      <div><span style={{ color: "#666" }}>مكان الاستخدام:</span> <strong>{item.place}</strong></div>
-                      <div><span style={{ color: "#666" }}>الكمية التقريبية:</span> <strong>{item.qty}</strong></div>
-                      <div><span style={{ color: "#666" }}>ملاحظات العميل:</span> <strong>{item.notes}</strong></div>
+                    {/* Printable Luxury Badges */}
+                    <div className="print-meta-badges">
+                      <div className="print-badge">
+                        <span className="badge-label">مكان الاستخدام:</span>
+                        <span className="badge-value">{item.place}</span>
+                      </div>
+                      <div className="print-badge">
+                        <span className="badge-label">الكمية التقريبية:</span>
+                        <span className="badge-value">{item.qty}</span>
+                      </div>
                     </div>
+
+                    {/* Image Note */}
+                    {item.imageNote && item.imageNote !== "لا توجد ملاحظة خاصة بهذه الصورة" && item.imageNote.trim() !== "" ? (
+                      <div className="print-note-box image-note">
+                        <span className="note-title">ملاحظة العميل على الصورة:</span>
+                        <span className="note-text">{item.imageNote}</span>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: "6px", fontSize: "0.75rem", color: "#bbb", fontStyle: "italic" }}>
+                        لا توجد ملاحظة خاصة بهذه الصورة.
+                      </div>
+                    )}
+
+                    {/* Category General Note */}
+                    {item.categoryNotes && item.categoryNotes.trim() !== "" ? (
+                      <div className="print-note-box category-note">
+                        <span className="note-title">ملاحظات عامة على التصنيف ({item.category}):</span>
+                        <span className="note-text">{item.categoryNotes}</span>
+                      </div>
+                    ) : ''}
                   </div>
                 </div>
               ))}

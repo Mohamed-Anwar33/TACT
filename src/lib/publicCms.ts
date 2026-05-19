@@ -28,20 +28,72 @@ export type CmsService = {
 export type CmsProject = {
   id: string;
   kind: "img" | "video";
+  portfolioKind?: "design" | "execution";
   name: string;
   nameAr: string;
   type: string;
   typeAr: string;
   area?: string;
+  areaNumber?: number | null;
+  areaRange?: string | null;
   desc?: string;
   descAr?: string;
   img?: string;
   cover?: string;
   videoUrl?: string;
+  videoSourceType?: "local" | "youtube" | "vimeo";
   pdf?: string;
+  pdfFiles?: { title: string; url: string }[];
   externalUrl?: string;
   images?: string[];
 };
+
+function normalizeArabicDigits(value: string) {
+  const arabic = "٠١٢٣٤٥٦٧٨٩";
+  const persian = "۰۱۲۳۴۵۶۷۸۹";
+  return value.replace(/[٠-٩۰-۹]/g, (digit) => {
+    const arabicIndex = arabic.indexOf(digit);
+    if (arabicIndex >= 0) return String(arabicIndex);
+    const persianIndex = persian.indexOf(digit);
+    return persianIndex >= 0 ? String(persianIndex) : digit;
+  });
+}
+
+export function parseAreaNumber(area?: string | null) {
+  if (!area) return null;
+  const normalized = normalizeArabicDigits(String(area));
+  const match = normalized.match(/\d+(?:[.,]\d+)?/);
+  if (!match) return null;
+  return Number(match[0].replace(",", "."));
+}
+
+export function getAreaRangeId(area?: string | null) {
+  const areaNumber = parseAreaNumber(area);
+  if (areaNumber === null || Number.isNaN(areaNumber)) return null;
+  if (areaNumber < 150) return "less-than-150";
+  if (areaNumber <= 200) return "150-to-200";
+  if (areaNumber <= 300) return "200-to-300";
+  return "more-than-300";
+}
+
+function getVideoSourceType(url?: string | null): CmsProject["videoSourceType"] {
+  if (!url) return "local";
+  if (/youtu\.be|youtube\.com/i.test(url)) return "youtube";
+  if (/vimeo\.com/i.test(url)) return "vimeo";
+  return "local";
+}
+
+function getFileTitle(url?: string | null) {
+  if (!url) return "";
+  const cleanUrl = url.split("?")[0].split("#")[0];
+  const lastSegment = cleanUrl.split("/").filter(Boolean).pop() || "";
+  const decoded = decodeURIComponent(lastSegment);
+  return decoded
+    .replace(/\.(mp4|webm|mov|m4v)$/i, "")
+    .replace(/-thumb$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+}
 
 export type CmsTeamMember = {
   id: string;
@@ -61,14 +113,19 @@ export type CmsClientReview = {
   id: string;
   name: string;
   nameAr: string;
+  client_name_en?: string;
+  client_name_ar?: string;
   role: string;
   roleAr: string;
   quote: string;
   quoteAr: string;
   rating: number;
   imageUrl?: string;
+  image_url?: string;
   videoUrl?: string;
+  video_url?: string;
   videoCoverUrl?: string;
+  video_cover_url?: string;
 };
 
 export type CmsContact = {
@@ -128,27 +185,35 @@ export function fallbackProjects(): CmsProject[] {
   return [
     ...PROJECTS.map((project) => ({
       kind: "img" as const,
+      portfolioKind: "design" as const,
       id: project.id,
       name: project.name,
       nameAr: project.nameAr,
       type: project.type,
       typeAr: project.typeAr,
       area: project.area,
+      areaNumber: parseAreaNumber(project.area),
+      areaRange: getAreaRangeId(project.area),
       desc: project.desc,
       descAr: project.descAr,
       img: resolveMediaUrl(project.img),
       pdf: resolveMediaUrl(project.pdf),
+      pdfFiles: project.pdf ? [{ title: "ملف المشروع PDF", url: resolveMediaUrl(project.pdf) || project.pdf }] : [],
       images: project.images?.map((image) => resolveMediaUrl(image) || image),
     })),
     ...VIDEO_PROJECTS.map((project) => ({
       kind: "video" as const,
+      portfolioKind: "execution" as const,
       id: project.id,
-      name: project.name,
-      nameAr: project.nameAr,
+      name: getFileTitle(project.videoUrl) || project.name,
+      nameAr: getFileTitle(project.videoUrl) || project.nameAr,
       type: project.type,
       typeAr: project.typeAr,
       area: project.area,
+      areaNumber: parseAreaNumber(project.area),
+      areaRange: getAreaRangeId(project.area),
       videoUrl: resolveMediaUrl(project.videoUrl),
+      videoSourceType: getVideoSourceType(project.videoUrl),
       cover: resolveMediaUrl(project.cover),
     })),
   ];
@@ -193,6 +258,9 @@ export function fallbackContact(): CmsContact {
       facebook: SITE.facebook,
       instagram: SITE.instagram,
       tiktok: SITE.tiktok,
+      youtube: "",
+      linkedin: "",
+      twitter: "",
     },
   };
 }
@@ -224,21 +292,42 @@ export async function getCmsProjects() {
     const gallery = media
       .filter((item: any) => item.project_id === row.id && item.media_type === "image")
       .map((item: any) => resolveMediaUrl(item.url) || item.url);
+    const pdfFiles = [
+      row.pdf_url
+        ? {
+            title: row.title_ar ? `ملف ${row.title_ar}` : "ملف المشروع PDF",
+            url: resolveMediaUrl(row.pdf_url) || row.pdf_url,
+          }
+        : null,
+      ...media
+        .filter((item: any) => item.project_id === row.id && item.media_type === "pdf")
+        .map((item: any) => ({
+          title: item.title_ar || item.title_en || "ملف PDF",
+          url: resolveMediaUrl(item.url) || item.url,
+        })),
+    ].filter(Boolean) as { title: string; url: string }[];
     const isVideo = !!row.video_url;
+    const areaNumber = parseAreaNumber(row.area);
+    const videoFileTitle = isVideo ? getFileTitle(row.video_url) : "";
     return {
       id: row.id,
       kind: isVideo ? "video" : "img",
-      name: row.title_en,
-      nameAr: row.title_ar,
+      portfolioKind: isVideo ? "execution" : "design",
+      name: isVideo ? videoFileTitle || row.title_en : row.title_en,
+      nameAr: isVideo ? videoFileTitle || row.title_ar : row.title_ar,
       type: row.category_en || "Project",
       typeAr: row.category_ar || row.category_en || "Project",
       area: row.area,
+      areaNumber,
+      areaRange: getAreaRangeId(row.area),
       desc: row.description_en,
       descAr: row.description_ar,
       img: resolveMediaUrl(row.cover_url),
       cover: resolveMediaUrl(row.cover_url),
       videoUrl: resolveMediaUrl(row.video_url),
+      videoSourceType: getVideoSourceType(row.video_url),
       pdf: resolveMediaUrl(row.pdf_url),
+      pdfFiles,
       externalUrl: row.external_url,
       images: gallery.length ? gallery : row.cover_url ? [resolveMediaUrl(row.cover_url) || row.cover_url] : [],
     } as CmsProject;
@@ -270,14 +359,19 @@ export async function getCmsReviews() {
     id: row.id,
     name: row.client_name_en || "Tact Client",
     nameAr: row.client_name_ar || row.client_name_en || "عميل تاكت",
+    client_name_en: row.client_name_en,
+    client_name_ar: row.client_name_ar,
     role: row.role_en || "Client",
     roleAr: row.role_ar || row.role_en || "عميل",
     quote: row.quote_en || row.quote_ar || "",
     quoteAr: row.quote_ar || row.quote_en || "",
     rating: row.rating || 5,
     imageUrl: resolveMediaUrl(row.image_url),
+    image_url: resolveMediaUrl(row.image_url),
     videoUrl: resolveMediaUrl(row.video_url),
+    video_url: resolveMediaUrl(row.video_url),
     videoCoverUrl: resolveMediaUrl(row.video_cover_url),
+    video_cover_url: resolveMediaUrl(row.video_cover_url),
   })) as CmsClientReview[];
 }
 

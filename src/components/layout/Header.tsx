@@ -48,6 +48,21 @@ export default function Header() {
     { to: "/contact", ar: "تواصل معنا", en: "Contact" },
   ];
 
+  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleNavLinkClick = (to: string, e: React.MouseEvent<HTMLAnchorElement>) => {
+    setOpen(false);
+    if (pathname === to) {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   return (
     <header
       className={cn(
@@ -57,42 +72,64 @@ export default function Header() {
       dir={lang === "ar" ? "rtl" : "ltr"}
     >
       <div className="container-luxe flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 py-1">
-          <img src="/logo.png" alt="Tact" className="h-16 w-16 object-contain drop-shadow-[0_0_12px_rgba(193,133,86,0.22)]" />
+        <Link 
+          to="/" 
+          onClick={handleLogoClick}
+          className="flex items-center gap-3 py-1 transition-all duration-500 hover:scale-105 group"
+        >
+          <img 
+            src="/logo.png" 
+            alt="Tact" 
+            className="h-16 w-16 object-contain transition-all duration-500 drop-shadow-[0_0_12px_rgba(193,133,86,0.22)] group-hover:drop-shadow-[0_0_22px_rgba(193,133,86,0.45)]" 
+          />
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        {/* Desktop Navigation Links with Gold Underline Micro-animations */}
+        <nav className="hidden lg:flex items-center gap-8">
           {items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === "/"}
+              onClick={(e) => handleNavLinkClick(item.to, e)}
               className={({ isActive }) =>
                 cn(
-                  "relative px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition",
-                  isActive ? "text-brand-gold" : "text-white/80 hover:text-white",
+                  "relative py-2 text-sm font-semibold tracking-wide transition-all duration-300 group",
+                  isActive ? "text-brand-gold" : "text-white/80 hover:text-white"
                 )
               }
             >
               {({ isActive }) => (
-                <>
+                <span className="relative py-1">
                   {lang === "ar" ? item.ar : item.en}
-                  {isActive && <span className="absolute bottom-0 left-1/2 h-px w-5 -translate-x-1/2 bg-brand-gold" />}
-                </>
+                  <span
+                    className={cn(
+                      "absolute bottom-0 left-0 right-0 h-[2px] bg-brand-gold transition-all duration-500 ease-out origin-center",
+                      isActive ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100"
+                    )}
+                  />
+                </span>
               )}
             </NavLink>
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        {/* Action Buttons & Language Switcher */}
+        <div className="flex items-center gap-6">
           {user ? (
-            <Link to={isAdmin ? "/admin" : "/customer"} className="hidden items-center gap-2 rounded-sm border border-brand-gold bg-brand-gold px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold md:flex">
-              {isAdmin 
+            <Link
+              to={isAdmin ? "/admin" : "/customer"}
+              className="hidden items-center gap-2 rounded-sm border border-brand-gold bg-brand-gold px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold md:flex"
+            >
+              {isAdmin
                 ? (lang === "ar" ? "لوحة التحكم" : "Dashboard")
                 : (lang === "ar" ? "بوابة العميل" : "Client Portal")}
             </Link>
           ) : (
-            <Link to="/auth" className="hidden items-center gap-2 rounded-sm border border-brand-gold bg-brand-gold px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold md:flex">
+            <Link
+              to="/auth"
+              className="hidden items-center gap-2 rounded-sm border border-brand-gold bg-brand-gold px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold md:flex"
+            >
               {lang === "ar" ? "تسجيل دخول" : "Login"}
             </Link>
           )}
@@ -106,21 +143,36 @@ export default function Header() {
         </div>
       </div>
 
+      {/* Mobile Navigation Panel */}
       <div className={cn("lg:hidden overflow-hidden bg-brand-dark transition-all", open ? "max-h-[520px] border-t border-white/10" : "max-h-0")}>
         <div className="container-luxe grid gap-1 py-5">
           {items.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => cn("rounded-sm px-3 py-3 text-lg text-white/75", isActive && "bg-white/10 text-brand-gold")}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === "/"}
+              onClick={(e) => handleNavLinkClick(item.to, e)}
+              className={({ isActive }) =>
+                cn("rounded-sm px-3 py-3 text-lg text-white/75 transition-colors duration-300", isActive && "bg-white/10 text-brand-gold")
+              }
+            >
               {lang === "ar" ? item.ar : item.en}
             </NavLink>
           ))}
           {user ? (
-            <Link to={isAdmin ? "/admin" : "/customer"} className="mt-3 rounded-sm bg-brand-gold px-3 py-3 text-center font-semibold text-brand-dark">
+            <Link 
+              to={isAdmin ? "/admin" : "/customer"} 
+              className="mt-3 rounded-sm bg-brand-gold px-3 py-3 text-center font-semibold text-brand-dark"
+            >
               {isAdmin 
                 ? (lang === "ar" ? "لوحة التحكم" : "Dashboard")
                 : (lang === "ar" ? "بوابة العميل" : "Client Portal")}
             </Link>
           ) : (
-            <Link to="/auth" className="mt-3 rounded-sm bg-brand-gold px-3 py-3 text-center font-semibold text-brand-dark">
+            <Link 
+              to="/auth" 
+              className="mt-3 rounded-sm bg-brand-gold px-3 py-3 text-center font-semibold text-brand-dark"
+            >
               {lang === "ar" ? "تسجيل دخول" : "Login"}
             </Link>
           )}

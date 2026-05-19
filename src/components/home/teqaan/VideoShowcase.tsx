@@ -49,7 +49,9 @@ export default function VideoShowcase() {
               <img 
                 src="/real-content/Finishing videos/Luxury modern-thumb.webp" 
                 alt="Luxury Architectural Video Preview" 
-                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
+                className="w-full h-full object-cover image-crisp"
+                loading="lazy"
+                decoding="async"
               />
               
               {/* Dark Cinematic Overlay */}

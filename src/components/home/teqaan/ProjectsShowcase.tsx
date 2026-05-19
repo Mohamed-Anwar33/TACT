@@ -1,24 +1,23 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowLeft, Play, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, Play, X, Compass, Palette, Sparkles } from "lucide-react";
 import Reveal from "@/components/ui-luxe/Reveal";
 import { useLang } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-import { CmsProject, fallbackProjects, getCmsProjects } from "@/lib/publicCms";
+import { PROJECTS, VIDEO_PROJECTS } from "@/data/site";
 
 function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; lang: string; onPlayVideo?: (url: string) => void }) {
-  const num = (index + 1).toString().padStart(2, '0');
-  const isVideo = p.kind === "video";
+  const isVideo = p.videoUrl ? true : false;
 
   return (
-    <Reveal delay={index * 150} className="w-full">
-      <div className="group relative w-full h-[300px] md:h-[340px] overflow-hidden rounded-[10px] border border-[#C18556]/32 bg-white/5 shadow-[0_24px_60px_rgba(0,0,0,0.22)] transition-all duration-500 hover:translate-y-[-6px] hover:border-[#C18556]/62">
-        {/* Full Card Link or Video Play Button Overlay */}
+    <Reveal delay={index * 120} className="w-full">
+      <div className="group relative w-full h-[320px] md:h-[360px] overflow-hidden rounded-[12px] border border-[#C18556]/22 bg-[#061F22] shadow-[0_20px_45px_rgba(0,0,0,0.25)] transition-all duration-500 hover:translate-y-[-6px] hover:border-[#C18556]/65 hover:shadow-[0_25px_50px_rgba(193,133,86,0.22)]">
+        {/* Full Card Link or Video Click Overlay */}
         {isVideo ? (
           <button 
             type="button"
-            onClick={() => onPlayVideo?.(p.videoUrl || p.cover || p.img)}
-            className="absolute inset-0 z-30 w-full h-full text-start cursor-pointer"
+            onClick={() => onPlayVideo?.(p.videoUrl)}
+            className="absolute inset-0 z-30 w-full h-full text-start cursor-pointer focus:outline-none"
           >
             <span className="sr-only">Watch {p.name}</span>
           </button>
@@ -28,59 +27,74 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
           </Link>
         )}
 
-        {/* Project Image */}
+        {/* Project Cover Image */}
         <img 
           src={p.img || p.cover || "/placeholder-project.jpg"} 
-          alt={lang === "ar" ? (p.nameAr || p.name) : (p.name || p.nameAr)} 
+          alt={lang === "ar" ? p.nameAr : p.name} 
           loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.045] z-0"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95"
         />
         
-        {/* Cinematic Overlay Gradient - Lightened to show the image */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#061F22] via-[#061F22]/20 to-transparent transition-opacity duration-500 z-10" />
+        {/* Cinematic Premium Overlay Gradients */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#061F22] via-[#061F22]/35 to-transparent z-10 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-transparent z-10 pointer-events-none" />
         
-        {/* Top Content: Number & Category */}
-        <div className="absolute top-0 inset-x-0 p-6 flex justify-between items-start z-20 pointer-events-none">
-          <div className="text-[17px] font-medium text-[#C18556]/78 font-serif">
-            {num}
-          </div>
+        {/* Top Info Badges (Always visible on the outside) */}
+        <div className="absolute top-4 inset-x-4 flex justify-between items-start z-20 pointer-events-none">
+          {/* Project Area Dimensions - Hidden as requested */}
+          <div />
+          {/* Subcategory Icon/Tag */}
+          <span className="bg-[#C18556] text-white text-[9px] uppercase font-extrabold tracking-widest px-2.5 py-1 rounded-[4px] shadow-sm flex items-center gap-1.5">
+            <Sparkles size={8} className="animate-pulse" />
+            {isVideo ? (lang === "ar" ? "تنفيذ واقعي" : "EXECUTED") : (lang === "ar" ? "تصميم ثلاثي" : "3D DESIGN")}
+          </span>
         </div>
 
-        {/* Play Button Icon for Videos */}
+        {/* Play Button Overlay for Videos */}
         {isVideo && (
           <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-            <div className="w-[60px] h-[60px] rounded-full bg-[#C18556]/90 text-[#061F22] flex items-center justify-center shadow-[0_0_30px_rgba(193,133,86,0.5)] transition-all duration-500 group-hover:scale-110 group-hover:bg-white">
-              <Play size={20} className="fill-current translate-x-0.5 text-[#061F22]" />
+            <div className="w-[60px] h-[60px] rounded-full bg-[#C18556]/90 text-[#061F22] flex items-center justify-center shadow-[0_0_30px_rgba(193,133,86,0.55)] transition-all duration-500 group-hover:scale-115 group-hover:bg-white">
+              <Play size={20} className="fill-current translate-x-[1px] text-[#061F22]" />
             </div>
           </div>
         )}
 
-        {/* Bottom Content */}
-        <div className="absolute inset-0 p-6 md:p-8 flex flex-col justify-end z-20 pointer-events-none">
+        {/* Bottom Details Container (Permanently displayed on the outside) */}
+        <div className="absolute bottom-0 inset-x-0 p-5 md:p-6 z-20 pointer-events-none bg-gradient-to-t from-[#061F22] via-[#061F22]/90 to-transparent">
           <div className={cn(
-            "transition-all duration-700",
+            "transition-all duration-500",
             lang === "ar" ? "text-right" : "text-left"
           )}>
-            <h3 className="text-xl md:text-[25px] font-bold text-white mb-2 leading-[1.35]">
-              {lang === "ar" ? (p.nameAr || p.name) : (p.name || p.nameAr)}
+            {/* Title */}
+            <h3 className="text-lg md:text-[21px] font-bold text-white mb-2 leading-[1.3] drop-shadow-md">
+              {lang === "ar" ? p.nameAr : p.name}
             </h3>
             
-            <p className="text-[14px] md:text-[15px] text-white/90 line-clamp-2 mb-4 leading-[1.7]">
-              {lang === "ar" 
-                ? (p.descAr || "تصميم وتشطيب متكامل بأعلى معايير الجودة والدقة الهندسيـة.")
-                : (p.desc || "Integrated design and finishing with highest quality and engineering precision standards.")}
-            </p>
+            {/* Description snippet */}
+            {isVideo && (
+              <p className="text-[12px] md:text-[13px] text-white/80 line-clamp-2 mb-3 leading-relaxed drop-shadow-sm font-light">
+                {lang === "ar" ? p.descAr : p.desc}
+              </p>
+            )}
 
-            <div className="flex items-center gap-2 text-[#C18556] text-[14px] font-bold group/link">
-              <span>{isVideo ? (lang === "ar" ? "مشاهدة الفيديو" : "Watch Walkthrough") : (lang === "ar" ? "عرض المشروع" : `View ${p.name}`)}</span>
+            {/* Navigation CTA link */}
+            <div className="flex items-center gap-2 text-[#C18556] text-[12px] font-bold group-hover:text-white transition-colors duration-300">
+              <span className="border-b border-[#C18556]/40 pb-0.5 group-hover:border-white/40">
+                {isVideo ? (lang === "ar" ? "مشاهدة التغطية المرئية" : "Watch Video Coverage") : (lang === "ar" ? "عرض ألبوم التصميم" : "View Design Album")}
+              </span>
               {lang === "ar" ? (
-                <ArrowLeft size={16} className="transition-transform duration-300 group-hover/link:-translate-x-1" />
+                <ArrowLeft size={13} className="transition-transform duration-300 group-hover:-translate-x-1" />
               ) : (
-                <ArrowRight size={16} className="transition-transform duration-300 group-hover/link:translate-x-1" />
+                <ArrowRight size={13} className="transition-transform duration-300 group-hover:translate-x-1" />
               )}
             </div>
           </div>
         </div>
+
+        {/* Delicate Glass Corners on Hover */}
+        <div className="absolute top-3 left-3 w-3 h-3 border-t border-l border-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" />
+        <div className="absolute bottom-3 right-3 w-3 h-3 border-b border-r border-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" />
       </div>
     </Reveal>
   );
@@ -88,58 +102,25 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
 
 export default function ProjectsShowcase({ section }: { section?: any }) {
   const { lang } = useLang();
-  const [projects, setProjects] = useState<CmsProject[]>(() => fallbackProjects());
+  const [activeMainTab, setActiveMainTab] = useState<"designs" | "finishing">("designs");
+  
+  // Video modal player
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let alive = true;
-    getCmsProjects().then((rows) => {
-      if (alive) setProjects(rows);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // Dynamic Filtering Logic
+  let displayItems: any[] = [];
 
-  const selectedIds = section?.metadata?.selectedIds;
-  let displayProjects = projects;
-  if (Array.isArray(selectedIds) && selectedIds.length > 0) {
-    displayProjects = selectedIds
-      .map(id => projects.find(p => p.id === id))
-      .filter(Boolean) as CmsProject[];
-    
-    if (displayProjects.length === 0) {
-      displayProjects = projects.filter((p) => p.kind === "img").slice(0, 3);
-    }
+  if (activeMainTab === "designs") {
+    // Filter Designs (PROJECTS) -> Display exactly top 2 premier designs
+    displayItems = PROJECTS.slice(0, 2);
   } else {
-    displayProjects = projects.filter((p) => p.kind === "img").slice(0, 3);
+    // Filter Finishing Videos (VIDEO_PROJECTS) -> Display exactly top 2 premier videos
+    displayItems = VIDEO_PROJECTS.slice(0, 2);
   }
 
-  const handleScroll = (direction: "left" | "right") => {
-    if (scrollRef.current) {
-      const { scrollLeft, clientWidth } = scrollRef.current;
-      const scrollAmount = clientWidth * 0.85;
-      scrollRef.current.scrollTo({
-        left: direction === "left" ? scrollLeft - scrollAmount : scrollLeft + scrollAmount,
-        behavior: "smooth",
-      });
-    }
-  };
-
   return (
-    <section className="relative w-full py-20 md:py-24 overflow-hidden bg-gradient-to-br from-[#061F22] via-[#0C363A] to-[#061F22]" dir={lang === "ar" ? "rtl" : "ltr"}>
-      <style dangerouslySetInnerHTML={{__html: `
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}} />
-
-      {/* Decorative Blueprint & Grid */}
+    <section className="relative w-full py-24 md:py-32 overflow-hidden bg-gradient-to-br from-[#061F22] via-[#0C363A] to-[#061F22]" dir={lang === "ar" ? "rtl" : "ltr"}>
+      {/* Decorative Grid Patterns */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
            style={{ backgroundImage: `linear-gradient(#FFFFFF 0.5px, transparent 0.5px), linear-gradient(90deg, #FFFFFF 0.5px, transparent 0.5px)`, backgroundSize: '80px 80px' }} />
       
@@ -148,109 +129,113 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
         <div className={cn("absolute top-0 bottom-0 w-px bg-gradient-to-b from-[#C18556] via-transparent to-[#C18556]", lang === "ar" ? "left-[5%]" : "right-[5%]")} />
       </div>
 
-      {/* Inner Frame */}
-      <div className="absolute inset-[28px] border border-[#C18556]/16 pointer-events-none hidden md:block">
-        <div className="absolute top-0 left-0 w-1 h-1 bg-[#C18556]/40 rounded-full" />
-        <div className="absolute top-0 right-0 w-1 h-1 bg-[#C18556]/40 rounded-full" />
-        <div className="absolute bottom-0 left-0 w-1 h-1 bg-[#C18556]/40 rounded-full" />
-        <div className="absolute bottom-0 right-0 w-1 h-1 bg-[#C18556]/40 rounded-full" />
-      </div>
-
-      <div className="container-luxe max-w-[1180px] relative z-10">
-        {/* Header */}
-        <div className="text-center mb-[52px] max-w-3xl mx-auto">
+      <div className="container-luxe max-w-[1180px] relative z-10 px-4">
+        
+        {/* Section Header */}
+        <div className="text-center mb-[44px] max-w-3xl mx-auto">
           <Reveal>
-            <div className="flex items-center justify-center gap-4 mb-5">
+            <div className="flex items-center justify-center gap-4 mb-4">
               <div className="w-[44px] h-px bg-[#C18556]/55" />
-              <span className="text-[#C18556] text-[13px] md:text-[14px] uppercase tracking-widest font-medium">
-                {lang === "ar" ? "أعمالنا المميزة" : "Featured Works"}
+              <span className="text-[#C18556] text-[13px] md:text-[14px] uppercase tracking-widest font-bold">
+                {lang === "ar" ? "معرض أعمال تاكت" : "TACT PORTFOLIO"}
               </span>
               <div className="w-[44px] h-px bg-[#C18556]/55" />
             </div>
           </Reveal>
           
           <Reveal delay={150}>
-            <h2 className="text-3xl md:text-[44px] lg:text-[56px] font-bold text-white leading-[1.2] mb-6">
+            <h2 className="text-3xl md:text-5xl font-bold text-white leading-[1.2] mb-6">
               {lang === "ar" ? (
-                <>سابقة أعمال <span className="text-[#C18556]">تتحدى تفاصيلها</span></>
+                <>سابقة أعمال <span className="text-[#C18556] font-serif italic">تتحدى تفاصيلها</span></>
               ) : (
-                <>Portfolio That <span className="text-[#C18556]">Defies Details</span></>
+                <>Portfolio That <span className="text-[#C18556] font-serif italic">Defies Details</span></>
               )}
             </h2>
           </Reveal>
 
           <Reveal delay={300}>
-            <p className="text-[15px] md:text-[16px] text-white leading-[1.8] mx-auto max-w-[680px]">
+            <p className="text-[14px] md:text-[16px] text-white/70 leading-[1.7] mx-auto max-w-[680px]">
               {lang === "ar" 
-                ? "نماذج مختارة من مشاريع صممناها بعناية، حيث يلتقي الجمال بالوظيفة في كل تفصيلة معمارية تعكس رؤية عملائنا."
-                : "Selected models of projects designed with care, where beauty meets functionality in every architectural detail reflecting our clients' vision."}
+                ? "تصفح مشاريعنا المقسمة بدقة لتلبي تطلعاتك المعمارية، ما بين التصاميم ثلاثية الأبعاد الراقية وفيديوهات التنفيذ الفعلي على أرض الواقع."
+                : "Browse our projects categorized neatly to match your architectural vision, from high-end 3D designs to real executed walkthroughs."}
             </p>
           </Reveal>
         </div>
 
-        {/* Carousel Container */}
-        <div className="relative group/carousel w-full">
-          {/* Left Arrow */}
-          {displayProjects.length > 3 && (
-            <button 
-              onClick={() => handleScroll("left")}
-              className="absolute left-[-20px] top-1/2 -translate-y-1/2 z-40 w-12 h-12 rounded-full border border-[#C18556]/40 bg-[#061F22]/90 text-white flex items-center justify-center hover:bg-[#C18556] hover:text-[#061F22] hover:border-[#C18556] hover:scale-110 shadow-2xl transition-all duration-300 opacity-0 group-hover/carousel:opacity-100 hidden md:flex"
-            >
-              <ArrowLeft size={20} />
-            </button>
-          )}
-
-          {/* Right Arrow */}
-          {displayProjects.length > 3 && (
-            <button 
-              onClick={() => handleScroll("right")}
-              className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-40 w-12 h-12 rounded-full border border-[#C18556]/40 bg-[#061F22]/90 text-white flex items-center justify-center hover:bg-[#C18556] hover:text-[#061F22] hover:border-[#C18556] hover:scale-110 shadow-2xl transition-all duration-300 opacity-0 group-hover/carousel:opacity-100 hidden md:flex"
-            >
-              <ArrowRight size={20} />
-            </button>
-          )}
-
-          {/* Projects Horizontal Scrollable Container */}
-          <div 
-            ref={scrollRef}
-            className="w-full overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-[24px] md:gap-[32px] pb-6 px-4 md:px-0 scroll-smooth"
-          >
-            {displayProjects.map((p, i) => (
-              <div 
-                key={p.id} 
-                className="w-[85vw] sm:w-[calc(50%-16px)] lg:w-[calc(33.333%-22px)] flex-shrink-0 snap-start flex"
+        {/* PRIMARY TABS - DESIGNS VS FINISHING */}
+        <div className="flex justify-center mb-8">
+          <Reveal delay={350} className="w-full max-w-md">
+            <div className="flex bg-[#072428] border border-[#C18556]/25 rounded-[8px] p-1.5 shadow-[0_15px_35px_rgba(0,0,0,0.3)]">
+              {/* Designs Tab */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab("designs");
+                }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2.5 py-3 rounded-[6px] text-[13px] font-bold transition-all duration-300",
+                  activeMainTab === "designs"
+                    ? "bg-[#C18556] text-[#061F22] shadow-md"
+                    : "text-white/70 hover:text-white hover:bg-white/5"
+                )}
               >
-                <ProjectCard p={p} index={i} lang={lang} onPlayVideo={setActiveVideo} />
-              </div>
-            ))}
-          </div>
+                <Compass size={16} />
+                <span>{lang === "ar" ? "تصميمات (Designs)" : "Designs"}</span>
+              </button>
+
+              {/* Finishing Videos Tab */}
+              <button
+                type="button"
+                onClick={() => setActiveMainTab("finishing")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2.5 py-3 rounded-[6px] text-[13px] font-bold transition-all duration-300",
+                  activeMainTab === "finishing"
+                    ? "bg-[#C18556] text-[#061F22] shadow-md"
+                    : "text-white/70 hover:text-white hover:bg-white/5"
+                )}
+              >
+                <Palette size={16} />
+                <span>{lang === "ar" ? "تشطيبات/فيديوهات (Finishing)" : "Finishing Videos"}</span>
+              </button>
+            </div>
+          </Reveal>
         </div>
 
-        {/* Bottom CTA */}
-        <div className="text-center mt-12">
+        {/* PROJECTS GRID / CAROUSEL */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-4xl mx-auto mt-6 transition-all duration-500">
+          {displayItems.map((p, i) => (
+            <div key={p.id} className="snap-start flex w-full">
+              <ProjectCard p={p} index={i} lang={lang} onPlayVideo={setActiveVideo} />
+            </div>
+          ))}
+        </div>
+
+        {/* BROWSE ALL PROJECTS BUTTON */}
+        <div className="text-center mt-16">
           <Reveal delay={450}>
             <Link 
               to="/portfolio" 
-              className="inline-flex items-center justify-center px-9 py-4 border border-[#C18556]/70 text-white text-[14px] font-semibold rounded-[6px] transition-all duration-400 hover:bg-[#C18556] hover:text-[#061F22] hover:border-[#C18556] group"
+              className="inline-flex items-center justify-center px-9 py-4 border border-[#C18556]/60 text-white text-[13px] font-bold rounded-[6px] transition-all duration-400 hover:bg-[#C18556] hover:text-[#061F22] hover:border-[#C18556] group shadow-lg"
             >
-              {lang === "ar" ? "استعرض جميع المشاريع" : "BROWSE ALL PROJECTS"}
-              <ArrowRight size={16} className={cn(
+              <span>{lang === "ar" ? "استعرض معرض المشاريع بالكامل" : "BROWSE COMPLETE GALLERY"}</span>
+              <ArrowRight size={15} className={cn(
                 "ms-2 transition-transform duration-300",
-                lang === "ar" ? "rotate-180 group-hover:-translate-x-1" : "group-hover:translate-x-1"
+                lang === "ar" ? "rotate-180 group-hover:-translate-x-1.5" : "group-hover:translate-x-1.5"
               )} />
             </Link>
           </Reveal>
         </div>
       </div>
 
-      {/* VIDEO MODAL / LIGHTBOX */}
+      {/* FULL SCREEN LIGHTBOX MODAL FOR VIDEOS */}
       {activeVideo && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-12 animate-fade-in">
-          <div className="absolute inset-0 bg-[#061F22]/98 backdrop-blur-3xl" onClick={() => setActiveVideo(null)} />
-          <div className="relative w-full max-w-6xl aspect-video bg-black rounded-lg overflow-hidden border border-[#C18556]/40 shadow-3xl animate-scale-up">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-12 animate-fade-in">
+          <div className="absolute inset-0 bg-black/96 backdrop-blur-md" onClick={() => setActiveVideo(null)} />
+          
+          <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden border border-[#C18556]/40 shadow-2xl z-10 animate-scale-up">
             <button 
               onClick={() => setActiveVideo(null)}
-              className="absolute top-6 right-6 z-[210] w-12 h-12 rounded-full bg-white/10 hover:bg-[#C18556] hover:text-[#061F22] backdrop-blur-xl flex items-center justify-center text-white transition-all duration-500 hover:rotate-90 shadow-2xl"
+              className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-black/60 hover:bg-[#C18556] text-white flex items-center justify-center transition-all shadow-md"
             >
               <X size={20} />
             </button>

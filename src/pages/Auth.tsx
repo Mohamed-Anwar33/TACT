@@ -22,6 +22,88 @@ import { toast } from "sonner";
 
 type AuthMode = "signin" | "signup" | "reset";
 
+type SignupQuestionnaire = {
+  address: string;
+  projectTypes: string[];
+  projectTypeOther: string;
+  stages: string[];
+  stageOther: string;
+  occupants: string[];
+  occupantsOther: string;
+  services: string[];
+  serviceOther: string;
+  factors: string[];
+  factorOther: string;
+  sources: string[];
+  sourceOther: string;
+  history: string[];
+  historyChallenges: string;
+  previousProblems: string;
+  newGoals: string;
+  notes: string;
+};
+
+const initialQuestionnaire: SignupQuestionnaire = {
+  address: "",
+  projectTypes: [],
+  projectTypeOther: "",
+  stages: [],
+  stageOther: "",
+  occupants: [],
+  occupantsOther: "",
+  services: [],
+  serviceOther: "",
+  factors: [],
+  factorOther: "",
+  sources: [],
+  sourceOther: "",
+  history: [],
+  historyChallenges: "",
+  previousProblems: "",
+  newGoals: "",
+  notes: "",
+};
+
+const questionnaireOptions = {
+  ar: {
+    projectTypes: ["شقة", "فيلا", "مكتب", "محل تجاري", "أخرى"],
+    stages: ["على الطوب الأحمر", "على المحارة", "متشطبة بالفعل", "أخرى"],
+    occupants: ["زوج + زوجة", "زوج وزوجة + طفل", "أخرى"],
+    services: ["تصميم داخلي", "تنفيذ وتشطيب كامل", "أثاث وديكور", "أخرى"],
+    factors: ["الجودة", "الالتزام بالوقت", "السعر المناسب", "خدمة العملاء", "أخرى"],
+    sources: ["توصية من صديق", "وسائل التواصل الاجتماعي", "إعلان", "أخرى"],
+    history: ["نعم", "لا"],
+  },
+  en: {
+    projectTypes: ["Apartment", "Villa", "Office", "Retail shop", "Other"],
+    stages: ["Red brick", "Plastering", "Already finished", "Other"],
+    occupants: ["Couple", "Couple + child", "Other"],
+    services: ["Interior design", "Full execution and finishing", "Furniture and decor", "Other"],
+    factors: ["Quality", "Time commitment", "Suitable price", "Customer service", "Other"],
+    sources: ["Friend recommendation", "Social media", "Advertisement", "Other"],
+    history: ["Yes", "No"],
+  },
+};
+
+function joinValues(values: string[], other: string = "") {
+  const cleaned = values.filter(Boolean);
+  if (other.trim()) cleaned.push(other.trim());
+  return cleaned.join("، ");
+}
+
+function CheckboxPill({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+  return (
+    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-all ${
+      checked
+        ? "border-brand-gold bg-brand-gold/15 text-brand-gold"
+        : "border-brand-gold/15 bg-brand-dark/30 text-ivory/70 hover:border-brand-gold/45"
+    }`}>
+      <input type="checkbox" checked={checked} onChange={onChange} className="h-4 w-4 accent-[#C18556]" />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 export default function Auth() {
   const { lang } = useLang();
   const nav = useNavigate();
@@ -49,6 +131,7 @@ export default function Auth() {
     full_name: "", 
     phone: "" 
   });
+  const [questionnaire, setQuestionnaire] = useState<SignupQuestionnaire>(initialQuestionnaire);
   const [busy, setBusy] = useState(false);
   
   // Independent password visibility states
@@ -60,6 +143,14 @@ export default function Auth() {
     setSearchParams(newMode === "signin" ? {} : { mode: newMode });
     // Reset passwords for safety
     setForm(prev => ({ ...prev, password: "", confirmPassword: "" }));
+  };
+
+  const toggleQuestionnaireValue = (key: keyof SignupQuestionnaire, value: string) => {
+    setQuestionnaire((prev) => {
+      const current = Array.isArray(prev[key]) ? (prev[key] as string[]) : [];
+      const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+      return { ...prev, [key]: next };
+    });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -77,7 +168,7 @@ export default function Auth() {
         const phoneKey = cleanPhone ? cleanPhone : Math.random().toString(36).substring(7);
         const emailToUse = form.email.trim() ? form.email.trim() : `${phoneKey}@tact-client.com`;
 
-        const { error } = await supabase.auth.signUp({
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email: emailToUse,
           password: form.password,
           options: {
@@ -90,6 +181,63 @@ export default function Auth() {
         });
         if (error) throw error;
         toast.success(isRtl ? "تم إنشاء الحساب بنجاح!" : "Account created successfully!");
+        const hasQuestionnaireData = [
+          questionnaire.address,
+          questionnaire.projectTypeOther,
+          questionnaire.stageOther,
+          questionnaire.occupantsOther,
+          questionnaire.serviceOther,
+          questionnaire.factorOther,
+          questionnaire.sourceOther,
+          questionnaire.historyChallenges,
+          questionnaire.previousProblems,
+          questionnaire.newGoals,
+          questionnaire.notes,
+          ...questionnaire.projectTypes,
+          ...questionnaire.stages,
+          ...questionnaire.occupants,
+          ...questionnaire.services,
+          ...questionnaire.factors,
+          ...questionnaire.sources,
+          ...questionnaire.history,
+        ].some((value) => value.trim());
+
+        if (hasQuestionnaireData) {
+          const expectations = [
+            `${isRtl ? "أهم العوامل" : "Important factors"}: ${joinValues(questionnaire.factors, questionnaire.factorOther)}`,
+            `${isRtl ? "كيف سمعت عن الشركة" : "Source"}: ${joinValues(questionnaire.sources, questionnaire.sourceOther)}`,
+          ].join(" | ");
+          const history = [
+            `${isRtl ? "هل سبق التعامل مع شركات تشطيب" : "Previous finishing company experience"}: ${questionnaire.history.join("، ")}`,
+            `${isRtl ? "التحديات" : "Challenges"}: ${questionnaire.historyChallenges}`,
+          ].join(" | ");
+          const goals = [
+            `${isRtl ? "مشاكل المشروع السابق" : "Previous project problems"}: ${questionnaire.previousProblems}`,
+            `${isRtl ? "ما يريد تحقيقه في المشروع الجديد" : "New project goals"}: ${questionnaire.newGoals}`,
+          ].join(" | ");
+
+          const { error: questionnaireError } = await supabase.from("questionnaires").insert({
+            user_id: signUpData.user?.id ?? null,
+            name: form.full_name,
+            phone: cleanPhone ? `+20${cleanPhone}` : form.phone,
+            email: emailToUse,
+            address: questionnaire.address,
+            project_type: joinValues(questionnaire.projectTypes, questionnaire.projectTypeOther),
+            stage: joinValues(questionnaire.stages, questionnaire.stageOther),
+            family: joinValues(questionnaire.occupants, questionnaire.occupantsOther),
+            service: joinValues(questionnaire.services, questionnaire.serviceOther),
+            expectations,
+            source: joinValues(questionnaire.sources, questionnaire.sourceOther),
+            history,
+            goals,
+            notes: questionnaire.notes,
+          });
+
+          if (questionnaireError) {
+            toast.error(questionnaireError.message);
+          }
+        }
+
         nav("/customer");
       } else if (mode === "reset") {
         if (form.password !== form.confirmPassword) {
@@ -178,7 +326,7 @@ export default function Auth() {
       <div className="absolute top-[35%] left-[-15%] w-[450px] h-[450px] rounded-full bg-brand-teal/15 blur-[120px] pointer-events-none" />
 
       {/* LEFT PANEL: Form card (41.6% space on Desktop) */}
-      <div className="lg:col-span-5 col-span-12 flex flex-col justify-center p-6 sm:p-10 lg:p-12 relative z-10 min-h-screen">
+      <div className={`${mode === "signup" ? "lg:col-span-7" : "lg:col-span-5"} col-span-12 flex flex-col justify-center p-6 sm:p-10 lg:p-12 relative z-10 min-h-screen`}>
         
         {/* Responsive compact brand header for Mobile devices only */}
         <div className="lg:hidden flex flex-col items-center text-center mb-8 mt-4 space-y-2 animate-fade-in">
@@ -197,7 +345,7 @@ export default function Auth() {
         </div>
 
         {/* Elegant Glassmorphic Card Panel */}
-        <div className="bg-brand-dark/70 backdrop-blur-xl border border-brand-gold/15 rounded-2xl p-7 sm:p-9 lg:p-10 shadow-luxe w-full max-w-md mx-auto space-y-7 animate-scale-in">
+        <div className={`bg-brand-dark/70 backdrop-blur-xl border border-brand-gold/15 rounded-2xl p-7 sm:p-9 lg:p-10 shadow-luxe w-full ${mode === "signup" ? "max-w-3xl" : "max-w-md"} mx-auto space-y-7 animate-scale-in`}>
           
           {/* Top of Card: Logo and elegant localized subtitle */}
           <div className="text-center space-y-4">
@@ -316,6 +464,128 @@ export default function Auth() {
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     className="w-full h-12 pr-11 pl-4 bg-brand-dark/40 border border-brand-gold/20 rounded-lg text-ivory placeholder-ivory/30 text-sm focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold/30 transition-all duration-300"
+                  />
+                </div>
+              </div>
+            )}
+
+            {mode === "signup" && (
+              <div className="rounded-2xl border border-brand-gold/20 bg-brand-dark/35 p-5 text-right space-y-6">
+                <div className="border-b border-brand-gold/15 pb-4">
+                  <h3 className="text-lg font-serif font-bold text-brand-gold">
+                    {isRtl ? "استبيان العملاء الجدد" : "New Client Questionnaire"}
+                  </h3>
+                  <p className="mt-1 text-xs leading-6 text-ivory/55">
+                    {isRtl
+                      ? "املأ الاختيارات أثناء إنشاء الحساب حتى تصل بيانات مشروعك للإدارة من أول خطوة."
+                      : "Fill these choices while creating the account so the admin team receives your project brief immediately."}
+                  </p>
+                </div>
+
+                <div className="grid gap-3">
+                  <label className="text-sm font-bold text-ivory">{isRtl ? "عنوان الوحدة المراد تشطيبها" : "Unit address"}</label>
+                  <input
+                    value={questionnaire.address}
+                    onChange={(e) => setQuestionnaire({ ...questionnaire, address: e.target.value })}
+                    placeholder={isRtl ? "المنطقة / الكمبوند / رقم الوحدة" : "District / compound / unit number"}
+                    className="h-11 rounded-lg border border-brand-gold/20 bg-brand-dark/45 px-4 text-sm text-ivory placeholder-ivory/30 focus:border-brand-gold focus:outline-none"
+                  />
+                </div>
+
+                {[
+                  {
+                    title: isRtl ? "القسم الأول: معلومات عن المشروع" : "Section 1: Project information",
+                    groups: [
+                      { key: "projectTypes", label: isRtl ? "نوع العقار" : "Property type", options: isRtl ? questionnaireOptions.ar.projectTypes : questionnaireOptions.en.projectTypes, otherKey: "projectTypeOther" },
+                      { key: "stages", label: isRtl ? "المرحلة الحالية من المشروع" : "Current project stage", options: isRtl ? questionnaireOptions.ar.stages : questionnaireOptions.en.stages, otherKey: "stageOther" },
+                    ],
+                  },
+                  {
+                    title: isRtl ? "القسم الثاني: عدد الأفراد المستخدمين" : "Section 2: Occupants",
+                    groups: [
+                      { key: "occupants", label: isRtl ? "عدد الأفراد" : "Users count", options: isRtl ? questionnaireOptions.ar.occupants : questionnaireOptions.en.occupants, otherKey: "occupantsOther" },
+                    ],
+                  },
+                  {
+                    title: isRtl ? "القسم الثالث: الخدمات المطلوبة" : "Section 3: Required services",
+                    groups: [
+                      { key: "services", label: isRtl ? "الخدمات التي ترغب في الحصول عليها" : "Services needed", options: isRtl ? questionnaireOptions.ar.services : questionnaireOptions.en.services, otherKey: "serviceOther" },
+                    ],
+                  },
+                  {
+                    title: isRtl ? "القسم الرابع: التوقعات والتجربة" : "Section 4: Expectations and experience",
+                    groups: [
+                      { key: "factors", label: isRtl ? "أهم العوامل التي تبحث عنها" : "Important factors", options: isRtl ? questionnaireOptions.ar.factors : questionnaireOptions.en.factors, otherKey: "factorOther" },
+                      { key: "sources", label: isRtl ? "كيف سمعت عن الشركة؟" : "How did you hear about us?", options: isRtl ? questionnaireOptions.ar.sources : questionnaireOptions.en.sources, otherKey: "sourceOther" },
+                      { key: "history", label: isRtl ? "هل سبق التعامل مع شركات تشطيبات أخرى؟" : "Previous finishing company experience?", options: isRtl ? questionnaireOptions.ar.history : questionnaireOptions.en.history },
+                    ],
+                  },
+                ].map((section) => (
+                  <div key={section.title} className="space-y-4 border-t border-brand-gold/15 pt-5">
+                    <h4 className="text-base font-serif font-bold text-ivory">{section.title}</h4>
+                    {section.groups.map((group: any) => (
+                      <div key={group.key} className="space-y-3">
+                        <p className="text-xs font-bold text-ivory/75">{group.label}</p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {group.options.map((option: string) => (
+                            <CheckboxPill
+                              key={option}
+                              label={option}
+                              checked={(questionnaire[group.key as keyof SignupQuestionnaire] as string[]).includes(option)}
+                              onChange={() => toggleQuestionnaireValue(group.key as keyof SignupQuestionnaire, option)}
+                            />
+                          ))}
+                        </div>
+                        {group.otherKey && (questionnaire[group.key as keyof SignupQuestionnaire] as string[]).some((value) => value === "أخرى" || value === "Other") && (
+                          <input
+                            value={questionnaire[group.otherKey as keyof SignupQuestionnaire] as string}
+                            onChange={(e) => setQuestionnaire({ ...questionnaire, [group.otherKey]: e.target.value })}
+                            placeholder={isRtl ? "اكتب التفاصيل الأخرى..." : "Write other details..."}
+                            className="h-10 w-full rounded-lg border border-brand-gold/20 bg-brand-dark/45 px-4 text-sm text-ivory placeholder-ivory/30 focus:border-brand-gold focus:outline-none"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+
+                <div className="grid gap-3 border-t border-brand-gold/15 pt-5">
+                  <label className="text-xs font-bold text-ivory/75">
+                    {isRtl ? "إذا كانت الإجابة نعم، ما أبرز التحديات التي واجهتها؟" : "If yes, what were the main challenges?"}
+                  </label>
+                  <textarea
+                    value={questionnaire.historyChallenges}
+                    onChange={(e) => setQuestionnaire({ ...questionnaire, historyChallenges: e.target.value })}
+                    rows={2}
+                    className="rounded-lg border border-brand-gold/20 bg-brand-dark/45 px-4 py-3 text-sm text-ivory placeholder-ivory/30 focus:border-brand-gold focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid gap-4 border-t border-brand-gold/15 pt-5">
+                  <h4 className="text-base font-serif font-bold text-ivory">{isRtl ? "القسم الخامس: المشكلات وحلها" : "Section 5: Problems and solutions"}</h4>
+                  <textarea
+                    value={questionnaire.previousProblems}
+                    onChange={(e) => setQuestionnaire({ ...questionnaire, previousProblems: e.target.value })}
+                    placeholder={isRtl ? "المشاكل التي واجهتها في المشروع السابق..." : "Previous project problems..."}
+                    rows={2}
+                    className="rounded-lg border border-brand-gold/20 bg-brand-dark/45 px-4 py-3 text-sm text-ivory placeholder-ivory/30 focus:border-brand-gold focus:outline-none"
+                  />
+                  <textarea
+                    value={questionnaire.newGoals}
+                    onChange={(e) => setQuestionnaire({ ...questionnaire, newGoals: e.target.value })}
+                    placeholder={isRtl ? "إيه الحاجات اللي نفسك تحققها في مشروعك الجديد..." : "What do you want to achieve in your new project..."}
+                    rows={2}
+                    className="rounded-lg border border-brand-gold/20 bg-brand-dark/45 px-4 py-3 text-sm text-ivory placeholder-ivory/30 focus:border-brand-gold focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid gap-3 border-t border-brand-gold/15 pt-5">
+                  <h4 className="text-base font-serif font-bold text-ivory">{isRtl ? "القسم السادس: ملاحظات إضافية" : "Section 6: Additional notes"}</h4>
+                  <textarea
+                    value={questionnaire.notes}
+                    onChange={(e) => setQuestionnaire({ ...questionnaire, notes: e.target.value })}
+                    rows={2}
+                    className="rounded-lg border border-brand-gold/20 bg-brand-dark/45 px-4 py-3 text-sm text-ivory placeholder-ivory/30 focus:border-brand-gold focus:outline-none"
                   />
                 </div>
               </div>
@@ -501,7 +771,7 @@ export default function Auth() {
       </div>
 
       {/* RIGHT PANEL: Hero branding & architectural showcase (58.3% space on Desktop) */}
-      <div className="lg:col-span-7 hidden lg:flex flex-col justify-between p-12 lg:p-16 relative overflow-hidden bg-brand-dark/95 border-r border-brand-gold/10">
+      <div className={`${mode === "signup" ? "lg:col-span-5" : "lg:col-span-7"} hidden lg:flex flex-col justify-between p-12 lg:p-16 relative overflow-hidden bg-brand-dark/95 border-r border-brand-gold/10`}>
         
         {/* Decorative architectural grid lines */}
         <div className="absolute inset-0 arch-grid opacity-[0.06] pointer-events-none" />
@@ -540,7 +810,9 @@ export default function Auth() {
             <img 
               src="/luxury-interior.png" 
               alt="Tact Luxury Architectural Interior" 
-              className="w-full h-full object-cover transition-transform duration-[6000ms] ease-out group-hover:scale-105 select-none"
+              className="w-full h-full object-cover image-crisp select-none"
+              loading="eager"
+              decoding="async"
             />
             
             {/* Bottom fading shadow for depth */}

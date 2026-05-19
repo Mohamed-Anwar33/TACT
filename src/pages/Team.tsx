@@ -9,9 +9,6 @@ import {
   Briefcase, 
   Award, 
   Sparkles,
-  Phone,
-  Mail,
-  Linkedin,
   Plus
 } from "lucide-react";
 import { CmsTeamMember, fallbackTeam, getCmsTeam } from "@/lib/publicCms";
@@ -243,7 +240,9 @@ export default function Team() {
                               <img 
                                 src={avatar} 
                                 alt={isRtl ? m.nameAr : m.name} 
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                                className="w-full h-full object-cover image-crisp"
+                                loading={i < 3 ? "eager" : "lazy"}
+                                decoding="async"
                               />
                             </div>
                           </div>
@@ -268,18 +267,7 @@ export default function Team() {
                           {isRtl ? m.roleAr : m.role}
                         </p>
 
-                        {/* Social Contacts */}
-                        <div className="flex items-center gap-3 pt-4 border-t border-white/5 w-full justify-center">
-                          <a href="#" className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-ivory/60 hover:text-brand-gold hover:border-brand-gold hover:bg-brand-gold/5 transition-all duration-300">
-                            <Linkedin size={13} />
-                          </a>
-                          <a href="#" className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-ivory/60 hover:text-brand-gold hover:border-brand-gold hover:bg-brand-gold/5 transition-all duration-300">
-                            <Mail size={13} />
-                          </a>
-                          <a href="#" className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-ivory/60 hover:text-brand-gold hover:border-brand-gold hover:bg-brand-gold/5 transition-all duration-300">
-                            <Phone size={13} />
-                          </a>
-                        </div>
+
                       </div>
                     </Reveal>
                   );
@@ -384,8 +372,9 @@ function TeamMemberCard({ m, lang, avatar, isRtl }: { m: any; lang: string; avat
         <img
           src={avatar}
           alt={isRtl ? m.nameAr : m.name}
-          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
+          className="w-full h-full object-cover image-crisp"
           loading="lazy"
+          decoding="async"
         />
         {/* Soft elegant shadow overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/50 via-transparent to-transparent opacity-60 transition-opacity duration-500 group-hover:opacity-70" />

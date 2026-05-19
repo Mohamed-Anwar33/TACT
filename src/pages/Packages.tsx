@@ -131,6 +131,19 @@ export default function Packages() {
                     ) : null}
 
                     <div className="flex flex-col h-full">
+                      {pkg.cover_url && (
+                        <div className="mb-8 -mx-4 -mt-4 rounded-lg overflow-hidden border border-white/10 bg-black/20 aspect-[16/10] relative">
+                          <img
+                            src={pkg.cover_url}
+                            alt={lang === "ar" ? pkg.name_ar : pkg.name_en}
+                            className="w-full h-full image-no-upscale opacity-95 p-3"
+                            loading={idx === 0 ? "eager" : "lazy"}
+                            decoding="async"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#0C363A]/80 via-transparent to-transparent" />
+                          <div className="absolute bottom-4 inset-x-4 h-[1px] bg-gold/40 origin-center scale-x-50 transition-transform duration-700 group-hover:scale-x-100" />
+                        </div>
+                      )}
                       <div className="text-gold text-xs uppercase tracking-[0.4em] mb-4 font-bold flex items-center gap-2">
                         <Diamond size={10} className="fill-current" />
                         {lang === "ar" ? pkg.name_ar : pkg.name_en}

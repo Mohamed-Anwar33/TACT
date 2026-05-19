@@ -161,6 +161,7 @@ function ClientReviewsEditor({ clientReviews, onRefresh, editing, setEditing }: 
   const [showAddForm, setShowAddForm] = useState(false);
 
   const selectedIds: string[] = editing.metadata?.selectedIds || [];
+  const showReviewSlider = editing.metadata?.showReviewSlider !== false;
 
   const blankReview = {
     id: "",
@@ -171,11 +172,37 @@ function ClientReviewsEditor({ clientReviews, onRefresh, editing, setEditing }: 
     quote_ar: "",
     quote_en: "",
     rating: 5,
+    image_url: "",
     video_url: "",
     video_cover_url: "",
     sort_order: clientReviews.length,
     visible: true,
     pinOnHome: false
+  };
+
+  const toggleReviewSlider = async () => {
+    const nextEditing = {
+      ...editing,
+      metadata: {
+        ...editing.metadata,
+        showReviewSlider: !showReviewSlider
+      }
+    };
+    setEditing(nextEditing);
+
+    try {
+      const payload = {
+        ...nextEditing,
+        id: nextEditing.id || undefined,
+        sort_order: Number(nextEditing.sort_order) || 0
+      };
+      const { error } = await db.from("cms_sections").upsert(payload, { onConflict: "page_slug,section_key" });
+      if (error) throw error;
+      toast.success(!showReviewSlider ? "تم تفعيل سلايدر آراء العملاء" : "تم إلغاء تفعيل سلايدر آراء العملاء");
+      await onRefresh();
+    } catch (err: any) {
+      toast.error("فشل تحديث السلايدر: " + err.message);
+    }
   };
 
   const togglePin = async (id: string | number) => {
@@ -317,6 +344,30 @@ function ClientReviewsEditor({ clientReviews, onRefresh, editing, setEditing }: 
         )}
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "0.75rem 0.9rem", borderRadius: 10, background: "#fff", border: "1px solid #eae5dc" }}>
+        <div>
+          <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0C363A" }}>سلايدر آراء العملاء في الرئيسية</div>
+          <div style={{ fontSize: "0.65rem", color: "#8a8578", marginTop: 2 }}>تفعيل أو إخفاء السلايدر الموجود تحت فيديوهات العملاء</div>
+        </div>
+        <button
+          type="button"
+          onClick={toggleReviewSlider}
+          style={{
+            padding: "0.4rem 0.75rem",
+            borderRadius: 8,
+            border: "1px solid",
+            borderColor: showReviewSlider ? "#B9D4D0" : "#e5e0d5",
+            background: showReviewSlider ? "#ECF6F4" : "#f5f5f4",
+            color: showReviewSlider ? "#0F6E66" : "#78716c",
+            fontSize: "0.7rem",
+            fontWeight: 800,
+            cursor: "pointer"
+          }}
+        >
+          {showReviewSlider ? "مفعل" : "غير مفعل"}
+        </button>
+      </div>
+
       {/* Add / Edit Form */}
       {(showAddForm || editingReview) && (
         <div style={{ background: "#ffffff", border: "1px solid #eae5dc", borderRadius: 10, padding: "1rem", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -373,15 +424,20 @@ function ClientReviewsEditor({ clientReviews, onRefresh, editing, setEditing }: 
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: "0.65rem" }}>فيديو تقييم العميل (اختياري)</label>
+              <label style={{ fontSize: "0.65rem" }}>وسيط الرأي: صورة أو فيديو (اختياري)</label>
+              {editingReview.image_url && <MediaPreview url={editingReview.image_url} height={80} />}
               {editingReview.video_url && <MediaPreview url={editingReview.video_url} type="video" height={80} />}
-              <MediaUploader folder="client-reviews" label="رفع فيديو التقييم" accept="video/*" onUploaded={url => setEditingReview({ ...editingReview, video_url: url })} />
-            </div>
-            
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: "0.65rem" }}>صورة غلاف الفيديو (اختياري)</label>
-              {editingReview.video_cover_url && <MediaPreview url={editingReview.video_cover_url} height={80} />}
-              <MediaUploader folder="client-reviews" label="رفع غلاف الفيديو" accept="image/*" onUploaded={url => setEditingReview({ ...editingReview, video_cover_url: url })} />
+              <MediaUploader
+                folder="client-reviews"
+                label="رفع صورة أو فيديو"
+                accept="image/*,video/*"
+                onUploaded={(url, file) => setEditingReview({
+                  ...editingReview,
+                  image_url: file.type.startsWith("image/") ? url : "",
+                  video_url: file.type.startsWith("video/") ? url : "",
+                  video_cover_url: ""
+                })}
+              />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>

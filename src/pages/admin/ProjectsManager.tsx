@@ -11,6 +11,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { parseAreaNumber } from "@/lib/publicCms";
 
 const db = supabase as any;
 
@@ -18,6 +19,7 @@ const blank = {
   id: "", title_en: "", title_ar: "", category_en: "", category_ar: "",
   area: "", description_en: "", description_ar: "", cover_url: "",
   video_url: "", pdf_url: "", external_url: "", sort_order: 0, visible: true,
+  project_kind: "design",
 };
 
 export default function ProjectsManager() {
@@ -66,12 +68,15 @@ export default function ProjectsManager() {
       }
       
       const pinOnHome = !!editing.pinOnHome;
+      const projectKind = editing.project_kind || (editing.video_url ? "execution" : "design");
       const payload = { 
         ...editing, 
+        video_url: projectKind === "design" ? "" : editing.video_url,
         cover_url: finalCoverUrl, 
         sort_order: Number(editing.sort_order) || 0 
       };
       delete (payload as any).pinOnHome;
+      delete (payload as any).project_kind;
       
       const { error } = await db.from("cms_projects").upsert(payload, { onConflict: "id" });
       if (error) throw error;
@@ -451,11 +456,37 @@ export default function ProjectsManager() {
               <div className="form-group"><label>العنوان (عربي)</label><Input value={editing.title_ar} onChange={e => setEditing({ ...editing, title_ar: e.target.value })} required /></div>
               <div className="form-group"><label>Title (EN)</label><Input value={editing.title_en} onChange={e => setEditing({ ...editing, title_en: e.target.value })} required dir="ltr" /></div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div className="form-group"><label>التصنيف (عربي)</label><Input value={editing.category_ar || ""} onChange={e => setEditing({ ...editing, category_ar: e.target.value })} /></div>
-              <div className="form-group"><label>Category (EN)</label><Input value={editing.category_en || ""} onChange={e => setEditing({ ...editing, category_en: e.target.value })} dir="ltr" /></div>
+            <div className="form-group">
+              <label>نوع العنصر في سابقة الأعمال</label>
+              <select
+                value={editing.project_kind || (editing.video_url ? "execution" : "design")}
+                onChange={e => setEditing({
+                  ...editing,
+                  project_kind: e.target.value,
+                  video_url: e.target.value === "design" ? "" : editing.video_url,
+                })}
+                style={{ width: "100%", padding: "0.6rem", borderRadius: 6, border: "1px solid #e5e0d5", fontSize: "0.85rem", background: "#fff" }}
+              >
+                <option value="design">تصميمات</option>
+                <option value="execution">تنفيذ بالفعل</option>
+              </select>
+              <p style={{ fontSize: "0.68rem", color: "#8a8578", marginTop: 6 }}>
+                التصميم يظهر داخل تبويب المساحات. التنفيذ بالفعل يظهر داخل تبويب الفيديوهات فقط.
+              </p>
             </div>
-            <div className="form-group"><label>المساحة</label><Input value={editing.area || ""} onChange={e => setEditing({ ...editing, area: e.target.value })} placeholder="250 m²" dir="ltr" /></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div className="form-group"><label>{(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" ? "نوع التنفيذ (عربي)" : "نوع التصميم (عربي)"}</label><Input value={editing.category_ar || ""} onChange={e => setEditing({ ...editing, category_ar: e.target.value })} placeholder={(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" ? "تنفيذ وتشطيب" : "تصميم داخلي"} /></div>
+              <div className="form-group"><label>{(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" ? "Execution Type (EN)" : "Design Type (EN)"}</label><Input value={editing.category_en || ""} onChange={e => setEditing({ ...editing, category_en: e.target.value })} dir="ltr" placeholder={(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" ? "Execution & Finishing" : "Interior Design"} /></div>
+            </div>
+            <div className="form-group">
+              <label>المساحة</label>
+              <Input value={editing.area || ""} onChange={e => setEditing({ ...editing, area: e.target.value })} placeholder="250 m²" dir="ltr" />
+              {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "design" && parseAreaNumber(editing.area) === null && (
+                <p style={{ fontSize: "0.68rem", color: "#D84728", marginTop: 6, fontWeight: 700 }}>
+                  يجب إدخال رقم مساحة واضح مثل 120 م² حتى يظهر التصميم داخل تصنيف المساحات الصحيح.
+                </p>
+              )}
+            </div>
             <div className="form-group"><label>الوصف (عربي)</label><Textarea value={editing.description_ar || ""} onChange={e => setEditing({ ...editing, description_ar: e.target.value })} rows={3} /></div>
             <div className="form-group"><label>Description (EN)</label><Textarea value={editing.description_en || ""} onChange={e => setEditing({ ...editing, description_en: e.target.value })} rows={3} dir="ltr" /></div>
 
@@ -575,6 +606,53 @@ export default function ProjectsManager() {
                 );
               })()}
             </div>
+
+            {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" && (
+              <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem" }}>
+                <div className="form-group">
+                  <label>فيديو التنفيذ</label>
+                  {editing.video_url && <MediaPreview url={editing.video_url} type="video" height={110} onPlay={() => setVideoPreview(editing.video_url)} />}
+                  <Input
+                    value={editing.video_url || ""}
+                    onChange={e => setEditing({ ...editing, video_url: e.target.value })}
+                    placeholder="رابط mp4 أو YouTube أو Vimeo"
+                    dir="ltr"
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+                <MediaUploader
+                  folder="projects"
+                  label="رفع فيديو التنفيذ"
+                  accept="video/*"
+                  onUploaded={(url) => setEditing({ ...editing, video_url: url })}
+                />
+                <p style={{ fontSize: "0.65rem", color: "#999", marginTop: 8 }}>
+                  يمكن استخدام فيديو مرفوع، أو لصق رابط YouTube/Vimeo في الحقل أعلاه.
+                </p>
+              </div>
+            )}
+
+            {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "design" && (
+              <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem" }}>
+                <div className="form-group">
+                  <label>ملف PDF للتصميم</label>
+                  {editing.pdf_url && <MediaPreview url={editing.pdf_url} type="pdf" height={90} />}
+                  <Input
+                    value={editing.pdf_url || ""}
+                    onChange={e => setEditing({ ...editing, pdf_url: e.target.value })}
+                    placeholder="رابط ملف PDF"
+                    dir="ltr"
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+                <MediaUploader
+                  folder="projects"
+                  label="رفع ملف PDF للتصميم"
+                  accept="application/pdf,.pdf"
+                  onUploaded={(url) => setEditing({ ...editing, pdf_url: url })}
+                />
+              </div>
+            )}
 
             <div className="form-group"><label>رابط خارجي</label><Input value={editing.external_url || ""} onChange={e => setEditing({ ...editing, external_url: e.target.value })} dir="ltr" /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>

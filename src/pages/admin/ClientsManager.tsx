@@ -23,6 +23,7 @@ export default function ClientsManager() {
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ table: string; id: string } | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const showReviewSlider = section?.metadata?.showReviewSlider !== false;
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -118,6 +119,35 @@ export default function ClientsManager() {
     }
   }
 
+  async function toggleReviewSlider() {
+    if (!section) {
+      toast.error("فشل العثور على إعدادات قسم الصفحة الرئيسية");
+      return;
+    }
+
+    const nextSection = {
+      ...section,
+      metadata: {
+        ...section.metadata,
+        showReviewSlider: !showReviewSlider
+      }
+    };
+
+    try {
+      const { error } = await db.from("cms_sections").upsert({
+        ...nextSection,
+        id: nextSection.id || undefined,
+        sort_order: Number(nextSection.sort_order) || 0
+      }, { onConflict: "page_slug,section_key" });
+
+      if (error) throw error;
+      toast.success(!showReviewSlider ? "تم تفعيل سلايدر آراء العملاء" : "تم إلغاء تفعيل سلايدر آراء العملاء");
+      await load();
+    } catch (err: any) {
+      toast.error("فشل تحديث السلايدر: " + err.message);
+    }
+  }
+
   return (
     <>
       <AdminHeader title="آراء العملاء" subtitle="إدارة آراء وتقييمات العملاء" previewUrl="/testimonials"
@@ -129,6 +159,31 @@ export default function ClientsManager() {
         }
       />
       <div className="admin-content">
+        <div className="admin-card" style={{ padding: "1rem 1.25rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+          <div>
+            <div style={{ fontWeight: 800, color: "#0C363A", fontSize: "0.95rem" }}>سلايدر آراء العملاء في الرئيسية</div>
+            <div style={{ color: "#8a8578", fontSize: "0.75rem", marginTop: 3 }}>تفعيل أو إخفاء السلايدر الموجود تحت فيديوهات العملاء</div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleReviewSlider}
+            disabled={!section}
+            style={{
+              padding: "0.5rem 0.9rem",
+              borderRadius: 8,
+              border: "1px solid",
+              borderColor: showReviewSlider ? "#B9D4D0" : "#e5e0d5",
+              background: showReviewSlider ? "#ECF6F4" : "#f5f5f4",
+              color: showReviewSlider ? "#0F6E66" : "#78716c",
+              fontSize: "0.78rem",
+              fontWeight: 800,
+              cursor: section ? "pointer" : "not-allowed"
+            }}
+          >
+            {showReviewSlider ? "مفعل" : "غير مفعل"}
+          </button>
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {reviews.map(r => {
             const selectedIds: string[] = section?.metadata?.selectedIds || [];
@@ -139,6 +194,10 @@ export default function ClientsManager() {
                   {r.video_url ? (
                     <div style={{ width: 100, flexShrink: 0 }}>
                       <MediaPreview url={r.video_cover_url || r.video_url} type={r.video_cover_url ? "image" : "video"} height={70} onPlay={() => setVideoPreview(r.video_url)} />
+                    </div>
+                  ) : r.image_url ? (
+                    <div style={{ width: 100, flexShrink: 0 }}>
+                      <MediaPreview url={r.image_url} type="image" height={70} />
                     </div>
                   ) : null}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -156,12 +215,13 @@ export default function ClientsManager() {
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#888", marginTop: 2 }}>{r.role_ar || r.role_en || ""}</div>
                     <p style={{ fontSize: "0.82rem", color: "#555", marginTop: 4, lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {r.quote_ar || r.quote_en || ""}
+                       {r.quote_ar || r.quote_en || ""}
                     </p>
                     <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <div style={{ display: "flex", gap: 1 }}>{Array.from({ length: r.rating || 5 }).map((_, i) => <Star key={i} size={12} fill="#C18556" color="#C18556" />)}</div>
                       <StatusBadge visible={r.visible} />
                       {r.video_url && <span style={{ fontSize: "0.6rem", background: "#f0ece4", padding: "2px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 3 }}><Film size={10} /> فيديو</span>}
+                      {r.image_url && <span style={{ fontSize: "0.6rem", background: "#f0ece4", padding: "2px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 3 }}>📸 صورة</span>}
                       
                       {/* Toggle Homepage selection */}
                       <button
@@ -222,15 +282,20 @@ export default function ClientsManager() {
                 ))}
               </div>
             </div>
-            <div className="form-group"><label>فيديو الرأي</label>
+            <div className="form-group"><label>وسيط الرأي: صورة أو فيديو</label>
+              {editingReview.image_url && <MediaPreview url={editingReview.image_url} height={90} />}
               {editingReview.video_url && <MediaPreview url={editingReview.video_url} type="video" height={100} onPlay={() => setVideoPreview(editingReview.video_url)} />}
-              <Input value={editingReview.video_url || ""} onChange={e => setEditingReview({ ...editingReview, video_url: e.target.value })} placeholder="Video URL" dir="ltr" style={{ marginTop: 4 }} />
-              <MediaUploader folder="client-reviews" label="رفع فيديو" accept="video/*" onUploaded={url => setEditingReview({ ...editingReview, video_url: url })} />
-            </div>
-            <div className="form-group"><label>غلاف الفيديو</label>
-              {editingReview.video_cover_url && <MediaPreview url={editingReview.video_cover_url} height={80} />}
-              <Input value={editingReview.video_cover_url || ""} onChange={e => setEditingReview({ ...editingReview, video_cover_url: e.target.value })} placeholder="Video Cover URL" dir="ltr" style={{ marginTop: 4 }} />
-              <MediaUploader folder="client-reviews" label="رفع غلاف" accept="image/*" onUploaded={url => setEditingReview({ ...editingReview, video_cover_url: url })} />
+              <MediaUploader
+                folder="client-reviews"
+                label="رفع صورة أو فيديو"
+                accept="image/*,video/*"
+                onUploaded={(url, file) => setEditingReview({
+                  ...editingReview,
+                  image_url: file.type.startsWith("image/") ? url : "",
+                  video_url: file.type.startsWith("video/") ? url : "",
+                  video_cover_url: ""
+                })}
+              />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div className="form-group"><label>الترتيب</label><Input type="number" value={editingReview.sort_order} onChange={e => setEditingReview({ ...editingReview, sort_order: e.target.value })} /></div>

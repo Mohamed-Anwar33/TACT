@@ -22,6 +22,7 @@ export default function ProjectDetails() {
     desc: "A complete walkthrough and master layout documenting premium finishing materials, refined lighting integration, and turnkey project delivery.",
     descAr: "توثيق هندسي متكامل يبرز دقة تنفيذ بنود التشطيبات الفاخرة، وتناسق الخامات والدهانات مع المخططات المعمارية المعتمدة.",
     img: "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
+    cover: "",
     pdf: "",
     images: [
       "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
@@ -102,11 +103,7 @@ export default function ProjectDetails() {
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-muted text-muted-foreground border border-border">
               {lang === "ar" ? "القسم:" : "Category:"} <strong className="ms-1 text-foreground/80 font-serif-ar">{lang === "ar" ? currentProject.typeAr : currentProject.type}</strong>
             </span>
-            {currentProject.area && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-gold/10 text-teal-deep font-bold border border-gold/20">
-                {currentProject.area}
-              </span>
-            )}
+            {/* Area is hidden as requested */}
           </div>
         </header>
 

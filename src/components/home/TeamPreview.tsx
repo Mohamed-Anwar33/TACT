@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Linkedin, Mail, Phone, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
 import Reveal from "@/components/ui-luxe/Reveal";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,6 @@ const FALLBACK_OWNERS = [
   { name: "Ebrahem Al-Domiaty", nameAr: "إبراهيم الدمياطي", role: "General Manager - Architect", roleAr: "المدير العام - مهندس معماري", img: "/team-real/ebrahem-al-domiaty.png" },
   { name: "Khaled Sabiha", nameAr: "خالد صبيحة", role: "Architect", roleAr: "مهندس معماري", img: "/team-real/khaled-sabiha.png" },
 ];
-
-function SocialIcon({ icon: Icon }: { icon: any }) {
-  return (
-    <a href="#" className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-white/50 transition-all duration-300 hover:bg-[#C18556] hover:text-[#0C363A] hover:border-[#C18556]">
-      <Icon size={13} />
-    </a>
-  );
-}
 
 function OwnerPreviewCard({ m, index, lang }: { m: any; index: number; lang: string }) {
   const isRtl = lang === "ar";
@@ -38,8 +30,9 @@ function OwnerPreviewCard({ m, index, lang }: { m: any; index: number; lang: str
               <img
                 src={m.img}
                 alt={isRtl ? m.nameAr : m.name}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                className="w-full h-full object-cover image-crisp"
                 loading="lazy"
+                decoding="async"
               />
             </div>
           </div>
@@ -67,12 +60,6 @@ function OwnerPreviewCard({ m, index, lang }: { m: any; index: number; lang: str
           </p>
         </div>
 
-        {/* Social Links */}
-        <div className="flex gap-3 pt-4 border-t border-white/5 w-full justify-center">
-          <SocialIcon icon={Linkedin} />
-          <SocialIcon icon={Mail} />
-          <SocialIcon icon={Phone} />
-        </div>
       </div>
     </Reveal>
   );

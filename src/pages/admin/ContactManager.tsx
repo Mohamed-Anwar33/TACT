@@ -20,7 +20,10 @@ export default function ContactManager() {
     map_url: "", 
     facebook: "", 
     instagram: "", 
-    tiktok: "" 
+    tiktok: "",
+    youtube: "",
+    linkedin: "",
+    twitter: ""
   });
   const [messages, setMessages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -47,7 +50,10 @@ export default function ContactManager() {
       map_url: d.map_url || "", 
       facebook: d.social_links?.facebook || "", 
       instagram: d.social_links?.instagram || "", 
-      tiktok: d.social_links?.tiktok || "" 
+      tiktok: d.social_links?.tiktok || "",
+      youtube: d.social_links?.youtube || "",
+      linkedin: d.social_links?.linkedin || "",
+      twitter: d.social_links?.twitter || ""
     });
     setMessages(mRes.data || []);
   }
@@ -81,7 +87,10 @@ export default function ContactManager() {
         social_links: { 
           facebook: form.facebook, 
           instagram: form.instagram, 
-          tiktok: form.tiktok 
+          tiktok: form.tiktok,
+          youtube: form.youtube,
+          linkedin: form.linkedin,
+          twitter: form.twitter
         } 
       }, { onConflict: "id" });
       
@@ -199,10 +208,66 @@ export default function ContactManager() {
                 </div>
 
                 {/* Social Links */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
-                  <div className="form-group"><label>Facebook</label><Input value={form.facebook} onChange={e => setForm({ ...form, facebook: e.target.value })} dir="ltr" className="bg-white/50 border-[#C18556]/20" /></div>
-                  <div className="form-group"><label>Instagram</label><Input value={form.instagram} onChange={e => setForm({ ...form, instagram: e.target.value })} dir="ltr" className="bg-white/50 border-[#C18556]/20" /></div>
-                  <div className="form-group"><label>TikTok</label><Input value={form.tiktok} onChange={e => setForm({ ...form, tiktok: e.target.value })} dir="ltr" className="bg-white/50 border-[#C18556]/20" /></div>
+                <div>
+                  <label className="text-sm font-semibold text-[#0C363A] mb-3 block">روابط التواصل الاجتماعي</label>
+                  
+                  {/* WhatsApp note */}
+                  <div className="mb-3 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-lg px-3.5 py-2.5">
+                    <span className="text-green-500 mt-0.5">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.117 1.528 5.845L.057 23.714a.5.5 0 0 0 .614.63l5.98-1.565A11.932 11.932 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.013-1.378l-.36-.213-3.724.976.994-3.63-.234-.374A9.818 9.818 0 0 1 2.182 12C2.182 6.575 6.575 2.182 12 2.182S21.818 6.575 21.818 12 17.425 21.818 12 21.818z"/>
+                      </svg>
+                    </span>
+                    <p className="text-xs text-green-700 leading-relaxed">
+                      <strong>واتساب:</strong> أيقونة الواتساب في الفوتر تستخدم تلقائياً <strong>رقم الواتساب</strong> المُدخَل في الأعلى. لا تحتاج لإدخاله مرة أخرى.
+                    </p>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="form-group">
+                      <label className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#1877F2" }} />
+                        Facebook
+                      </label>
+                      <Input value={form.facebook} onChange={e => setForm({ ...form, facebook: e.target.value })} dir="ltr" placeholder="https://facebook.com/..." className="bg-white/50 border-[#C18556]/20 focus-visible:border-[#C18556]" />
+                    </div>
+                    <div className="form-group">
+                      <label className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#E1306C" }} />
+                        Instagram
+                      </label>
+                      <Input value={form.instagram} onChange={e => setForm({ ...form, instagram: e.target.value })} dir="ltr" placeholder="https://instagram.com/..." className="bg-white/50 border-[#C18556]/20 focus-visible:border-[#C18556]" />
+                    </div>
+                    <div className="form-group">
+                      <label className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#000" }} />
+                        TikTok
+                      </label>
+                      <Input value={form.tiktok} onChange={e => setForm({ ...form, tiktok: e.target.value })} dir="ltr" placeholder="https://tiktok.com/@..." className="bg-white/50 border-[#C18556]/20 focus-visible:border-[#C18556]" />
+                    </div>
+                    <div className="form-group">
+                      <label className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#FF0000" }} />
+                        YouTube
+                      </label>
+                      <Input value={form.youtube} onChange={e => setForm({ ...form, youtube: e.target.value })} dir="ltr" placeholder="https://youtube.com/@..." className="bg-white/50 border-[#C18556]/20 focus-visible:border-[#C18556]" />
+                    </div>
+                    <div className="form-group">
+                      <label className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#0A66C2" }} />
+                        LinkedIn
+                      </label>
+                      <Input value={form.linkedin} onChange={e => setForm({ ...form, linkedin: e.target.value })} dir="ltr" placeholder="https://linkedin.com/company/..." className="bg-white/50 border-[#C18556]/20 focus-visible:border-[#C18556]" />
+                    </div>
+                    <div className="form-group">
+                      <label className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#000" }} />
+                        Twitter / X
+                      </label>
+                      <Input value={form.twitter} onChange={e => setForm({ ...form, twitter: e.target.value })} dir="ltr" placeholder="https://x.com/..." className="bg-white/50 border-[#C18556]/20 focus-visible:border-[#C18556]" />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Map URL */}
