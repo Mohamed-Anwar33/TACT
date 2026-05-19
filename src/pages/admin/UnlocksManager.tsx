@@ -44,6 +44,7 @@ export default function UnlocksManager() {
   const getPkgName = (id: string) => packages.find(p => p.id === id)?.name_ar || PKG_LABELS[id] || id;
   const pendingPayments = payments.filter(p => p.status === "pending");
   const activeUnlocks = unlocks.filter(u => u.status === "active");
+  const getUserUnlocks = (uid: string) => activeUnlocks.filter(u => u.user_id === uid);
 
   const filteredPayments = search
     ? pendingPayments.filter(p => { const pr = getProfile(p.user_id); return (pr?.full_name || "").includes(search) || (p.phone || "").includes(search); })
@@ -52,6 +53,19 @@ export default function UnlocksManager() {
   const filteredUnlocks = search
     ? activeUnlocks.filter(u => { const pr = getProfile(u.user_id); return (pr?.full_name || "").includes(search) || (pr?.email || "").includes(search); })
     : activeUnlocks;
+
+  const filteredProfiles = search
+    ? profiles.filter(p =>
+      (p.full_name || "").includes(search) ||
+      (p.email || "").includes(search) ||
+      (p.phone || "").includes(search)
+    )
+    : profiles;
+
+  async function syncLegacyAccessFlag(userId: string, value: boolean) {
+    const { error } = await db.from("profiles").update({ packages_unlocked: value }).eq("id", userId);
+    if (error) console.warn("Could not sync legacy package flag", error);
+  }
 
   async function approvePayment(payment: any) {
     setBusy(true);
@@ -65,8 +79,7 @@ export default function UnlocksManager() {
       if (unlockErr) throw unlockErr;
       // Update payment status
       await db.from("payment_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", payment.id);
-      // Update profile flag
-      await db.from("profiles").update({ packages_unlocked: true }).eq("id", payment.user_id);
+      await syncLegacyAccessFlag(payment.user_id, true);
       toast.success("تم تفعيل الباقة بنجاح");
       setActivating(null);
       setSelectedPkg("");
@@ -83,7 +96,7 @@ export default function UnlocksManager() {
         user_id: activating.id, package_id: selectedPkg, status: "active",
       }, { onConflict: "user_id,package_id" });
       if (error) throw error;
-      await db.from("profiles").update({ packages_unlocked: true }).eq("id", activating.id);
+      await syncLegacyAccessFlag(activating.id, true);
       toast.success("تم التفعيل");
       setActivating(null);
       setSelectedPkg("");
@@ -96,7 +109,7 @@ export default function UnlocksManager() {
     if (!revokeTarget) return;
     await db.from("package_unlocks").delete().eq("id", revokeTarget.id);
     const remaining = unlocks.filter(u => u.user_id === revokeTarget.user_id && u.id !== revokeTarget.id && u.status === "active");
-    if (remaining.length === 0) await db.from("profiles").update({ packages_unlocked: false }).eq("id", revokeTarget.user_id);
+    if (remaining.length === 0) await syncLegacyAccessFlag(revokeTarget.user_id, false);
     toast.success("تم إلغاء التفعيل");
     setRevokeTarget(null);
     await load();
@@ -130,6 +143,7 @@ export default function UnlocksManager() {
           <div className="admin-tabs" style={{ marginBottom: 0, border: "none" }}>
             <button className={`admin-tab ${tab === "pending" ? "active" : ""}`} onClick={() => setTab("pending")}>معلقة ({pendingPayments.length})</button>
             <button className={`admin-tab ${tab === "active" ? "active" : ""}`} onClick={() => setTab("active")}>مفعلة ({activeUnlocks.length})</button>
+            <button className={`admin-tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>المستخدمين ({profiles.length})</button>
           </div>
         </div>
 
@@ -202,6 +216,53 @@ export default function UnlocksManager() {
                     );
                   })}
                   {filteredUnlocks.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "#999" }}>لا توجد باقات مفعلة</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* All Users */}
+        {tab === "all" && (
+          <div className="admin-card">
+            <div className="card-header"><h3><Unlock size={16} style={{ verticalAlign: -2, marginInlineEnd: 6, color: "#6366f1" }} />كل المستخدمين</h3></div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="admin-table">
+                <thead><tr><th>العميل</th><th>البريد</th><th>الهاتف</th><th>الباقات</th><th>الحالة</th><th>إجراء</th></tr></thead>
+                <tbody>
+                  {filteredProfiles.map(p => {
+                    const userUnlocks = getUserUnlocks(p.id);
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ fontWeight: 600 }}>{p.full_name || "—"}</td>
+                        <td dir="ltr" style={{ fontSize: "0.8rem" }}>{p.email || "—"}</td>
+                        <td dir="ltr" style={{ fontSize: "0.8rem" }}>{p.phone || "—"}</td>
+                        <td>
+                          {userUnlocks.length > 0 ? (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {userUnlocks.map(u => (
+                                <span key={u.id} style={{ padding: "3px 10px", borderRadius: 20, background: "#ecfdf5", color: "#059669", fontSize: "0.75rem", fontWeight: 600 }}>{getPkgName(u.package_id)}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: "#999", fontSize: "0.8rem" }}>غير مفعل</span>
+                          )}
+                        </td>
+                        <td>
+                          <span style={{ fontSize: "0.7rem", fontWeight: 600, color: userUnlocks.length > 0 ? "#059669" : "#f59e0b" }}>
+                            {userUnlocks.length > 0 ? "مفعل" : "ينتظر التفعيل"}
+                          </span>
+                        </td>
+                        <td>
+                          <button onClick={() => { setActivating(p); setSelectedPkg(""); }}
+                            style={{ padding: "5px 12px", borderRadius: 6, background: userUnlocks.length > 0 ? "#fff" : "#059669", color: userUnlocks.length > 0 ? "#073b35" : "#fff", border: userUnlocks.length > 0 ? "1px solid #e5e0d5" : "none", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            <Unlock size={12} /> {userUnlocks.length > 0 ? "إضافة باقة" : "تفعيل باقة"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredProfiles.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "#999" }}>لا يوجد مستخدمون مطابقون</td></tr>}
                 </tbody>
               </table>
             </div>
