@@ -172,6 +172,13 @@ export default function Configurator() {
     setIsDragging(false);
   };
 
+  const saveLightboxNote = () => {
+    closeLightbox();
+    window.setTimeout(() => {
+      document.getElementById("package-image-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
+
   useEffect(() => {
     if (!loading && !user) nav("/auth");
   }, [loading, user, nav]);
@@ -615,7 +622,7 @@ export default function Configurator() {
               </span>
             </header>
 
-            <div className={cn("grid auto-rows-max items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
+            <div id="package-image-grid" className={cn("grid auto-rows-max items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
               {imageTiles.map((tile, tileIndex) => {
                 const item = currentSectionSelection?.selected?.[tile.id];
                 const isSelected = !!item;
@@ -1026,6 +1033,16 @@ export default function Configurator() {
                         placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
                         className="min-h-[100px] resize-none bg-white border-white/20 text-[#0C363A] placeholder:text-[#0C363A]/45 focus:border-gold/50 focus:ring-1 focus:ring-gold/50 rounded-xl select-text text-sm"
                       />
+                      <div className="flex justify-start pt-1">
+                        <button
+                          type="button"
+                          onClick={saveLightboxNote}
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-gold bg-gold px-6 py-3 text-xs font-bold text-[#0C363A] shadow-lg transition hover:bg-white hover:border-white"
+                        >
+                          <Check size={15} className="stroke-[3]" />
+                          <span>{lang === "ar" ? "حفظ الملاحظة" : "Save note"}</span>
+                        </button>
+                      </div>
                       <span className="text-[10px] text-white/40 block mt-1">
                         {lang === "ar" 
                           ? "ملاحظتك سيتم حفظها تلقائياً وتظهر للمهندس عند تصميم وتنفيذ منزلك."

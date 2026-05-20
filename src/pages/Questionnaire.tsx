@@ -436,12 +436,12 @@ export default function Questionnaire() {
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div>
                       <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2 font-bold">
-                        {lang === "ar" ? "بلانات / تقسيمات المشروع" : "Project Plans / Layouts"}
+                        {lang === "ar" ? "صور رسم الشقة أو تقسيم الغرف" : "Apartment drawings or room layout images"}
                       </label>
                       <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
                         {lang === "ar"
-                          ? "لو متاح معاك صورة البلان أو تقسيم الشقة/الفيلا ارفعها هنا. الصور دي بتوصل للإدارة مع الاستبيان عشان نقدر نفهم المساحات والتقسيم قبل التواصل."
-                          : "Upload available floor plans or layout images. These files are sent with the questionnaire for the team to review the space."}
+                          ? "لو معاك صورة فيها تقسيم الشقة أو الفيلا، أو أماكن الغرف والحمامات والمطبخ، ارفعها هنا. الصور دي بتساعدنا نفهم المساحة قبل ما نتواصل معاك."
+                          : "Upload any drawing or image that shows the apartment/villa layout, rooms, bathrooms, or kitchen locations. It helps us understand the space before contacting you."}
                       </p>
                     </div>
                     <label className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm border border-gold bg-gold px-5 py-3 text-xs font-bold text-teal-deep transition hover:bg-transparent hover:text-gold">
