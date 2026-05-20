@@ -69,6 +69,7 @@ export default function Configurator() {
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
   const [busy, setBusy] = useState(false);
   const wasLightboxOpen = useRef(false);
+  const lightboxScrollRef = useRef<HTMLDivElement>(null);
 
   // Zoom Lightbox States
   const [zoomTile, setZoomTile] = useState<ImageTile | null>(null);
@@ -189,6 +190,13 @@ export default function Configurator() {
       alive = false;
     };
   }, [packageId, user, loading, profile?.packages_unlocked]);
+
+  // Reset scroll to top when lightbox opens
+  useEffect(() => {
+    if (zoomTile && lightboxScrollRef.current) {
+      lightboxScrollRef.current.scrollTop = 0;
+    }
+  }, [zoomTile]);
 
   // Browser back button: close lightbox instead of navigating away
   useEffect(() => {
@@ -763,11 +771,11 @@ export default function Configurator() {
       {/* Lightbox / Zoom Dialog Modal */}
       {zoomTile && (
         <div 
-          className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-xl transition-opacity duration-300 overflow-y-auto"
+          className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-xl"
           dir={lang === "ar" ? "rtl" : "ltr"}
         >
-          {/* Top Header Bar */}
-          <div className="sticky top-0 bg-black/90 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-white/10 z-20">
+          {/* Top Header Bar — always pinned at top, never scrolls */}
+          <div className="flex-shrink-0 bg-black/90 backdrop-blur-md px-5 py-3 flex items-center justify-between border-b border-white/10 z-20">
             <div>
               <span className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] block mb-1">
                 {lang === "ar" ? "معاينة التفاصيل الدقيقة والخامات" : "FINE DETAIL & MATERIAL INSPECTION"}
@@ -809,8 +817,8 @@ export default function Configurator() {
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
+          {/* Main Content Area — only this scrolls */}
+          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full"><div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
             
             {/* Image Frame Card Container */}
             <div 
@@ -1004,7 +1012,8 @@ export default function Configurator() {
                 }
               </span>
             </div>
-          </div>
+          </div>{/* end max-w-4xl inner */}
+          </div>{/* end scroll container */}
         </div>
       )}
     </>
