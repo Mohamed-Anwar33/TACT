@@ -129,8 +129,8 @@ export default function SelectionsManager() {
               name_ar: item.option_name,
               name_en: item.option_name,
             },
-            place: section.place || "غير محدد",
-            qty: section.qty || "غير محدد",
+            place: item.place || section.place || "غير محدد",
+            qty: item.qty || section.qty || "غير محدد",
             notes: item.note || section.notes || "لا توجد ملاحظات",
           });
         });
@@ -346,8 +346,6 @@ export default function SelectionsManager() {
       Object.values(rawSelections.sections).forEach((section: any) => {
         const styleName = textOrDefault(section.style, "عام (General)");
         const sectionCategory = textOrDefault(section.category, "غير محدد");
-        const sectionPlace = textOrDefault(section.place, "غير محدد");
-        const sectionQty = textOrDefault(section.qty, "غير محدد");
         const sectionNotes = textOrDefault(section.notes, "");
 
         Object.values(section.selected ?? {}).forEach((item: any, index) => {
@@ -360,8 +358,8 @@ export default function SelectionsManager() {
             choice: textOrDefault(item.option_name, "غير محدد"),
             imageUrl: normalizeImage(item.image_url),
             description: textOrDefault(item.description, "مواصفات المادة أو البند المحدد من الكتالوج الرسمي."),
-            place: sectionPlace,
-            qty: sectionQty,
+            place: textOrDefault(item.place || section.place, "غير محدد"),
+            qty: textOrDefault(item.qty || section.qty, "غير محدد"),
             imageNote: textOrDefault(item.note, "لا توجد ملاحظة خاصة بهذه الصورة"),
             categoryNotes: sectionNotes,
           });
@@ -505,6 +503,7 @@ export default function SelectionsManager() {
       Promise.all(
         images.map((img) => {
           img.loading = "eager";
+          img.decoding = "sync";
           if (img.complete) return Promise.resolve();
           return new Promise<void>((resolve) => {
             img.onload = () => resolve();
@@ -913,17 +912,18 @@ export default function SelectionsManager() {
                 border-radius: 8px;
                 margin-bottom: 10px;
                 display: flex;
-                min-height: 104px;
+                min-height: 168px;
                 overflow: hidden;
                 break-inside: avoid;
                 page-break-inside: avoid;
               }
               .print-option-img {
-                width: 120px;
-                height: 104px;
+                width: 190px;
+                height: 168px;
                 object-fit: contain;
                 background: #fbf9f5;
                 border-inline-end: 1px solid #eae5dc;
+                image-rendering: auto;
               }
               .print-option-details {
                 padding: 12px;

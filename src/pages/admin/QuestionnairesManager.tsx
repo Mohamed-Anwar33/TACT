@@ -16,6 +16,8 @@ import {
   FileText,
   Trash2,
   Users,
+  Image as ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +75,8 @@ export default function QuestionnairesManager() {
       (q.email || "").toLowerCase().includes(term)
     );
   });
+
+  const selectedPlanImages = Array.isArray(selected?.plan_images) ? selected.plan_images : [];
 
   // Default selection
   useEffect(() => {
@@ -220,6 +224,36 @@ export default function QuestionnairesManager() {
                         <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full text-xs inline-block mt-0.5">
                           {selected.stage}
                         </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground block mb-1">بلانات / تقسيمات المشروع</span>
+                        {selectedPlanImages.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {selectedPlanImages.map((asset: any, idx: number) => (
+                              <a
+                                key={asset.url || idx}
+                                href={asset.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group overflow-hidden rounded-lg border border-[#e5e0d5] bg-[#FBF7F0] text-[#0C363A] transition hover:border-[#C18556]"
+                              >
+                                {String(asset.type || "").startsWith("image/") ? (
+                                  <img src={asset.url} alt={asset.name || `plan-${idx + 1}`} className="h-24 w-full object-contain bg-white" />
+                                ) : (
+                                  <div className="h-24 w-full grid place-items-center bg-white">
+                                    <ImageIcon className="h-7 w-7 text-[#C18556]" />
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px]">
+                                  <span className="truncate">{asset.name || `Plan ${idx + 1}`}</span>
+                                  <ExternalLink className="h-3 w-3 shrink-0 text-[#C18556]" />
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">لا توجد بلانات مرفوعة</span>
+                        )}
                       </div>
                     </div>
                   </div>

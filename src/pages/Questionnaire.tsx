@@ -5,7 +5,7 @@ import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Check, Sparkles, User, Home, Layers, Users, Heart, Lightbulb } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Sparkles, User, Home, Layers, Users, Heart, Lightbulb, Upload, X, FileImage } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,12 @@ const STEPS_META = [
   { id: "expectations", labelAr: "التوقعات والتجربة", labelEn: "Expectations & History", icon: Heart },
   { id: "problems", labelAr: "المشكلات والطموحات", labelEn: "Goals & Notes", icon: Lightbulb },
 ];
+
+type PlanImage = {
+  url: string;
+  name: string;
+  type: string;
+};
 
 export default function Questionnaire() {
   const { lang } = useLang();
@@ -36,6 +42,7 @@ export default function Questionnaire() {
     project_type_custom: "",
     stage: "",
     stage_custom: "",
+    plan_images: [] as PlanImage[],
     family: "",
     family_custom: "",
     service: [] as string[],
@@ -52,6 +59,43 @@ export default function Questionnaire() {
   });
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
+
+  const uploadPlanFiles = async (files: FileList | null) => {
+    const fileList = Array.from(files ?? []);
+    if (!fileList.length) return;
+
+    setBusy(true);
+    try {
+      const uploaded: PlanImage[] = [];
+      for (const file of fileList) {
+        if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+          toast.error(lang === "ar" ? "ارفع صور أو PDF فقط للبلانات" : "Only images or PDFs are allowed for plans");
+          continue;
+        }
+        const safeName = file.name.replace(/[^\w.\-]+/g, "-").toLowerCase();
+        const owner = user?.id ?? "guest";
+        const path = `questionnaires/${owner}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+        const { error } = await supabase.storage
+          .from("tact-media")
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if (error) throw error;
+        const { data: publicData } = supabase.storage.from("tact-media").getPublicUrl(path);
+        uploaded.push({ url: publicData.publicUrl, name: file.name, type: file.type });
+      }
+      if (uploaded.length) {
+        update("plan_images", [...data.plan_images, ...uploaded]);
+        toast.success(lang === "ar" ? "تم رفع بلانات المشروع" : "Project plans uploaded");
+      }
+    } catch (err: any) {
+      toast.error(err.message || (lang === "ar" ? "فشل رفع البلانات" : "Plan upload failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removePlanImage = (url: string) => {
+    update("plan_images", data.plan_images.filter((item) => item.url !== url));
+  };
 
   const nextStep = () => {
     // Validate required fields on step 0
@@ -111,6 +155,7 @@ export default function Questionnaire() {
       history: combinedHistory,
       goals: combinedGoals,
       notes: data.notes,
+      plan_images: data.plan_images,
     });
 
     setBusy(false);
@@ -383,6 +428,63 @@ export default function Questionnaire() {
                         className="h-11 border-gold/40 focus:border-gold"
                         autoFocus
                       />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-dashed border-gold/45 bg-[#FBF7F0] p-5">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div>
+                      <label className="text-xs font-serif uppercase tracking-wider text-teal-deep block mb-2 font-bold">
+                        {lang === "ar" ? "بلانات / تقسيمات المشروع" : "Project Plans / Layouts"}
+                      </label>
+                      <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                        {lang === "ar"
+                          ? "لو متاح معاك صورة البلان أو تقسيم الشقة/الفيلا ارفعها هنا. الصور دي بتوصل للإدارة مع الاستبيان عشان نقدر نفهم المساحات والتقسيم قبل التواصل."
+                          : "Upload available floor plans or layout images. These files are sent with the questionnaire for the team to review the space."}
+                      </p>
+                    </div>
+                    <label className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm border border-gold bg-gold px-5 py-3 text-xs font-bold text-teal-deep transition hover:bg-transparent hover:text-gold">
+                      <Upload size={15} />
+                      <span>{busy ? "..." : lang === "ar" ? "رفع البلانات" : "Upload plans"}</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,application/pdf,.pdf"
+                        className="hidden"
+                        disabled={busy}
+                        onChange={(e) => {
+                          uploadPlanFiles(e.target.files);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {data.plan_images.length > 0 && (
+                    <div className="mt-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {data.plan_images.map((asset) => (
+                        <div key={asset.url} className="relative overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+                          {asset.type.startsWith("image/") ? (
+                            <img src={asset.url} alt={asset.name} className="h-32 w-full object-contain bg-white" />
+                          ) : (
+                            <a href={asset.url} target="_blank" rel="noreferrer" className="h-32 w-full grid place-items-center bg-white text-teal-deep">
+                              <FileImage size={30} />
+                            </a>
+                          )}
+                          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+                            <span className="truncate text-[11px] text-muted-foreground" title={asset.name}>{asset.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removePlanImage(asset.url)}
+                              className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+                              title={lang === "ar" ? "حذف الملف" : "Remove file"}
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
