@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -165,6 +166,12 @@ export default function Configurator() {
     }
   };
 
+  const closeLightbox = () => {
+    setZoomTile(null);
+    resetZoom();
+    setIsDragging(false);
+  };
+
   useEffect(() => {
     if (!loading && !user) nav("/auth");
   }, [loading, user, nav]);
@@ -196,6 +203,14 @@ export default function Configurator() {
     if (zoomTile && lightboxScrollRef.current) {
       lightboxScrollRef.current.scrollTop = 0;
     }
+  }, [zoomTile]);
+
+  useEffect(() => {
+    if (!zoomTile) return;
+    document.body.classList.add("package-lightbox-open");
+    return () => {
+      document.body.classList.remove("package-lightbox-open");
+    };
   }, [zoomTile]);
 
   // Browser back button: close lightbox instead of navigating away
@@ -769,36 +784,38 @@ export default function Configurator() {
       </section>
 
       {/* Lightbox / Zoom Dialog Modal */}
-      {zoomTile && (
+      {zoomTile && createPortal((
         <div 
-          className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-xl"
+          className="fixed inset-0 z-[9999] flex flex-col bg-black/98 backdrop-blur-xl"
           dir={lang === "ar" ? "rtl" : "ltr"}
+          role="dialog"
+          aria-modal="true"
         >
           {/* Top Header Bar — always pinned at top, never scrolls */}
-          <div className="flex-shrink-0 bg-black/90 backdrop-blur-md px-5 py-3 flex items-center justify-between border-b border-white/10 z-20">
+          <div className="flex-shrink-0 bg-black/90 backdrop-blur-md px-4 md:px-5 py-3 flex items-center justify-between gap-3 border-b border-white/10 z-20">
             <div>
               <span className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] block mb-1">
                 {lang === "ar" ? "معاينة التفاصيل الدقيقة والخامات" : "FINE DETAIL & MATERIAL INSPECTION"}
               </span>
-              <h2 className="font-serif-ar text-base md:text-2xl text-white font-bold drop-shadow">
+              <h2 className="font-serif-ar text-sm md:text-xl text-white font-bold drop-shadow line-clamp-1">
                 {lang === "ar" ? zoomTile.option.name_ar : zoomTile.option.name_en}
               </h2>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex shrink-0 items-center gap-2 md:gap-4">
               {/* Selection State Indicator / Toggle */}
               {activeStyle && activeSection && (
                 <button
                   onClick={() => toggleTile(zoomTile)}
                   className={cn(
-                    "px-4 md:px-5 py-2 rounded-full text-[11px] md:text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border shadow-lg cursor-pointer",
+                    "px-3 md:px-5 py-2 rounded-full text-[11px] md:text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border shadow-lg cursor-pointer",
                     selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
                       ? "bg-gold border-gold text-[#0C363A] hover:bg-white hover:border-white"
                       : "bg-white/10 border-white/20 text-white hover:bg-white/20"
                   )}
                 >
                   <Check size={13} className="stroke-[3]" />
-                  <span>
+                  <span className="hidden sm:inline">
                     {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
                       ? (lang === "ar" ? "محدد ومختار" : "SELECTED CHOICE")
                       : (lang === "ar" ? "تحديد هذا الخيار" : "SELECT OPTION")
@@ -808,21 +825,22 @@ export default function Configurator() {
               )}
 
               <button
-                onClick={() => setZoomTile(null)}
-                className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/10 hover:bg-red-500 text-white flex items-center justify-center transition-all duration-300 border border-white/10 cursor-pointer"
+                onClick={closeLightbox}
+                className="w-11 h-11 rounded-full bg-white/15 hover:bg-red-500 text-white flex items-center justify-center transition-all duration-300 border border-white/20 shadow-xl cursor-pointer"
                 title={lang === "ar" ? "إغلاق" : "Close"}
+                aria-label={lang === "ar" ? "إغلاق" : "Close"}
               >
-                <X size={18} />
+                <X size={22} />
               </button>
             </div>
           </div>
 
           {/* Main Content Area — only this scrolls */}
-          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full"><div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
+          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full"><div className="mx-auto w-full max-w-[1500px] px-3 md:px-6 py-4 flex flex-col gap-4">
             
             {/* Image Frame Card Container */}
             <div 
-              className="relative w-full aspect-video md:aspect-[16/10] max-h-[55vh] min-h-[260px] bg-black/45 border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center select-none cursor-zoom-in"
+              className="relative w-full h-[calc(100vh-240px)] min-h-[320px] max-h-[72vh] bg-black overflow-hidden flex items-center justify-center select-none cursor-zoom-in"
               style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -1012,10 +1030,10 @@ export default function Configurator() {
                 }
               </span>
             </div>
-          </div>{/* end max-w-4xl inner */}
+          </div>{/* end lightbox inner */}
           </div>{/* end scroll container */}
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }

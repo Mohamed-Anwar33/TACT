@@ -102,6 +102,12 @@
     font-family: 'Inter', 'Manrope', system-ui, sans-serif;
     font-feature-settings: 'ss01', 'cv11';
   }
+  body.package-lightbox-open {
+    overflow: hidden;
+  }
+  body.package-lightbox-open > #root header {
+    display: none;
+  }
   html[dir="rtl"] body {
     font-family: 'Cairo', 'IBM Plex Sans Arabic', system-ui, sans-serif;
   }
