@@ -615,7 +615,7 @@ export default function Configurator() {
               </span>
             </header>
 
-            <div className={cn("grid items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
+            <div className={cn("grid auto-rows-max items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
               {imageTiles.map((tile, tileIndex) => {
                 const item = currentSectionSelection?.selected?.[tile.id];
                 const isSelected = !!item;
@@ -623,7 +623,7 @@ export default function Configurator() {
                   <article
                     key={tile.id}
                     className={cn(
-                      "group self-start bg-white rounded-[14px] border overflow-hidden shadow-sm transition-all duration-300",
+                      "group self-start h-fit bg-white rounded-[14px] border overflow-hidden shadow-sm transition-all duration-300",
                       isSelected ? "border-gold ring-2 ring-gold/20 shadow-lg" : "border-border hover:border-gold/60 hover:shadow-md"
                     )}
                   >
@@ -738,7 +738,6 @@ export default function Configurator() {
               })}
             </div>
 
-            {!showStylePreview && (
             <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
               <h3 className="text-xs uppercase tracking-[0.2em] text-teal-deep font-bold mb-4">
                 {lang === "ar" ? "ملاحظات عامة على التصنيف" : "General Category Notes"}
@@ -750,7 +749,6 @@ export default function Configurator() {
                 placeholder={lang === "ar" ? "أي ملاحظات عامة على هذا التصنيف..." : "Any general notes for this category..."}
               />
             </div>
-            )}
 
             {selectedCount > 0 && (
               <div className="bg-teal-deep text-ivory rounded-2xl border border-gold/25 p-6">
@@ -810,7 +808,7 @@ export default function Configurator() {
       {/* Lightbox / Zoom Dialog Modal */}
       {zoomTile && createPortal((
         <div 
-          className="fixed inset-0 z-[9999] flex flex-col bg-[#061d20]"
+          className="fixed inset-0 z-[9999] flex flex-col bg-[#061d20] text-white"
           dir={lang === "ar" ? "rtl" : "ltr"}
           role="dialog"
           aria-modal="true"
@@ -860,7 +858,7 @@ export default function Configurator() {
           </div>
 
           {/* Main Content Area — only this scrolls */}
-          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full"><div className="mx-auto w-full max-w-[1520px] px-3 md:px-6 py-5 flex flex-col gap-5">
+          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full bg-[#061d20]"><div className="mx-auto w-full max-w-[1520px] px-3 md:px-6 py-5 flex flex-col gap-5">
             
             {/* Image Frame Card Container */}
             <div 
@@ -978,7 +976,7 @@ export default function Configurator() {
               </div>
 
               {/* Selection Toggle and Notes Input Card */}
-              {activeStyle && activeSection && (
+              {activeStyle && activeSection && zoomSelection && (
                 <div className="w-full bg-[#0d3436] border border-gold/25 rounded-[14px] p-5 md:p-6 shadow-2xl relative overflow-hidden flex flex-col gap-4">
                   {/* Subtle background golden aura */}
                   <div className="absolute -right-16 -bottom-16 w-36 h-36 rounded-full bg-gold/5 blur-2xl pointer-events-none" />
@@ -1026,7 +1024,7 @@ export default function Configurator() {
                         value={zoomSelection.note ?? ""}
                         onChange={(e) => updateItemNote(zoomTile.id, e.target.value)}
                         placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
-                        className="min-h-[100px] resize-none bg-white/10 border-white/20 text-white placeholder:text-white/30 backdrop-blur-md focus:border-gold/50 focus:ring-1 focus:ring-gold/50 rounded-xl select-text text-sm"
+                        className="min-h-[100px] resize-none bg-white border-white/20 text-[#0C363A] placeholder:text-[#0C363A]/45 focus:border-gold/50 focus:ring-1 focus:ring-gold/50 rounded-xl select-text text-sm"
                       />
                       <span className="text-[10px] text-white/40 block mt-1">
                         {lang === "ar" 
