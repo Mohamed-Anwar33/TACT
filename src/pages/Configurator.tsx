@@ -261,6 +261,7 @@ export default function Configurator() {
 
   const selectedItems = useMemo(() => Object.values(selections).flatMap((section) => Object.values(section.selected ?? {})), [selections]);
   const selectedCount = selectedItems.length;
+  const zoomSelection = zoomTile && currentSectionSelection ? currentSectionSelection.selected?.[zoomTile.id] : undefined;
 
   const updateSection = (patch: Partial<SectionSelection>) => {
     if (!activeStyle || !activeSection) return;
@@ -614,7 +615,7 @@ export default function Configurator() {
               </span>
             </header>
 
-            <div className={cn("grid gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
+            <div className={cn("grid items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
               {imageTiles.map((tile, tileIndex) => {
                 const item = currentSectionSelection?.selected?.[tile.id];
                 const isSelected = !!item;
@@ -622,19 +623,34 @@ export default function Configurator() {
                   <article
                     key={tile.id}
                     className={cn(
-                      "group bg-white rounded-2xl border overflow-hidden shadow-sm transition-all duration-300",
+                      "group self-start bg-white rounded-[14px] border overflow-hidden shadow-sm transition-all duration-300",
                       isSelected ? "border-gold ring-2 ring-gold/20 shadow-lg" : "border-border hover:border-gold/60 hover:shadow-md"
                     )}
                   >
-                    <button type="button" onClick={() => toggleTile(tile)} className="block w-full text-start">
-                      <div className="aspect-square bg-muted relative overflow-hidden">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setZoomTile(tile);
+                        resetZoom();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setZoomTile(tile);
+                          resetZoom();
+                        }
+                      }}
+                      className="block w-full text-start cursor-zoom-in"
+                    >
+                      <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                         {tile.imageUrl ? (
                           <img
                             src={tile.imageUrl}
                             alt={tile.label}
                             loading="lazy"
                             decoding="async"
-                            className="w-full h-full object-contain image-crisp bg-white/5"
+                            className="w-full h-full object-cover image-crisp bg-white/5 transition-transform duration-500 group-hover:scale-[1.03]"
                             onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                           />
                         ) : (
@@ -644,9 +660,17 @@ export default function Configurator() {
                         <span className="absolute top-3 start-3 bg-black/45 backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1 rounded-full border border-white/10">
                           {String(tileIndex + 1).padStart(2, "0")}
                         </span>
-                        <span className={cn("absolute top-3 end-3 w-9 h-9 rounded-full border grid place-items-center transition-all", isSelected ? "bg-gold border-gold text-teal-deep" : "bg-black/35 border-white/25 text-white")}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTile(tile);
+                          }}
+                          className={cn("absolute top-3 end-3 z-20 w-9 h-9 rounded-full border grid place-items-center transition-all", isSelected ? "bg-gold border-gold text-teal-deep" : "bg-black/35 border-white/25 text-white hover:bg-gold hover:border-gold hover:text-teal-deep")}
+                          title={isSelected ? (lang === "ar" ? "إلغاء التحديد" : "Unselect") : (lang === "ar" ? "تحديد الصورة" : "Select image")}
+                        >
                           <Check size={18} />
-                        </span>
+                        </button>
                         
                         {/* Hover Zoom Overlay (Desktop) */}
                         <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center pointer-events-none">
@@ -672,7 +696,7 @@ export default function Configurator() {
                           <ZoomIn size={14} />
                         </button>
                       </div>
-                    </button>
+                    </div>
                     {isSelected && item && (
                       <div className="p-4 border-t border-gold/25 bg-gold/5 space-y-3">
                         <div className="grid grid-cols-2 gap-2">
@@ -786,13 +810,13 @@ export default function Configurator() {
       {/* Lightbox / Zoom Dialog Modal */}
       {zoomTile && createPortal((
         <div 
-          className="fixed inset-0 z-[9999] flex flex-col bg-black/98 backdrop-blur-xl"
+          className="fixed inset-0 z-[9999] flex flex-col bg-[#061d20]"
           dir={lang === "ar" ? "rtl" : "ltr"}
           role="dialog"
           aria-modal="true"
         >
           {/* Top Header Bar — always pinned at top, never scrolls */}
-          <div className="flex-shrink-0 bg-black/90 backdrop-blur-md px-4 md:px-5 py-3 flex items-center justify-between gap-3 border-b border-white/10 z-20">
+          <div className="flex-shrink-0 bg-[#061d20]/95 backdrop-blur-md px-4 md:px-6 py-3 flex items-center justify-between gap-3 border-b border-white/10 z-20">
             <div>
               <span className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] block mb-1">
                 {lang === "ar" ? "معاينة التفاصيل الدقيقة والخامات" : "FINE DETAIL & MATERIAL INSPECTION"}
@@ -809,14 +833,14 @@ export default function Configurator() {
                   onClick={() => toggleTile(zoomTile)}
                   className={cn(
                     "px-3 md:px-5 py-2 rounded-full text-[11px] md:text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border shadow-lg cursor-pointer",
-                    selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
+                    zoomSelection
                       ? "bg-gold border-gold text-[#0C363A] hover:bg-white hover:border-white"
                       : "bg-white/10 border-white/20 text-white hover:bg-white/20"
                   )}
                 >
                   <Check size={13} className="stroke-[3]" />
                   <span className="hidden sm:inline">
-                    {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
+                    {zoomSelection
                       ? (lang === "ar" ? "محدد ومختار" : "SELECTED CHOICE")
                       : (lang === "ar" ? "تحديد هذا الخيار" : "SELECT OPTION")
                     }
@@ -836,11 +860,11 @@ export default function Configurator() {
           </div>
 
           {/* Main Content Area — only this scrolls */}
-          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full"><div className="mx-auto w-full max-w-[1500px] px-3 md:px-6 py-4 flex flex-col gap-4">
+          <div ref={lightboxScrollRef} className="flex-1 overflow-y-auto w-full"><div className="mx-auto w-full max-w-[1520px] px-3 md:px-6 py-5 flex flex-col gap-5">
             
             {/* Image Frame Card Container */}
             <div 
-              className="relative w-full h-[calc(100vh-240px)] min-h-[320px] max-h-[72vh] bg-black overflow-hidden flex items-center justify-center select-none cursor-zoom-in"
+              className="relative w-full h-[calc(100vh-270px)] min-h-[320px] max-h-[68vh] rounded-[14px] bg-[#020607] overflow-hidden flex items-center justify-center select-none cursor-zoom-in shadow-[0_22px_80px_rgba(0,0,0,0.45)] border border-white/10"
               style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -905,7 +929,7 @@ export default function Configurator() {
             <div className="w-full flex flex-col gap-5 items-center">
               
               {/* Zoom Pill and Image Index Counter */}
-              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl">
+              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#0d3436] border border-white/10 p-4 rounded-[14px] shadow-xl">
                 
                 {/* Index and Label info */}
                 <div className="text-center sm:text-start">
@@ -918,7 +942,7 @@ export default function Configurator() {
                 </div>
 
                 {/* Zoom Pill */}
-                <div className="bg-white/10 border border-white/15 px-4 py-1.5 rounded-full flex items-center gap-3 md:gap-4 shadow-lg">
+                <div className="bg-[#061d20] border border-white/15 px-4 py-2 rounded-full flex items-center gap-3 md:gap-4 shadow-lg">
                   <button 
                     onClick={zoomOut}
                     disabled={zoomScale <= 1}
@@ -955,7 +979,7 @@ export default function Configurator() {
 
               {/* Selection Toggle and Notes Input Card */}
               {activeStyle && activeSection && (
-                <div className="w-full bg-[#0A2E30]/65 border border-gold/25 backdrop-blur-md rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden flex flex-col gap-4">
+                <div className="w-full bg-[#0d3436] border border-gold/25 rounded-[14px] p-5 md:p-6 shadow-2xl relative overflow-hidden flex flex-col gap-4">
                   {/* Subtle background golden aura */}
                   <div className="absolute -right-16 -bottom-16 w-36 h-36 rounded-full bg-gold/5 blur-2xl pointer-events-none" />
                   
@@ -976,14 +1000,14 @@ export default function Configurator() {
                       onClick={() => toggleTile(zoomTile)}
                       className={cn(
                         "px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5 border shadow-lg cursor-pointer self-start sm:self-auto",
-                        selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
+                        zoomSelection
                           ? "bg-gold border-gold text-[#0C363A] hover:bg-white hover:border-white"
                           : "bg-white/10 border-white/20 text-white hover:bg-white/20"
                       )}
                     >
                       <Check size={14} className="stroke-[3]" />
                       <span>
-                        {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
+                        {zoomSelection
                           ? (lang === "ar" ? "محدد ومختار" : "SELECTED CHOICE")
                           : (lang === "ar" ? "تحديد هذا الخيار" : "SELECT OPTION")
                         }
@@ -992,14 +1016,14 @@ export default function Configurator() {
                   </div>
 
                   {/* Notes Textarea (Only visible if item is selected) */}
-                  {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id] ? (
+                  {zoomSelection ? (
                     <div className="space-y-2 mt-1">
                       <label className="text-xs font-bold text-gold flex items-center gap-1.5">
                         <StickyNote size={14} />
                         <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
                       </label>
                       <Textarea
-                        value={selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]?.note ?? ""}
+                        value={zoomSelection.note ?? ""}
                         onChange={(e) => updateItemNote(zoomTile.id, e.target.value)}
                         placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
                         className="min-h-[100px] resize-none bg-white/10 border-white/20 text-white placeholder:text-white/30 backdrop-blur-md focus:border-gold/50 focus:ring-1 focus:ring-gold/50 rounded-xl select-text text-sm"
