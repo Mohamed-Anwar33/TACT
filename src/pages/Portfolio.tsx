@@ -168,6 +168,7 @@ export default function Portfolio() {
 
   const [designsPage, setDesignsPage] = useState(1);
   const [executionPage, setExecutionPage] = useState(1);
+  const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -186,11 +187,16 @@ export default function Portfolio() {
     setActiveImage(null);
     setDesignsPage(1);
     setExecutionPage(1);
+    setSelectedApartment(null);
   }, [activeTab]);
 
   useEffect(() => {
     setDesignsPage(1);
   }, [selectedArea]);
+
+  useEffect(() => {
+    setSelectedApartment(null);
+  }, [activeProject]);
 
   useEffect(() => {
     const hasModal = activeProject || activeVideo || activeImage;
@@ -228,6 +234,34 @@ export default function Portfolio() {
   const executionTotalPages = Math.max(1, Math.ceil(executionVideos.length / ITEMS_PER_PAGE));
 
   const gallery = activeProject?.images?.length ? activeProject.images : [activeProject?.img || activeProject?.cover].filter(Boolean) as string[];
+
+  const isGroupedByApartments = useMemo(() => {
+    if (!activeProject?.mediaItems) return false;
+    const images = activeProject.mediaItems.filter(item => item.media_type === "image");
+    return images.some(item => item.role && item.role !== "gallery" && item.role !== "cover");
+  }, [activeProject]);
+
+  const apartmentGroups = useMemo(() => {
+    if (!activeProject?.mediaItems) return {};
+    const images = activeProject.mediaItems.filter(item => item.media_type === "image");
+    const groups: Record<string, typeof images> = {};
+    images.forEach(item => {
+      const role = (item.role && item.role !== "gallery" && item.role !== "cover") 
+        ? item.role 
+        : (isAr ? "معرض الصور العام" : "General Gallery");
+      if (!groups[role]) groups[role] = [];
+      groups[role].push(item);
+    });
+    return groups;
+  }, [activeProject, isAr]);
+
+  const apartmentImages = useMemo(() => {
+    if (!activeProject || !selectedApartment || !isGroupedByApartments) return [];
+    return apartmentGroups[selectedApartment]?.map(item => item.url) || [];
+  }, [activeProject, selectedApartment, isGroupedByApartments, apartmentGroups]);
+
+  const activeGallery = isGroupedByApartments && selectedApartment ? apartmentImages : gallery;
+
   const pdfFiles = activeProject?.pdfFiles?.length
     ? activeProject.pdfFiles
     : activeProject?.pdf
@@ -708,29 +742,80 @@ export default function Portfolio() {
             </button>
             <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
               <div className="bg-[#061F22] p-4 md:p-6">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-gold/25 bg-black">
-                  <img src={gallery[0] || activeProject.img || activeProject.cover || "/placeholder.svg"} alt={getProjectTitle(activeProject, lang)} className="h-full w-full object-contain image-crisp bg-[#061F22]" decoding="async" />
-                  <button type="button" onClick={() => setActiveImage(gallery[0])} className="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-md bg-white/92 px-4 py-2 text-xs font-bold text-[#0C363A] transition hover:bg-gold">
-                    <Maximize2 size={14} />
-                    {isAr ? "تكبير الصورة" : "Open"}
-                  </button>
-                </div>
-                {gallery.length > 0 && (
-                  <div className="mt-4 grid grid-cols-4 gap-3 md:grid-cols-5">
-                    {gallery.map((src, index) => (
-                      <button key={`${src}-${index}`} type="button" onClick={() => setActiveImage(src)} className="aspect-square overflow-hidden rounded-md border border-gold/20 bg-white/5 transition hover:border-gold">
-                        <img
-                          src={src}
-                          alt=""
-                          className="h-full w-full object-cover image-crisp"
-                          decoding="async"
-                          onError={(e) => {
-                            (e.currentTarget.closest("button") as HTMLElement | null)?.remove();
-                          }}
-                        />
-                      </button>
-                    ))}
+                {isGroupedByApartments && !selectedApartment ? (
+                  /* Apartments Grid Layout */
+                  <div className="h-full flex flex-col justify-center py-4">
+                    <h3 className="text-gold text-xs uppercase tracking-wider font-extrabold mb-5 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
+                      {isAr ? "شقق ومساحات المشروع الفرعية" : "Project Apartments & Subfolders"}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-h-[62vh] overflow-y-auto pr-1 select-none scrollbar-none">
+                      {Object.entries(apartmentGroups).map(([roleName, items], idx) => {
+                        const coverUrl = items[0]?.url || "/placeholder.svg";
+                        return (
+                          <button
+                            key={roleName}
+                            type="button"
+                            onClick={() => setSelectedApartment(roleName)}
+                            className="group relative h-44 rounded-xl overflow-hidden border border-white/10 hover:border-gold/50 bg-[#0C363A]/30 text-start flex flex-col justify-end p-5 transition-all duration-300 hover:shadow-[0_12px_30px_rgba(212,175,55,0.18)] active:scale-[0.98]"
+                          >
+                            <img
+                              src={coverUrl}
+                              alt={roleName}
+                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 brightness-[0.78] group-hover:brightness-[0.9]"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/45 to-transparent" />
+                            
+                            <div className="relative z-10">
+                              <span className="inline-block text-[9px] bg-gold text-[#061F22] font-mono px-2.5 py-0.5 rounded font-extrabold tracking-wider mb-2.5 shadow-md">
+                                {items.length} {isAr ? "صورة" : "PHOTOS"}
+                              </span>
+                              <h4 className="font-serif-ar text-xl font-bold text-white group-hover:text-gold transition-colors duration-300 truncate">
+                                {roleName}
+                              </h4>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
+                ) : (
+                  /* Standard Image + Thumbnails (or single apartment view) */
+                  <>
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-gold/25 bg-black">
+                      {isGroupedByApartments && selectedApartment && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedApartment(null)}
+                          className="absolute top-4 right-4 z-10 flex items-center gap-1.5 bg-[#0C363A]/90 backdrop-blur-md text-gold border border-gold/40 px-3.5 py-2 rounded-xl text-xs font-bold transition hover:bg-gold hover:text-[#061F22] shadow-lg active:scale-95"
+                        >
+                          <span>{isAr ? "← العودة للشقق" : "← Back to Apartments"}</span>
+                        </button>
+                      )}
+                      <img src={activeGallery[0] || activeProject.img || activeProject.cover || "/placeholder.svg"} alt={getProjectTitle(activeProject, lang)} className="h-full w-full object-contain image-crisp bg-[#061F22]" decoding="async" />
+                      <button type="button" onClick={() => setActiveImage(activeGallery[0])} className="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-md bg-white/92 px-4 py-2 text-xs font-bold text-[#0C363A] transition hover:bg-gold">
+                        <Maximize2 size={14} />
+                        {isAr ? "تكبير الصورة" : "Open"}
+                      </button>
+                    </div>
+                    {activeGallery.length > 0 && (
+                      <div className="mt-4 grid grid-cols-4 gap-3 md:grid-cols-5">
+                        {activeGallery.map((src, index) => (
+                          <button key={`${src}-${index}`} type="button" onClick={() => setActiveImage(src)} className="aspect-square overflow-hidden rounded-md border border-gold/20 bg-white/5 transition hover:border-gold">
+                            <img
+                              src={src}
+                              alt=""
+                              className="h-full w-full object-cover image-crisp"
+                              decoding="async"
+                              onError={(e) => {
+                                (e.currentTarget.closest("button") as HTMLElement | null)?.remove();
+                              }}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <div className="p-6 md:p-9">

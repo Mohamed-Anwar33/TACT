@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -23,6 +23,8 @@ type SelectionItem = {
   description?: string | null;
   image_url?: string | null;
   note: string;
+  place: string;
+  qty: string;
 };
 
 type SectionSelection = {
@@ -30,8 +32,6 @@ type SectionSelection = {
   style: string;
   category_id: string;
   category: string;
-  place: string;
-  qty: string;
   notes: string;
   selected: Record<string, SelectionItem>;
 };
@@ -49,8 +49,6 @@ const emptySectionSelection = (style: CatalogStyle, categoryId: string, category
   style: style.name_ar,
   category_id: categoryId,
   category: categoryName,
-  place: "",
-  qty: "",
   notes: "",
   selected: {},
 });
@@ -70,6 +68,7 @@ export default function Configurator() {
   const [showStylePreview, setShowStylePreview] = useState(true);
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
   const [busy, setBusy] = useState(false);
+  const wasLightboxOpen = useRef(false);
 
   // Zoom Lightbox States
   const [zoomTile, setZoomTile] = useState<ImageTile | null>(null);
@@ -191,6 +190,27 @@ export default function Configurator() {
     };
   }, [packageId, user, loading, profile?.packages_unlocked]);
 
+  // Browser back button: close lightbox instead of navigating away
+  useEffect(() => {
+    const isOpen = !!zoomTile;
+    if (!isOpen) {
+      wasLightboxOpen.current = false;
+      return;
+    }
+    if (!wasLightboxOpen.current) {
+      history.pushState({ lightbox: true }, '');
+      wasLightboxOpen.current = true;
+    }
+    const handlePopState = () => {
+      setZoomTile(null);
+      setZoomScale(1);
+      setZoomPosition({ x: 0, y: 0 });
+      wasLightboxOpen.current = false;
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [zoomTile]);
+
   const activeStyle = styles[activeStyleIdx];
   const stylePreviewSection = activeStyle?.categories.find((category) => category.slug === "style-preview");
   const sections = activeStyle?.categories.filter((category) => category.slug !== "style-preview") ?? [];
@@ -255,6 +275,8 @@ export default function Configurator() {
           description: lang === "ar" ? tile.option.description_ar : tile.option.description_en,
           image_url: tile.imageUrl,
           note: "",
+          place: "",
+          qty: "",
         };
       }
       return {
@@ -277,6 +299,30 @@ export default function Configurator() {
           note,
         },
       },
+    });
+  };
+
+  const updateItemField = (itemId: string, field: 'place' | 'qty', value: string) => {
+    if (!currentSectionSelection) return;
+    updateSection({
+      selected: {
+        ...currentSectionSelection.selected,
+        [itemId]: {
+          ...currentSectionSelection.selected[itemId],
+          [field]: value,
+        },
+      },
+    });
+  };
+
+  const removeItem = (item: SelectionItem) => {
+    setSelections((current) => {
+      const key = `${item.style_id}_${item.category_id}`;
+      const section = current[key];
+      if (!section) return current;
+      const selected = { ...section.selected };
+      delete selected[item.id];
+      return { ...current, [key]: { ...section, selected } };
     });
   };
 
@@ -385,6 +431,8 @@ export default function Configurator() {
             {styles.map((style, idx) => {
               const isActive = activeStyleIdx === idx;
               const styleCategoriesCount = style.categories.filter((category) => category.slug !== "style-preview").length;
+              const previewCat = style.categories.find(c => c.slug === "style-preview");
+              const coverUrl = previewCat?.options?.[0]?.media?.[0]?.url || previewCat?.options?.[0]?.image_url || null;
               return (
                 <button
                   key={style.id}
@@ -395,13 +443,25 @@ export default function Configurator() {
                     window.scrollTo({ top: 260, behavior: "smooth" });
                   }}
                   className={cn(
-                    "group text-start rounded-2xl p-6 transition-all duration-500 relative flex flex-col justify-between min-h-[190px] overflow-hidden border",
+                    "group text-start rounded-2xl p-6 transition-all duration-500 relative flex flex-col justify-between min-h-[260px] overflow-hidden border",
                     isActive 
                       ? "bg-gradient-to-br from-[#0F3D42] to-[#0A2629] border-gold shadow-[0_15px_40px_rgba(212,175,55,0.18)] ring-1 ring-gold/40" 
                       : "bg-[#0C363A]/40 backdrop-blur-md border-white/10 hover:border-gold/50 hover:bg-[#0C363A]/80 hover:shadow-lg hover:shadow-black/20"
                   )}
                 >
-                  {/* Decorative Abstract Background Elements (pure CSS styling, no image/icon) */}
+                  {/* Cover Image Background */}
+                  {coverUrl && (
+                    <>
+                      <img src={coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" loading="lazy" />
+                      <div className={cn(
+                        "absolute inset-0 transition-all duration-500",
+                        isActive 
+                          ? "bg-gradient-to-t from-[#0A2629]/95 via-[#0A2629]/70 to-[#0A2629]/40" 
+                          : "bg-gradient-to-t from-[#0A2629]/95 via-[#0A2629]/75 to-[#0A2629]/50 group-hover:from-[#0A2629]/90 group-hover:via-[#0A2629]/60 group-hover:to-[#0A2629]/30"
+                      )} />
+                    </>
+                  )}
+                  {/* Decorative Abstract Background Elements */}
                   <div className={cn(
                     "absolute -right-16 -bottom-16 w-36 h-36 rounded-full transition-all duration-700 blur-[40px] pointer-events-none",
                     isActive ? "bg-gold/15" : "bg-white/5 group-hover:bg-gold/10"
@@ -590,18 +650,40 @@ export default function Configurator() {
                         </button>
                       </div>
                     </button>
-                    {isSelected && (
-                      <div className="p-4 border-t border-gold/25 bg-gold/5">
-                        <label className="text-xs font-bold text-teal-deep flex items-center gap-1.5 mb-2">
-                          <StickyNote size={14} className="text-gold" />
-                          <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
-                        </label>
-                        <Textarea
-                          value={item.note}
-                          onChange={(e) => updateItemNote(tile.id, e.target.value)}
-                          placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
-                          className="min-h-20 resize-none bg-white"
-                        />
+                    {isSelected && item && (
+                      <div className="p-4 border-t border-gold/25 bg-gold/5 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] text-muted-foreground block mb-1">{lang === "ar" ? "مكان الاستخدام" : "Usage Location"}</label>
+                            <Input
+                              value={item.place}
+                              onChange={(e) => updateItemField(tile.id, 'place', e.target.value)}
+                              className="h-9 bg-white text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: الصالون" : "e.g. Living room"}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-muted-foreground block mb-1">{lang === "ar" ? "الكمية التقديرية" : "Est. Qty"}</label>
+                            <Input
+                              value={item.qty}
+                              onChange={(e) => updateItemField(tile.id, 'qty', e.target.value)}
+                              className="h-9 bg-white text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: 20 م²" : "e.g. 20 m²"}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-teal-deep flex items-center gap-1.5 mb-2">
+                            <StickyNote size={14} className="text-gold" />
+                            <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
+                          </label>
+                          <Textarea
+                            value={item.note}
+                            onChange={(e) => updateItemNote(tile.id, e.target.value)}
+                            placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
+                            className="min-h-20 resize-none bg-white"
+                          />
+                        </div>
                       </div>
                     )}
                   </article>
@@ -612,22 +694,14 @@ export default function Configurator() {
             {!showStylePreview && (
             <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
               <h3 className="text-xs uppercase tracking-[0.2em] text-teal-deep font-bold mb-4">
-                {lang === "ar" ? "تفاصيل التنفيذ والكميات المطلوبة" : "Execution Details & Quantities"}
+                {lang === "ar" ? "ملاحظات عامة على التصنيف" : "General Category Notes"}
               </h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1.5">{lang === "ar" ? "مكان الاستخدام" : "Usage Location"}</label>
-                  <Input value={currentSectionSelection?.place ?? ""} onChange={(e) => updateSection({ place: e.target.value })} className="h-11 bg-background" />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1.5">{lang === "ar" ? "الكمية التقديرية" : "Estimated Qty"}</label>
-                  <Input value={currentSectionSelection?.qty ?? ""} onChange={(e) => updateSection({ qty: e.target.value })} className="h-11 bg-background" />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="text-xs text-muted-foreground block mb-1.5">{lang === "ar" ? "ملاحظات عامة على التصنيف" : "Category Notes"}</label>
-                  <Textarea value={currentSectionSelection?.notes ?? ""} onChange={(e) => updateSection({ notes: e.target.value })} className="min-h-20 bg-background resize-none" />
-                </div>
-              </div>
+              <Textarea
+                value={currentSectionSelection?.notes ?? ""}
+                onChange={(e) => updateSection({ notes: e.target.value })}
+                className="min-h-20 bg-background resize-none"
+                placeholder={lang === "ar" ? "أي ملاحظات عامة على هذا التصنيف..." : "Any general notes for this category..."}
+              />
             </div>
             )}
 
@@ -636,13 +710,22 @@ export default function Configurator() {
                 <h3 className="font-serif-ar text-2xl mb-4">{lang === "ar" ? "ملخص الصور المختارة" : "Selected Summary"}</h3>
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {selectedItems.map((item) => (
-                    <div key={item.id} className="flex gap-3 rounded-xl bg-white/8 border border-white/10 p-2">
+                    <div key={item.id} className="flex gap-3 rounded-xl bg-white/8 border border-white/10 p-2 relative group/item">
                       {item.image_url && <img src={item.image_url} alt={item.option_name} className="w-16 h-16 rounded-lg object-cover" />}
-                      <div className="min-w-0 text-sm">
-                        <div className="text-gold text-xs truncate">{item.category}</div>
+                      <div className="min-w-0 text-sm flex-1">
+                        <span className="inline-block text-[9px] font-bold bg-gold/20 text-gold px-1.5 py-0.5 rounded mb-0.5">{item.style}</span>
+                        <div className="text-gold/70 text-xs truncate">{item.category}</div>
                         <div className="font-bold truncate">{item.option_name}</div>
                         {item.note && <div className="text-ivory/65 text-xs line-clamp-2 mt-1">{item.note}</div>}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item)}
+                        className="absolute top-1.5 end-1.5 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all duration-200"
+                        title={lang === "ar" ? "إزالة" : "Remove"}
+                      >
+                        <X size={12} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -789,6 +872,21 @@ export default function Configurator() {
 
           {/* Bottom Floating Control Bar */}
           <div className="w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent p-6 flex flex-col items-center gap-4 z-10">
+            {/* Notes input inside lightbox */}
+            {activeStyle && activeSection && selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id] && (
+              <div className="w-full max-w-xl">
+                <label className="text-xs font-bold text-gold flex items-center gap-1.5 mb-2">
+                  <StickyNote size={14} />
+                  <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
+                </label>
+                <Textarea
+                  value={selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]?.note ?? ""}
+                  onChange={(e) => updateItemNote(zoomTile.id, e.target.value)}
+                  placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
+                  className="min-h-16 resize-none bg-white/10 border-white/20 text-white placeholder:text-white/30 backdrop-blur-md"
+                />
+              </div>
+            )}
             <span className="text-[11px] text-white/40 tracking-wider">
               {lang === "ar" 
                 ? "اسحب الصورة للتحريك عند التكبير • استخدم عجلة الماوس للتحكم بالزوم"

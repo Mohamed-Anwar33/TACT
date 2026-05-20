@@ -210,6 +210,15 @@ export default function ProjectsManager() {
     }
   }
 
+  async function updateMediaRole(mediaId: string, role: string) {
+    setProjectMedia(prev => prev.map(m => m.id === mediaId ? { ...m, role } : m));
+    const { error } = await db.from("cms_project_media").update({ role }).eq("id", mediaId);
+    if (error) {
+      toast.error("حدث خطأ أثناء تحديث تصنيف الصورة");
+      await load();
+    }
+  }
+
   async function addMediaToProject(url: string, file: File) {
     if (!editing?.id) return;
     const mediaType = file.type.startsWith("video/") ? "video" : "image";
@@ -505,81 +514,108 @@ export default function ProjectsManager() {
                     </label>
 
                     {displayMedia.length > 0 && (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10, marginBottom: 12 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 12 }}>
                         {displayMedia.map((m, idx) => {
                           const isFirst = idx === 0;
                           const isLast = idx === displayMedia.length - 1;
                           const isTemp = m.id.startsWith("temp-");
                           return (
-                            <div key={m.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: "1px solid #e5e0d5" }}>
-                              <MediaPreview url={m.url} type={m.media_type} height={85} onPlay={() => setVideoPreview(m.url)} />
-                              
-                              {/* Status Label */}
-                              <div style={{ 
-                                position: "absolute", top: 4, insetInlineStart: 4, 
-                                background: idx === 0 ? "#C18556" : "rgba(12, 54, 58,0.8)", 
-                                color: "#fff", fontSize: "0.55rem", padding: "2px 6px", 
-                                borderRadius: 4, fontWeight: 700, zIndex: 5,
-                                boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
-                              }}>
-                                {idx === 0 ? "الغلاف" : idx + 1}
-                              </div>
+                            <div key={m.id} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e0d5", display: "flex", flexDirection: "column", background: "#fbfbfa" }}>
+                              <div style={{ position: "relative", height: 85 }}>
+                                <MediaPreview url={m.url} type={m.media_type} height={85} onPlay={() => setVideoPreview(m.url)} />
+                                
+                                {/* Status Label */}
+                                <div style={{ 
+                                  position: "absolute", top: 4, insetInlineStart: 4, 
+                                  background: idx === 0 ? "#C18556" : "rgba(12, 54, 58,0.8)", 
+                                  color: "#fff", fontSize: "0.55rem", padding: "2px 6px", 
+                                  borderRadius: 4, fontWeight: 700, zIndex: 5,
+                                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                                }}>
+                                  {idx === 0 ? "الغلاف" : idx + 1}
+                                </div>
 
-                              {/* Controls Overlay */}
-                              <div style={{ 
-                                position: "absolute", bottom: 0, insetInlineStart: 0, insetInlineEnd: 0, 
-                                background: "linear-gradient(transparent, rgba(0,0,0,0.8))", 
-                                display: "flex", justifyContent: "center", gap: 8, padding: "8px 4px 4px",
-                                zIndex: 10
-                              }}>
-                                {!isTemp ? (
-                                  <>
-                                    <button type="button" onClick={() => moveMedia(m.id, 'forward')} disabled={isFirst} 
-                                      style={{ border: "none", background: "none", color: "#fff", cursor: isFirst ? "default" : "pointer", opacity: isFirst ? 0.3 : 1, padding: 0 }}>
-                                      <ChevronRight size={16} />
-                                    </button>
-                                    <button type="button" onClick={() => removeProjectMedia(m.id)} 
-                                      style={{ border: "none", background: "rgba(216, 71, 40,0.2)", color: "#F1C5BA", cursor: "pointer", borderRadius: "50%", width: 20, height: 20, display: "grid", placeItems: "center" }}>
-                                      <Trash2 size={10} />
-                                    </button>
-                                    <button type="button" onClick={() => moveMedia(m.id, 'backward')} disabled={isLast} 
-                                      style={{ border: "none", background: "none", color: "#fff", cursor: isLast ? "default" : "pointer", opacity: isLast ? 0.3 : 1, padding: 0 }}>
-                                      <ChevronLeft size={16} />
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button type="button" 
-                                      onClick={() => {
-                                        const newArr = [...tempGallery];
-                                        const tmp = newArr[idx];
-                                        newArr[idx] = newArr[idx - 1];
-                                        newArr[idx - 1] = tmp;
-                                        setTempGallery(newArr);
-                                      }} 
-                                      disabled={isFirst} 
-                                      style={{ border: "none", background: "none", color: "#fff", cursor: isFirst ? "default" : "pointer", opacity: isFirst ? 0.3 : 1, padding: 0 }}>
-                                      <ChevronRight size={16} />
-                                    </button>
-                                    <button type="button" onClick={() => setTempGallery(prev => prev.filter((_, i) => i !== idx))} 
-                                      style={{ border: "none", background: "rgba(216, 71, 40,0.2)", color: "#F1C5BA", cursor: "pointer", borderRadius: "50%", width: 20, height: 20, display: "grid", placeItems: "center" }}>
-                                      <Trash2 size={10} />
-                                    </button>
-                                    <button type="button" 
-                                      onClick={() => {
-                                        const newArr = [...tempGallery];
-                                        const tmp = newArr[idx];
-                                        newArr[idx] = newArr[idx + 1];
-                                        newArr[idx + 1] = tmp;
-                                        setTempGallery(newArr);
-                                      }} 
-                                      disabled={isLast} 
-                                      style={{ border: "none", background: "none", color: "#fff", cursor: isLast ? "default" : "pointer", opacity: isLast ? 0.3 : 1, padding: 0 }}>
-                                      <ChevronLeft size={16} />
-                                    </button>
-                                  </>
-                                )}
+                                {/* Controls Overlay */}
+                                <div style={{ 
+                                  position: "absolute", bottom: 0, insetInlineStart: 0, insetInlineEnd: 0, 
+                                  background: "linear-gradient(transparent, rgba(0,0,0,0.8))", 
+                                  display: "flex", justifyContent: "center", gap: 8, padding: "8px 4px 4px",
+                                  zIndex: 10
+                                }}>
+                                  {!isTemp ? (
+                                    <>
+                                      <button type="button" onClick={() => moveMedia(m.id, 'forward')} disabled={isFirst} 
+                                        style={{ border: "none", background: "none", color: "#fff", cursor: isFirst ? "default" : "pointer", opacity: isFirst ? 0.3 : 1, padding: 0 }}>
+                                        <ChevronRight size={16} />
+                                      </button>
+                                      <button type="button" onClick={() => removeProjectMedia(m.id)} 
+                                        style={{ border: "none", background: "rgba(216, 71, 40,0.2)", color: "#F1C5BA", cursor: "pointer", borderRadius: "50%", width: 20, height: 20, display: "grid", placeItems: "center" }}>
+                                        <Trash2 size={10} />
+                                      </button>
+                                      <button type="button" onClick={() => moveMedia(m.id, 'backward')} disabled={isLast} 
+                                        style={{ border: "none", background: "none", color: "#fff", cursor: isLast ? "default" : "pointer", opacity: isLast ? 0.3 : 1, padding: 0 }}>
+                                        <ChevronLeft size={16} />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button type="button" 
+                                        onClick={() => {
+                                          const newArr = [...tempGallery];
+                                          const tmp = newArr[idx];
+                                          newArr[idx] = newArr[idx - 1];
+                                          newArr[idx - 1] = tmp;
+                                          setTempGallery(newArr);
+                                        }} 
+                                        disabled={isFirst} 
+                                        style={{ border: "none", background: "none", color: "#fff", cursor: isFirst ? "default" : "pointer", opacity: isFirst ? 0.3 : 1, padding: 0 }}>
+                                        <ChevronRight size={16} />
+                                      </button>
+                                      <button type="button" onClick={() => setTempGallery(prev => prev.filter((_, i) => i !== idx))} 
+                                        style={{ border: "none", background: "rgba(216, 71, 40,0.2)", color: "#F1C5BA", cursor: "pointer", borderRadius: "50%", width: 20, height: 20, display: "grid", placeItems: "center" }}>
+                                        <Trash2 size={10} />
+                                      </button>
+                                      <button type="button" 
+                                        onClick={() => {
+                                          const newArr = [...tempGallery];
+                                          const tmp = newArr[idx];
+                                          newArr[idx] = newArr[idx + 1];
+                                          newArr[idx + 1] = tmp;
+                                          setTempGallery(newArr);
+                                        }} 
+                                        disabled={isLast} 
+                                        style={{ border: "none", background: "none", color: "#fff", cursor: isLast ? "default" : "pointer", opacity: isLast ? 0.3 : 1, padding: 0 }}>
+                                        <ChevronLeft size={16} />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
+                              {!isTemp && (
+                                <input 
+                                  type="text"
+                                  value={m.role === "gallery" || m.role === "cover" ? "" : (m.role || "")}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setProjectMedia(prev => prev.map(item => item.id === m.id ? { ...item, role: val } : item));
+                                  }}
+                                  onBlur={(e) => updateMediaRole(m.id, e.target.value)}
+                                  placeholder="الشقة / القسم (مثال: شقة 101)"
+                                  style={{ 
+                                    width: "100%", 
+                                    padding: "6px 4px", 
+                                    fontSize: "0.68rem", 
+                                    border: "none",
+                                    borderTop: "1px solid #e5e0d5",
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                    textAlign: "center",
+                                    background: "#fff",
+                                    color: "#0C363A",
+                                    fontWeight: 500
+                                  }}
+                                />
+                              )}
                             </div>
                           );
                         })}

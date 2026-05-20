@@ -46,6 +46,14 @@ export type CmsProject = {
   pdfFiles?: { title: string; url: string }[];
   externalUrl?: string;
   images?: string[];
+  mediaItems?: {
+    id: string;
+    url: string;
+    role: string;
+    title_en?: string | null;
+    title_ar?: string | null;
+    media_type: string;
+  }[];
 };
 
 function normalizeArabicDigits(value: string) {
@@ -200,6 +208,14 @@ export function fallbackProjects(): CmsProject[] {
       pdf: resolveMediaUrl(project.pdf),
       pdfFiles: project.pdf ? [{ title: "ملف المشروع PDF", url: resolveMediaUrl(project.pdf) || project.pdf }] : [],
       images: project.images?.map((image) => resolveMediaUrl(image) || image),
+      mediaItems: project.images?.map((image, idx) => ({
+        id: `fallback-${idx}`,
+        url: resolveMediaUrl(image) || image,
+        role: "gallery",
+        title_en: "",
+        title_ar: "",
+        media_type: "image",
+      })) || [],
     })),
     ...VIDEO_PROJECTS.map((project) => ({
       kind: "video" as const,
@@ -215,6 +231,7 @@ export function fallbackProjects(): CmsProject[] {
       videoUrl: resolveMediaUrl(project.videoUrl),
       videoSourceType: getVideoSourceType(project.videoUrl),
       cover: resolveMediaUrl(project.cover),
+      mediaItems: [],
     })),
   ];
 }
@@ -306,6 +323,16 @@ export async function getCmsProjects() {
           url: resolveMediaUrl(item.url) || item.url,
         })),
     ].filter(Boolean) as { title: string; url: string }[];
+    const projectMedia = media
+      .filter((item: any) => item.project_id === row.id)
+      .map((item: any) => ({
+        id: item.id,
+        url: resolveMediaUrl(item.url) || item.url,
+        role: item.role || "gallery",
+        title_en: item.title_en,
+        title_ar: item.title_ar,
+        media_type: item.media_type,
+      }));
     const isVideo = !!row.video_url;
     const areaNumber = parseAreaNumber(row.area);
     const videoFileTitle = isVideo ? getFileTitle(row.video_url) : "";
@@ -330,6 +357,7 @@ export async function getCmsProjects() {
       pdfFiles,
       externalUrl: row.external_url,
       images: gallery.length ? gallery : row.cover_url ? [resolveMediaUrl(row.cover_url) || row.cover_url] : [],
+      mediaItems: projectMedia,
     } as CmsProject;
   });
 }
