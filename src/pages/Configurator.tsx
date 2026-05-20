@@ -763,7 +763,7 @@ export default function Configurator() {
       {/* Lightbox / Zoom Dialog Modal */}
       {zoomTile && (
         <div 
-          className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-xl transition-opacity duration-300 overflow-y-auto"
+          className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-xl transition-opacity duration-300 overflow-y-auto"
           dir={lang === "ar" ? "rtl" : "ltr"}
         >
           {/* Top Header Bar */}
