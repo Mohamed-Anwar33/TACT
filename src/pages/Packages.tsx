@@ -137,7 +137,7 @@ export default function Packages() {
                             src={pkg.cover_url}
                             alt={lang === "ar" ? pkg.name_ar : pkg.name_en}
                             className="w-full h-full image-no-upscale opacity-95 p-3"
-                            loading={idx === 0 ? "eager" : "lazy"}
+                            loading={i === 0 ? "eager" : "lazy"}
                             decoding="async"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-[#0C363A]/80 via-transparent to-transparent" />

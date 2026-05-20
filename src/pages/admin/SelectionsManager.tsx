@@ -81,14 +81,14 @@ export default function SelectionsManager() {
       })
     : selectionsList;
 
-  const countSelectionItems = (rawSelections: any) => {
+  const countSelectionItems = (rawSelections: any): number => {
     if (!rawSelections) return 0;
     if (rawSelections.version === 2 && rawSelections.sections) {
-      return Object.values(rawSelections.sections).reduce((sum: number, section: any) => {
+      return (Object.values(rawSelections.sections) as any[]).reduce((sum: number, section: any) => {
         return sum + Object.keys(section?.selected ?? {}).length;
       }, 0);
     }
-    return Object.values(rawSelections).reduce((sum: number, val: any) => {
+    return (Object.values(rawSelections) as any[]).reduce((sum: number, val: any) => {
       if (val?.selected && typeof val.selected === "object") return sum + Object.keys(val.selected).length;
       return sum + 1;
     }, 0);

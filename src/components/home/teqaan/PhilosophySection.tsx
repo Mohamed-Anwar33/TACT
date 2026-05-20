@@ -113,7 +113,7 @@ export default function PhilosophySection() {
                       className="w-full h-full object-cover"
                       loading={idx === 0 ? "eager" : "lazy"}
                       decoding="async"
-                      fetchpriority={idx === 0 ? "high" : "auto"}
+                      fetchPriority={idx === 0 ? "high" : "auto"}
                     />
                   </div>
                 ))}

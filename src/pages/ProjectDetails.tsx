@@ -12,8 +12,9 @@ export default function ProjectDetails() {
   const [projects, setProjects] = useState<CmsProject[]>(() => fallbackProjects());
   const project = projects.find((p) => p.id === id);
 
-  const currentProject = project || {
+  const currentProject: CmsProject = project || {
     id: "showcase",
+    kind: "img",
     name: "Project Showcase",
     nameAr: "مشروع مميز",
     type: "Finishing Scope",
@@ -29,6 +30,7 @@ export default function ProjectDetails() {
       "/real-content/Designs/Landscape/Screenshot_14-5-2026_185938_.webp",
       "/real-content/Designs/Landscape/Screenshot_14-5-2026_185952_.webp",
     ],
+    mediaItems: [],
   };
 
   const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
