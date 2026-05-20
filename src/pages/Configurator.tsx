@@ -763,16 +763,16 @@ export default function Configurator() {
       {/* Lightbox / Zoom Dialog Modal */}
       {zoomTile && (
         <div 
-          className="fixed inset-0 z-[100] flex flex-col justify-between bg-black/95 backdrop-blur-xl transition-opacity duration-300"
+          className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-xl transition-opacity duration-300 overflow-y-auto"
           dir={lang === "ar" ? "rtl" : "ltr"}
         >
           {/* Top Header Bar */}
-          <div className="w-full bg-gradient-to-b from-black/90 via-black/50 to-transparent p-6 flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-black/90 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-white/10 z-20">
             <div>
               <span className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] block mb-1">
                 {lang === "ar" ? "معاينة التفاصيل الدقيقة والخامات" : "FINE DETAIL & MATERIAL INSPECTION"}
               </span>
-              <h2 className="font-serif-ar text-lg md:text-2xl text-white font-bold drop-shadow">
+              <h2 className="font-serif-ar text-base md:text-2xl text-white font-bold drop-shadow">
                 {lang === "ar" ? zoomTile.option.name_ar : zoomTile.option.name_en}
               </h2>
             </div>
@@ -783,13 +783,13 @@ export default function Configurator() {
                 <button
                   onClick={() => toggleTile(zoomTile)}
                   className={cn(
-                    "px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 border shadow-lg cursor-pointer",
+                    "px-4 md:px-5 py-2 rounded-full text-[11px] md:text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border shadow-lg cursor-pointer",
                     selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
                       ? "bg-gold border-gold text-[#0C363A] hover:bg-white hover:border-white"
                       : "bg-white/10 border-white/20 text-white hover:bg-white/20"
                   )}
                 >
-                  <Check size={14} className="stroke-[3]" />
+                  <Check size={13} className="stroke-[3]" />
                   <span>
                     {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
                       ? (lang === "ar" ? "محدد ومختار" : "SELECTED CHOICE")
@@ -801,137 +801,209 @@ export default function Configurator() {
 
               <button
                 onClick={() => setZoomTile(null)}
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-red-500 text-white flex items-center justify-center transition-all duration-300 border border-white/10 cursor-pointer"
+                className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white/10 hover:bg-red-500 text-white flex items-center justify-center transition-all duration-300 border border-white/10 cursor-pointer"
                 title={lang === "ar" ? "إغلاق" : "Close"}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
           </div>
 
-          {/* Main Zoom Area */}
-          <div 
-            className="flex-1 w-full flex items-center justify-center relative overflow-hidden select-none cursor-zoom-in"
-            style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onWheel={handleWheel}
-          >
-            {/* Nav Arrows */}
-            {imageTiles.findIndex((t) => t.id === zoomTile.id) > 0 && (
-              <button
-                onClick={handlePrevTile}
-                className={cn(
-                  "absolute z-10 w-12 h-12 rounded-full bg-black/50 border border-white/15 text-white hover:bg-gold hover:text-[#0C363A] hover:border-gold flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 cursor-pointer",
-                  lang === "ar" ? "right-6" : "left-6"
-                )}
-              >
-                {lang === "ar" ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-              </button>
-            )}
-
-            {imageTiles.findIndex((t) => t.id === zoomTile.id) < imageTiles.length - 1 && (
-              <button
-                onClick={handleNextTile}
-                className={cn(
-                  "absolute z-10 w-12 h-12 rounded-full bg-black/50 border border-white/15 text-white hover:bg-gold hover:text-[#0C363A] hover:border-gold flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 cursor-pointer",
-                  lang === "ar" ? "left-6" : "right-6"
-                )}
-              >
-                {lang === "ar" ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-              </button>
-            )}
-
-            {/* Magnifiable image wrapper */}
+          {/* Main Content Area */}
+          <div className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
+            
+            {/* Image Frame Card Container */}
             <div 
-              className="max-w-[90%] max-h-[80%] flex items-center justify-center transition-transform duration-200 ease-out"
-              style={{
-                transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
-                transition: isDragging ? "none" : "transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
-              }}
+              className="relative w-full aspect-video md:aspect-[16/10] max-h-[55vh] min-h-[260px] bg-black/45 border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center select-none cursor-zoom-in"
+              style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onWheel={handleWheel}
             >
-              {zoomTile.imageUrl ? (
-                <img
-                  src={zoomTile.imageUrl}
-                  alt={zoomTile.label}
-                  className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-[0_25px_70px_rgba(0,0,0,0.8)] border border-white/5 pointer-events-none select-none"
-                />
-              ) : (
-                <div className="w-48 h-48 rounded-2xl bg-white/5 flex flex-col items-center justify-center border border-white/10 text-white/50">
-                  <Image size={48} className="mb-4" />
-                  <span>{lang === "ar" ? "لا توجد صورة متوفرة" : "No image available"}</span>
+              {/* Nav Arrows inside image frame container */}
+              {imageTiles.findIndex((t) => t.id === zoomTile.id) > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handlePrevTile(); }}
+                  className={cn(
+                    "absolute z-10 w-9 h-9 md:w-11 md:h-11 rounded-full bg-black/60 border border-white/15 text-white hover:bg-gold hover:text-[#0C363A] hover:border-gold flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer top-1/2 -translate-y-1/2",
+                    lang === "ar" ? "right-3 md:right-4" : "left-3 md:left-4"
+                  )}
+                  title={lang === "ar" ? "الصورة السابقة" : "Previous Image"}
+                >
+                  {lang === "ar" ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+                </button>
+              )}
+
+              {imageTiles.findIndex((t) => t.id === zoomTile.id) < imageTiles.length - 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleNextTile(); }}
+                  className={cn(
+                    "absolute z-10 w-9 h-9 md:w-11 md:h-11 rounded-full bg-black/60 border border-white/15 text-white hover:bg-gold hover:text-[#0C363A] hover:border-gold flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer top-1/2 -translate-y-1/2",
+                    lang === "ar" ? "left-3 md:left-4" : "right-3 md:right-4"
+                  )}
+                  title={lang === "ar" ? "الصورة التالية" : "Next Image"}
+                >
+                  {lang === "ar" ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+                </button>
+              )}
+
+              {/* Magnifiable image wrapper */}
+              <div 
+                className="w-full h-full flex items-center justify-center transition-transform duration-200 ease-out"
+                style={{
+                  transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
+                  transition: isDragging ? "none" : "transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+                }}
+              >
+                {zoomTile.imageUrl ? (
+                  <img
+                    src={zoomTile.imageUrl}
+                    alt={zoomTile.label}
+                    className="max-w-full max-h-full object-contain pointer-events-none select-none"
+                  />
+                ) : (
+                  <div className="w-48 h-48 rounded-2xl bg-white/5 flex flex-col items-center justify-center border border-white/10 text-white/50">
+                    <Image size={48} className="mb-4" />
+                    <span>{lang === "ar" ? "لا توجد صورة متوفرة" : "No image available"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Control Bar and Note Section directly below the image frame */}
+            <div className="w-full flex flex-col gap-5 items-center">
+              
+              {/* Zoom Pill and Image Index Counter */}
+              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl">
+                
+                {/* Index and Label info */}
+                <div className="text-center sm:text-start">
+                  <span className="text-[9px] md:text-[10px] text-gold uppercase tracking-wider block font-bold">
+                    {lang === "ar" ? "خيار التصميم الحالي" : "CURRENT DESIGN OPTION"}
+                  </span>
+                  <span className="text-white/60 text-xs font-mono">
+                    {lang === "ar" ? "صورة" : "Image"} {imageTiles.findIndex((t) => t.id === zoomTile.id) + 1} {lang === "ar" ? "من" : "of"} {imageTiles.length}
+                  </span>
+                </div>
+
+                {/* Zoom Pill */}
+                <div className="bg-white/10 border border-white/15 px-4 py-1.5 rounded-full flex items-center gap-3 md:gap-4 shadow-lg">
+                  <button 
+                    onClick={zoomOut}
+                    disabled={zoomScale <= 1}
+                    className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
+                    title={lang === "ar" ? "تصغير" : "Zoom Out"}
+                  >
+                    <ZoomOut size={15} />
+                  </button>
+
+                  <span className="text-white text-xs font-mono font-bold w-12 text-center select-none">
+                    {Math.round(zoomScale * 100)}%
+                  </span>
+
+                  <button 
+                    onClick={zoomIn}
+                    disabled={zoomScale >= 5}
+                    className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
+                    title={lang === "ar" ? "تكبير" : "Zoom In"}
+                  >
+                    <ZoomIn size={15} />
+                  </button>
+
+                  <div className="w-px h-3 bg-white/20" />
+
+                  <button 
+                    onClick={resetZoom}
+                    className="text-white hover:text-gold transition-colors cursor-pointer"
+                    title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Selection Toggle and Notes Input Card */}
+              {activeStyle && activeSection && (
+                <div className="w-full bg-[#0A2E30]/65 border border-gold/25 backdrop-blur-md rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden flex flex-col gap-4">
+                  {/* Subtle background golden aura */}
+                  <div className="absolute -right-16 -bottom-16 w-36 h-36 rounded-full bg-gold/5 blur-2xl pointer-events-none" />
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                    <div>
+                      <h3 className="text-sm font-serif-ar text-white font-bold">
+                        {lang === "ar" ? "حالة الاختيار لهذا البند" : "Selection state for this item"}
+                      </h3>
+                      <p className="text-[11px] text-white/50 mt-1">
+                        {lang === "ar" 
+                          ? "يمكنك تضمين هذا البند في تقرير التشطيبات الخاص بك وكتابة ملاحظات تفصيلية للمهندسين."
+                          : "Include this item in your finishes report and write specific notes for the engineers."
+                        }
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => toggleTile(zoomTile)}
+                      className={cn(
+                        "px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5 border shadow-lg cursor-pointer self-start sm:self-auto",
+                        selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
+                          ? "bg-gold border-gold text-[#0C363A] hover:bg-white hover:border-white"
+                          : "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                      )}
+                    >
+                      <Check size={14} className="stroke-[3]" />
+                      <span>
+                        {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]
+                          ? (lang === "ar" ? "محدد ومختار" : "SELECTED CHOICE")
+                          : (lang === "ar" ? "تحديد هذا الخيار" : "SELECT OPTION")
+                        }
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Notes Textarea (Only visible if item is selected) */}
+                  {selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id] ? (
+                    <div className="space-y-2 mt-1">
+                      <label className="text-xs font-bold text-gold flex items-center gap-1.5">
+                        <StickyNote size={14} />
+                        <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
+                      </label>
+                      <Textarea
+                        value={selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]?.note ?? ""}
+                        onChange={(e) => updateItemNote(zoomTile.id, e.target.value)}
+                        placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
+                        className="min-h-[100px] resize-none bg-white/10 border-white/20 text-white placeholder:text-white/30 backdrop-blur-md focus:border-gold/50 focus:ring-1 focus:ring-gold/50 rounded-xl select-text text-sm"
+                      />
+                      <span className="text-[10px] text-white/40 block mt-1">
+                        {lang === "ar" 
+                          ? "ملاحظتك سيتم حفظها تلقائياً وتظهر للمهندس عند تصميم وتنفيذ منزلك."
+                          : "Your note will be saved automatically and shown to the engineer during implementation."
+                        }
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="py-5 text-center text-white/40 text-xs border border-dashed border-white/10 rounded-xl">
+                      {lang === "ar" 
+                        ? "قم بتحديد الخيار لتتمكن من كتابة ملاحظاتك وتعديلاتها الخاصة."
+                        : "Select this option to write custom notes and requests."
+                      }
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Bottom Floating Control Bar */}
-          <div className="w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent p-6 flex flex-col items-center gap-4 z-10">
-            {/* Notes input inside lightbox */}
-            {activeStyle && activeSection && selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id] && (
-              <div className="w-full max-w-xl">
-                <label className="text-xs font-bold text-gold flex items-center gap-1.5 mb-2">
-                  <StickyNote size={14} />
-                  <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
-                </label>
-                <Textarea
-                  value={selections[`${activeStyle.id}_${activeSection.id}`]?.selected?.[zoomTile.id]?.note ?? ""}
-                  onChange={(e) => updateItemNote(zoomTile.id, e.target.value)}
-                  placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
-                  className="min-h-16 resize-none bg-white/10 border-white/20 text-white placeholder:text-white/30 backdrop-blur-md"
-                />
-              </div>
-            )}
-            <span className="text-[11px] text-white/40 tracking-wider">
-              {lang === "ar" 
-                ? "اسحب الصورة للتحريك عند التكبير • استخدم عجلة الماوس للتحكم بالزوم"
-                : "Drag to pan when zoomed in • Scroll mouse wheel to zoom"
-              }
-            </span>
-
-            <div className="bg-white/10 backdrop-blur-md border border-white/15 px-6 py-2 rounded-full flex items-center gap-6 shadow-2xl">
-              <button 
-                onClick={zoomOut}
-                disabled={zoomScale <= 1}
-                className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
-                title={lang === "ar" ? "تصغير" : "Zoom Out"}
-              >
-                <ZoomOut size={16} />
-              </button>
-
-              <span className="text-white text-xs font-mono font-bold w-12 text-center">
-                {Math.round(zoomScale * 100)}%
+              {/* Hint text at bottom of scrollable area */}
+              <span className="text-[11px] text-white/30 tracking-wider text-center select-none max-w-md pb-8">
+                {lang === "ar" 
+                  ? "اسحب الصورة للتحريك عند التكبير • استخدم عجلة الماوس للتحكم بالزوم • أغلق بالضغط على X في الأعلى أو بالعودة للخلف"
+                  : "Drag to pan when zoomed in • Scroll mouse wheel to zoom • Close by clicking X on top or pressing back button"
+                }
               </span>
-
-              <button 
-                onClick={zoomIn}
-                disabled={zoomScale >= 5}
-                className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
-                title={lang === "ar" ? "تكبير" : "Zoom In"}
-              >
-                <ZoomIn size={16} />
-              </button>
-
-              <div className="w-px h-4 bg-white/20" />
-
-              <button 
-                onClick={resetZoom}
-                className="text-white hover:text-gold transition-colors cursor-pointer"
-                title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
-              >
-                <RotateCcw size={14} />
-              </button>
             </div>
-
-            {/* Counter */}
-            <span className="text-white/60 text-xs font-mono">
-              {imageTiles.findIndex((t) => t.id === zoomTile.id) + 1} / {imageTiles.length}
-            </span>
           </div>
         </div>
       )}
