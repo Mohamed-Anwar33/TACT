@@ -5,6 +5,7 @@ import Reveal from "@/components/ui-luxe/Reveal";
 import stoneTexture from "@/assets/teqaan-stone-texture.png";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/i18n/LanguageProvider";
+import { CmsSection } from "@/lib/publicCms";
 
 const ABOUT_SLIDES = [
   "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.jpeg",
@@ -14,16 +15,75 @@ const ABOUT_SLIDES = [
   "/real-content/Designs/Landscape/Screenshot_14-5-2026_19049_.jpeg",
 ];
 
-export default function PhilosophySection() {
+export default function PhilosophySection({ section }: { section?: CmsSection }) {
   const { lang } = useLang();
   const [currentVisual, setCurrentVisual] = useState(0);
 
+  // Dynamic slides from database section media
+  const mediaImages = section?.media?.filter(m => m.mediaType === "image" || m.role === "section").map(m => m.url) || [];
+  const slides = mediaImages.length > 0 ? mediaImages : ABOUT_SLIDES;
+
   useEffect(() => {
+    if (slides.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentVisual((prev) => (prev + 1) % ABOUT_SLIDES.length);
+      setCurrentVisual((prev) => (prev + 1) % slides.length);
     }, 4500);
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
+
+  // Dynamic values
+  const hasCustomTitle = lang === "ar" ? !!section?.titleAr : !!section?.titleEn;
+  const defaultTitleAr = <>هندسة المعنى <br /> <span className="text-[#C18556]/80 italic">داخل كل مساحة</span></>;
+  const defaultTitleEn = <>Engineering Meaning <br /> <span className="text-[#C18556]/80 italic">Inside Every Space</span></>;
+
+  const renderTitle = () => {
+    if (!hasCustomTitle) {
+      return lang === "ar" ? defaultTitleAr : defaultTitleEn;
+    }
+    const titleText = lang === "ar" ? section?.titleAr || "" : section?.titleEn || "";
+    // Support custom styled gold subtitle separated by "|" or " - " or "\n"
+    const separator = titleText.includes("|") ? "|" : titleText.includes(" - ") ? " - " : titleText.includes("\n") ? "\n" : null;
+    if (separator) {
+      const parts = titleText.split(separator);
+      const main = parts[0].trim();
+      const sub = parts.slice(1).join(separator).trim();
+      return (
+        <>
+          {main} <br /> <span className="text-[#C18556]/80 italic">{sub}</span>
+        </>
+      );
+    }
+    return titleText;
+  };
+
+  const bodyText = lang === "ar" ? section?.bodyAr : section?.bodyEn;
+  const renderBody = () => {
+    if (!bodyText) {
+      return lang === "ar" ? (
+        <>
+          نحن شركة متخصصة في التصميم والتنفيذ والتشطيبات المتكاملة، نعمل برؤية هندسية دقيقة ومعايير تنفيذ عالية. نمتلك خبرة تمتد لأكثر من 12 عامًا في إدارة وتنفيذ المشروعات السكنية والإدارية.
+          <br /><br />
+          نفذنا بنجاح أكثر من 60 مشروعًا، مع التزام كامل بالجودة، والدقة، واحترام تفاصيل كل مساحة. نقدّم تجربة متكاملة تبدأ من استلام الوحدة وحتى مرحلة التسليم النهائي.
+        </>
+      ) : (
+        <>
+          We are a firm specialized in integrated design, execution, and finishing, operating with precise architectural vision and high execution standards. We possess over 12 years of experience in managing and delivering projects.
+          <br /><br />
+          We have successfully completed over 60 projects, with full commitment to quality, precision, and respect for the details of every space. We offer a comprehensive experience from unit handover to final delivery.
+        </>
+      );
+    }
+    return bodyText.split("\n").filter(Boolean).map((para, i) => (
+      <span key={i} className="block mb-4 last:mb-0">
+        {para}
+      </span>
+    ));
+  };
+
+  const ctaLabel = lang === "ar" 
+    ? section?.ctaLabelAr || "المزيد عنا" 
+    : section?.ctaLabelEn || "LEARN MORE";
+  const ctaUrl = section?.ctaUrl || "/about";
 
   return (
     <section className="relative w-full overflow-hidden py-24 md:py-32 bg-white" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -51,40 +111,24 @@ export default function PhilosophySection() {
 
             <Reveal delay={150}>
               <h2 className="text-4xl md:text-6xl font-serif text-[#0C363A] leading-[1.1] mb-10">
-                {lang === "ar" ? (
-                  <>هندسة المعنى <br /> <span className="text-[#C18556]/80 italic">داخل كل مساحة</span></>
-                ) : (
-                  <>Engineering Meaning <br /> <span className="text-[#C18556]/80 italic">Inside Every Space</span></>
-                )}
+                {renderTitle()}
               </h2>
             </Reveal>
 
             <Reveal delay={300}>
               <div className="max-w-xl">
-                <p className="text-base md:text-lg text-[#0C363A]/70 leading-[1.8] mb-12 space-y-6">
-                  {lang === "ar" ? (
-                    <>
-                      نحن شركة متخصصة في التصميم والتنفيذ والتشطيبات المتكاملة، نعمل برؤية هندسية دقيقة ومعايير تنفيذ عالية. نمتلك خبرة تمتد لأكثر من 12 عامًا في إدارة وتنفيذ المشروعات السكنية والإدارية.
-                      <br /><br />
-                      نفذنا بنجاح أكثر من 60 مشروعًا، مع التزام كامل بالجودة، والدقة، واحترام تفاصيل كل مساحة. نقدّم تجربة متكاملة تبدأ من استلام الوحدة وحتى مرحلة التسليم النهائي.
-                    </>
-                  ) : (
-                    <>
-                      We are a firm specialized in integrated design, execution, and finishing, operating with precise architectural vision and high execution standards. We possess over 12 years of experience in managing and delivering projects.
-                      <br /><br />
-                      We have successfully completed over 60 projects, with full commitment to quality, precision, and respect for the details of every space. We offer a comprehensive experience from unit handover to final delivery.
-                    </>
-                  )}
-                </p>
+                <div className="text-base md:text-lg text-[#0C363A]/70 leading-[1.8] mb-12 font-light">
+                  {renderBody()}
+                </div>
               </div>
             </Reveal>
 
             <Reveal delay={450}>
               <Link 
-                to="/about"
+                to={ctaUrl}
                 className="inline-flex items-center gap-4 bg-[#0C363A] text-white px-8 py-4 rounded-sm text-xs font-bold uppercase tracking-[0.2em] transition-all hover:bg-[#C18556] hover:text-[#0C363A] group"
               >
-                {lang === "ar" ? "المزيد عنا" : "LEARN MORE"}
+                {ctaLabel}
                 <ArrowRight size={16} className={cn("transition-transform", lang === "ar" ? "rotate-180 group-hover:-translate-x-2" : "group-hover:translate-x-2")} />
               </Link>
             </Reveal>
@@ -99,7 +143,7 @@ export default function PhilosophySection() {
               <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-[#C18556] translate-x-2 translate-y-2" />
               
               <div className="relative aspect-[4/5] overflow-hidden rounded-sm shadow-2xl transition-transform duration-700 group-hover:scale-[1.02]">
-                {ABOUT_SLIDES.map((src, idx) => (
+                {slides.map((src, idx) => (
                   <div
                     key={src}
                     className={cn(
@@ -113,7 +157,6 @@ export default function PhilosophySection() {
                       className="w-full h-full object-cover"
                       loading={idx === 0 ? "eager" : "lazy"}
                       decoding="async"
-                      fetchPriority={idx === 0 ? "high" : "auto"}
                     />
                   </div>
                 ))}
@@ -128,17 +171,19 @@ export default function PhilosophySection() {
               </div>
 
               {/* Slide Progress */}
-              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-30">
-                {ABOUT_SLIDES.map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "h-1 transition-all duration-500 rounded-full",
-                      i === currentVisual ? "w-8 bg-[#C18556]" : "w-3 bg-[#0C363A]/20"
-                    )}
-                  />
-                ))}
-              </div>
+              {slides.length > 1 && (
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                  {slides.map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "h-1 transition-all duration-500 rounded-full",
+                        i === currentVisual ? "w-8 bg-[#C18556]" : "w-3 bg-[#0C363A]/20"
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </Reveal>
 

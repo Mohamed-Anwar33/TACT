@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { useLang } from "@/i18n/LanguageProvider";
@@ -6,14 +6,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { isStaff } from "@/auth/adminPermissions";
+import { useAuth } from "@/auth/AuthProvider";
 
 export default function AdminLogin() {
   const { lang } = useLang();
   const nav = useNavigate();
+  const { user, isStaff: authIsStaff } = useAuth();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPass, setShowPass] = useState(false);
+
+  useEffect(() => {
+    if (user && authIsStaff) {
+      nav("/admin");
+    }
+  }, [user, authIsStaff, nav]);
 
   const isRtl = lang === "ar";
 

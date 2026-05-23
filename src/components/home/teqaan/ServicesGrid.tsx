@@ -12,7 +12,28 @@ import {
   Armchair, 
   HardHat, 
   Key,
-  ArrowRight
+  ArrowRight,
+  Compass,
+  Layers,
+  Sparkles,
+  Hammer,
+  Ruler,
+  PenTool,
+  Wrench,
+  Palette,
+  Lightbulb,
+  Bed,
+  Bath,
+  ShieldCheck,
+  TreePine,
+  Droplets,
+  Zap,
+  Flame,
+  Wallpaper,
+  Construction,
+  Maximize,
+  Smile,
+  Files
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +46,27 @@ const ICON_MAP: Record<string, any> = {
   "06": Armchair,
   "07": HardHat,
   "08": Key,
+  "09": Compass,
+  "10": Layers,
+  "11": Sparkles,
+  "12": Hammer,
+  "13": Ruler,
+  "14": PenTool,
+  "15": Wrench,
+  "16": Palette,
+  "17": Lightbulb,
+  "18": Bed,
+  "19": Bath,
+  "20": ShieldCheck,
+  "21": TreePine,
+  "22": Droplets,
+  "23": Zap,
+  "24": Flame,
+  "25": Wallpaper,
+  "26": Construction,
+  "27": Maximize,
+  "28": Smile,
+  "29": Files,
 };
 
 interface ServicesGridProps {
@@ -34,6 +76,30 @@ interface ServicesGridProps {
 export default function ServicesGrid({ section }: ServicesGridProps) {
   const { lang } = useLang();
   const [services, setServices] = useState<CmsService[]>(() => fallbackServices(lang));
+
+  // Dynamic values
+  const hasCustomTitle = lang === "ar" ? !!section?.titleAr : !!section?.titleEn;
+  const defaultTitleAr = <>تجربة متكاملة بتفاصيل <span className="text-[#C18556] italic">تليق بالنظر</span></>;
+  const defaultTitleEn = <>Integrated Experience with <span className="text-[#C18556] italic">Refined Details</span></>;
+
+  const renderTitle = () => {
+    if (!hasCustomTitle) {
+      return lang === "ar" ? defaultTitleAr : defaultTitleEn;
+    }
+    const titleText = lang === "ar" ? section?.titleAr || "" : section?.titleEn || "";
+    const separator = titleText.includes("|") ? "|" : titleText.includes(" - ") ? " - " : titleText.includes("\n") ? "\n" : null;
+    if (separator) {
+      const parts = titleText.split(separator);
+      const main = parts[0].trim();
+      const sub = parts.slice(1).join(separator).trim();
+      return (
+        <>
+          {main} <span className="text-[#C18556] italic">{sub}</span>
+        </>
+      );
+    }
+    return titleText;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -89,15 +155,7 @@ export default function ServicesGrid({ section }: ServicesGridProps) {
 
           <Reveal delay={150}>
             <h2 className="text-4xl md:text-5xl font-serif text-[#0C363A] leading-[1.2] mb-8">
-              {section ? (
-                lang === "ar" ? section.titleAr || section.titleEn : section.titleEn || section.titleAr
-              ) : (
-                lang === "ar" ? (
-                  <>تجربة متكاملة بتفاصيل <span className="text-[#C18556] italic">تليق بالنظر</span></>
-                ) : (
-                  <>Integrated Experience with <span className="text-[#C18556] italic">Refined Details</span></>
-                )
-              )}
+              {renderTitle()}
             </h2>
           </Reveal>
 

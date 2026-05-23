@@ -1,10 +1,47 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useLang } from "@/i18n/LanguageProvider";
 import ProjectCard from "@/components/ui-luxe/ProjectCard";
-import { ArrowLeft, ArrowRight, FileText, ZoomIn, ZoomOut, RotateCcw, Pause, Play } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  FileText,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Pause,
+  Play,
+  ExternalLink,
+  X,
+  Eye,
+  Download,
+  Maximize2,
+  Film,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CmsProject, fallbackProjects, getCmsProjects } from "@/lib/publicCms";
+
+function getYoutubeEmbed(url: string) {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/i);
+  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : url;
+}
+
+function getVimeoEmbed(url: string) {
+  const match = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  return match ? `https://player.vimeo.com/video/${match[1]}?autoplay=1` : url;
+}
+
+function VideoPlayer({ project }: { project: CmsProject }) {
+  const videoUrl = project.videoUrl || "";
+  if (project.videoSourceType === "youtube") {
+    return <iframe src={getYoutubeEmbed(videoUrl)} title={project.nameAr || project.name} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="h-full w-full border-none rounded-2xl" />;
+  }
+  if (project.videoSourceType === "vimeo") {
+    return <iframe src={getVimeoEmbed(videoUrl)} title={project.nameAr || project.name} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="h-full w-full border-none rounded-2xl" />;
+  }
+  return <video src={videoUrl} controls autoPlay className="h-full w-full object-contain rounded-2xl bg-black" />;
+}
 
 export default function ProjectDetails() {
   const { id } = useParams();
@@ -33,12 +70,23 @@ export default function ProjectDetails() {
     mediaItems: [],
   };
 
-  const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedApartment = searchParams.get("apartment");
+
+  const setSelectedApartment = (apt: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (apt) {
+      next.set("apartment", apt);
+    } else {
+      next.delete("apartment");
+    }
+    setSearchParams(next);
+  };
 
   const isGroupedByApartments = useMemo(() => {
     if (!currentProject?.mediaItems) return false;
     const images = currentProject.mediaItems.filter(item => item.media_type === "image");
-    return images.some(item => item.role && item.role !== "gallery" && item.role !== "cover");
+    return images.some(item => !!item.title_ar || !!item.title_en || (item.role && item.role !== "gallery" && item.role !== "cover"));
   }, [currentProject]);
 
   const apartmentGroups = useMemo(() => {
@@ -49,35 +97,63 @@ export default function ProjectDetails() {
       const role = (item.role && item.role !== "gallery" && item.role !== "cover") 
         ? item.role 
         : (lang === "ar" ? "معرض الصور العام" : "General Gallery");
-      if (!groups[role]) groups[role] = [];
-      groups[role].push(item);
+      const displayName = (lang === "ar" ? item.title_ar || item.title_en : item.title_en || item.title_ar) || role;
+      if (!groups[displayName]) groups[displayName] = [];
+      groups[displayName].push(item);
     });
     return groups;
   }, [currentProject, lang]);
 
-  const apartmentImages = useMemo(() => {
-    if (!currentProject || !selectedApartment || !isGroupedByApartments) return [];
-    return apartmentGroups[selectedApartment]?.map(item => item.url) || [];
-  }, [currentProject, selectedApartment, isGroupedByApartments, apartmentGroups]);
-
-  const rawGallery = currentProject.images?.length ? currentProject.images : [currentProject.img || currentProject.cover].filter(Boolean);
-
   const gallery = useMemo(() => {
-    if (isGroupedByApartments) {
-      if (selectedApartment) {
-        return apartmentImages;
-      }
-      return [];
-    }
-    return rawGallery;
-  }, [isGroupedByApartments, selectedApartment, apartmentImages, rawGallery]);
+    // 1. Get video slide if present
+    const projectVideo = currentProject.videoUrl
+      ? [{ type: "video" as const, url: currentProject.videoUrl, title: lang === "ar" ? "فيديو التنفيذ" : "Execution Video" }]
+      : [];
 
-  const related = projects.filter((p) => p.kind === "img" && p.id !== currentProject.id).slice(0, 3);
+    // 2. Get images
+    let projectImages: { type: "image"; url: string; title?: string }[] = [];
+    if (currentProject.mediaItems && currentProject.mediaItems.length > 0) {
+      const imgItems = currentProject.mediaItems.filter(item => item.media_type === "image");
+      if (imgItems.length > 0) {
+        projectImages = imgItems.map(item => ({
+          type: "image" as const,
+          url: item.url,
+          title: (lang === "ar" ? item.title_ar || item.title_en : item.title_en || item.title_ar) || 
+                 ((item.role && item.role !== "gallery" && item.role !== "cover") ? item.role : undefined)
+        }));
+      }
+    }
+    
+    // Fallback if mediaItems has no images
+    if (projectImages.length === 0) {
+      if (currentProject.images && currentProject.images.length > 0) {
+        projectImages = currentProject.images.map(img => ({ type: "image" as const, url: img }));
+      } else if (currentProject.img || currentProject.cover) {
+        projectImages = [currentProject.img || currentProject.cover].filter(Boolean).map(img => ({ type: "image" as const, url: img }));
+      }
+    }
+
+    // 3. Get PDFs
+    const projectPdfs = currentProject.pdf
+      ? [{ type: "pdf" as const, url: currentProject.pdf, title: lang === "ar" ? "ملف المشروع PDF" : "Project PDF" }]
+      : [];
+
+    return [...projectVideo, ...projectImages, ...projectPdfs];
+  }, [currentProject, lang]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isZoomDisabled, setIsZoomDisabled] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [tour360Open, setTour360Open] = useState<string | null>(null);
+
+  const activeImageTitle = useMemo(() => {
+    const activeItem = gallery[currentIndex];
+    if (!activeItem) return null;
+    return activeItem.title || null;
+  }, [gallery, currentIndex]);
+
+  const related = projects.filter((p) => p.kind === "img" && p.id !== currentProject.id).slice(0, 3);
 
   useEffect(() => {
     setSelectedApartment(null);
@@ -102,12 +178,20 @@ export default function ProjectDetails() {
 
   useEffect(() => {
     if (isPaused) return;
+    if (gallery[currentIndex]?.type === "video") return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % gallery.length);
       setZoomLevel(1);
     }, 5000);
     return () => clearInterval(timer);
-  }, [gallery.length, isPaused]);
+  }, [gallery.length, isPaused, currentIndex]);
+
+  useEffect(() => {
+    document.body.style.overflow = tour360Open ? "hidden" : "unset";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [tour360Open]);
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev - 1 + gallery.length) % gallery.length);
@@ -140,7 +224,7 @@ export default function ProjectDetails() {
     });
   };
 
-  const activeImageSrc = gallery[currentIndex] || currentProject.img || currentProject.cover;
+  const activeImageSrc = gallery[currentIndex]?.url || currentProject.img || currentProject.cover || "";
 
   return (
     <div className="min-h-screen bg-[#FBFBFA] pt-32 pb-24 text-foreground selection:bg-gold/20 selection:text-teal-deep" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -158,7 +242,7 @@ export default function ProjectDetails() {
           </div>
         </header>
 
-        {isGroupedByApartments && !selectedApartment ? (
+        {false ? (
           /* Render Apartments Grid */
           <div className="w-full py-6 select-none animate-fadeIn">
             <h3 className="text-teal-deep text-xs uppercase tracking-wider font-extrabold mb-6 flex items-center gap-2 font-mono">
@@ -199,7 +283,14 @@ export default function ProjectDetails() {
         ) : (
           /* Render Slideshow and Thumbnails */
           <div className="animate-fadeIn">
-            {isGroupedByApartments && selectedApartment && (
+            {gallery.length > 1 && (
+              <div className="flex justify-center mb-4 select-none">
+                <div className="bg-[#0C363A]/95 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-mono font-bold text-gold border border-gold/35 shadow-lg">
+                  {currentIndex + 1} / {gallery.length}
+                </div>
+              </div>
+            )}
+            {false && (
               <div className="mb-6 flex justify-between items-center">
                 <button
                   type="button"
@@ -219,75 +310,128 @@ export default function ProjectDetails() {
             <div className="relative w-full aspect-[16/10] md:aspect-[16/9] bg-black rounded-2xl overflow-hidden shadow-2xl border border-border group select-none">
               
               <div className="w-full h-full overflow-hidden flex items-center justify-center relative">
-                <img 
-                  src={activeImageSrc} 
-                  alt={currentProject.nameAr}
-                  className="w-full h-full object-cover transition-all duration-500 ease-out"
-                  style={{ 
-                    transform: `scale(${zoomLevel})`,
-                    cursor: isZoomDisabled ? "default" : zoomLevel > 1 ? "zoom-out" : "zoom-in"
-                  }}
-                  onClick={() => {
-                    if (isZoomDisabled) return;
-                    setZoomLevel(prev => prev === 1 ? 1.4 : 1);
-                  }}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = "none";
-                  }}
-                />
+                {gallery[currentIndex]?.type === "video" ? (
+                  <div key={currentIndex} className="w-full h-full flex items-center justify-center bg-black">
+                    <VideoPlayer project={currentProject} />
+                  </div>
+                ) : gallery[currentIndex]?.type === "pdf" ? (
+                  /* Unified PDF Slide Card */
+                  <div key={currentIndex} className="w-full h-full bg-[#0C363A]/45 backdrop-blur-md flex flex-col items-center justify-center p-6 md:p-12 relative overflow-hidden select-none">
+                    {/* Background grid texture */}
+                    <div className="absolute inset-0 arch-grid opacity-10 pointer-events-none" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-gold/5 blur-3xl pointer-events-none" />
+
+                    <div className="relative z-10 flex flex-col items-center text-center max-w-md">
+                      <div className="mb-5 grid h-16 w-16 md:h-20 md:w-20 place-items-center rounded-full border border-gold/30 bg-[#061F22] text-gold shadow-[0_0_35px_rgba(212,175,55,0.25)]">
+                        <FileText size={36} className="stroke-[1.5]" />
+                      </div>
+                      
+                      <span className="text-[10px] bg-gold/20 text-gold border border-gold/30 font-bold px-3 py-1 rounded-full tracking-[0.2em] uppercase mb-4">
+                        {lang === "ar" ? "مستند فني PDF" : "TECHNICAL DOCUMENT PDF"}
+                      </span>
+
+                      <h3 className="font-serif-ar text-lg md:text-2xl font-extrabold text-white mb-3 leading-snug">
+                        {gallery[currentIndex].title || (lang === "ar" ? "كتالوج الرسومات الفنية للمشروع" : "Project Technical Drawings Catalog")}
+                      </h3>
+
+                      <p className="text-xs text-white/50 leading-relaxed mb-6 md:mb-8 max-w-sm hidden sm:block">
+                        {lang === "ar" 
+                          ? "يحتوي هذا الملف على المخططات التنفيذية، المساقط الأفقية، وتوزيع الفرش والإنارة للمشروع بكامل التفاصيل الهندسية."
+                          : "This file contains construction blueprints, layouts, furniture distribution, and lighting schemas in full engineering detail."}
+                      </p>
+
+                      <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
+                        <a
+                          href={gallery[currentIndex].url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setIsPaused(true)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/95 text-[#061F22] px-6 py-3 text-xs font-bold transition hover:bg-gold hover:text-[#061F22] shadow-md hover:shadow-gold/20 transform hover:-translate-y-0.5 active:translate-y-0"
+                        >
+                          <Eye size={14} />
+                          {lang === "ar" ? "عرض المستند" : "View Document"}
+                        </a>
+                        <a
+                          href={gallery[currentIndex].url}
+                          download
+                          onClick={() => setIsPaused(true)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-gold/40 text-gold px-6 py-3 text-xs font-bold transition hover:bg-gold hover:text-[#061F22] hover:border-gold shadow-md transform hover:-translate-y-0.5 active:translate-y-0 bg-[#061F22]/40"
+                        >
+                          <Download size={14} />
+                          {lang === "ar" ? "تحميل الملف" : "Download File"}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <img 
+                    src={activeImageSrc} 
+                    alt={currentProject.nameAr}
+                    className="w-full h-full object-cover transition-all duration-500 ease-out"
+                    style={{ 
+                      transform: `scale(${zoomLevel})`,
+                      cursor: isZoomDisabled ? "default" : zoomLevel > 1 ? "zoom-out" : "zoom-in"
+                    }}
+                    onClick={() => {
+                      if (isZoomDisabled) return;
+                      setZoomLevel(prev => prev === 1 ? 1.4 : 1);
+                    }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = "none";
+                    }}
+                  />
+                )}
               </div>
 
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
 
-              <div className={`absolute top-4 ${lang === "ar" ? "left-4" : "right-4"} z-20 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-border/60 text-xs text-teal-deep font-mono`}>
-                
-                <button 
-                  onClick={toggleZoomDisable}
-                  className={cn("px-3 py-1.5 rounded-lg transition-all font-serif-ar", isZoomDisabled ? "bg-muted text-muted-foreground line-through" : "hover:bg-gold/20 font-medium")}
-                >
-                  {lang === "ar" ? (isZoomDisabled ? "تفعيل التكبير" : "تعطيل التكبير") : (isZoomDisabled ? "Enable Zoom" : "Disable Zoom")}
-                </button>
+              {activeImageTitle && (
+                <div className={`absolute top-4 ${lang === "ar" ? "right-4" : "left-4"} z-20 bg-teal-deep/95 backdrop-blur-md text-gold border border-gold/30 px-4 py-2.5 rounded-xl text-xs font-serif-ar font-bold shadow-lg select-none`}>
+                  <span>{activeImageTitle}</span>
+                </div>
+              )}
 
-                <div className="w-[1px] h-4 bg-border mx-0.5" />
+              {gallery[currentIndex]?.type === "image" && (
+                <div className={`absolute top-4 ${lang === "ar" ? "left-4" : "right-4"} z-20 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-border/60 text-xs text-teal-deep font-mono`}>
+                  
+                  <button 
+                    onClick={toggleZoomDisable}
+                    className={cn("px-3 py-1.5 rounded-lg transition-all font-serif-ar", isZoomDisabled ? "bg-muted text-muted-foreground line-through" : "hover:bg-gold/20 font-medium")}
+                  >
+                    {lang === "ar" ? (isZoomDisabled ? "تفعيل التكبير" : "تعطيل التكبير") : (isZoomDisabled ? "Enable Zoom" : "Disable Zoom")}
+                  </button>
 
-                <button 
-                  onClick={() => setIsPaused(!isPaused)}
-                  className="px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-all font-serif-ar flex items-center gap-1"
-                >
-                  {isPaused ? <Play size={12} className="fill-current" /> : <Pause size={12} className="fill-current" />}
-                  <span>{lang === "ar" ? (isPaused ? "تشغيل" : "إيقاف") : (isPaused ? "Play" : "Pause")}</span>
-                </button>
+                  <div className="w-[1px] h-4 bg-border mx-0.5" />
 
-                <div className="w-[1px] h-4 bg-border mx-0.5" />
+                  <button 
+                    onClick={handleZoomOut}
+                    disabled={isZoomDisabled || zoomLevel <= 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
+                    title={lang === "ar" ? "تصغير" : "Zoom Out"}
+                  >
+                    <ZoomOut size={14} />
+                  </button>
 
-                <button 
-                  onClick={handleZoomOut}
-                  disabled={isZoomDisabled || zoomLevel <= 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
-                  title={lang === "ar" ? "تصغير" : "Zoom Out"}
-                >
-                  <ZoomOut size={14} />
-                </button>
+                  <button 
+                    onClick={handleZoomIn}
+                    disabled={isZoomDisabled || zoomLevel >= 2.5}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
+                    title={lang === "ar" ? "تكبير" : "Zoom In"}
+                  >
+                    <ZoomIn size={14} />
+                  </button>
 
-                <button 
-                  onClick={handleZoomIn}
-                  disabled={isZoomDisabled || zoomLevel >= 2.5}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
-                  title={lang === "ar" ? "تكبير" : "Zoom In"}
-                >
-                  <ZoomIn size={14} />
-                </button>
+                  <button 
+                    onClick={handleResetZoom}
+                    disabled={zoomLevel === 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
+                    title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
+                  >
+                    <RotateCcw size={14} />
+                  </button>
 
-                <button 
-                  onClick={handleResetZoom}
-                  disabled={zoomLevel === 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
-                  title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
-                >
-                  <RotateCcw size={14} />
-                </button>
-
-              </div>
+                </div>
+              )}
 
               <button 
                 onClick={handlePrev}
@@ -305,37 +449,53 @@ export default function ProjectDetails() {
                 {lang === "ar" ? <ArrowLeft size={18} /> : <ArrowRight size={18} />}
               </button>
 
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[11px] text-ivory font-mono tracking-widest border border-white/10">
-                {currentIndex + 1} / {gallery.length}
-              </div>
-
             </div>
 
-            <div className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-              {gallery.map((src, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setCurrentIndex(idx);
-                    setZoomLevel(1);
-                  }}
-                  className={cn(
-                    "relative flex-shrink-0 w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-300",
-                    idx === currentIndex 
-                      ? "border-gold shadow-md scale-105" 
-                      : "border-transparent opacity-60 hover:opacity-100"
-                  )}
-                >
-                  <img 
-                    src={src} 
-                    alt="" 
-                    className="w-full h-full object-cover" 
-                    onError={(e) => {
-                      (e.currentTarget as HTMLElement).style.display = "none";
+            <div className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-white/5 select-none" style={{ scrollbarWidth: "thin" }}>
+              {gallery.map((item, idx) => {
+                const isActive = idx === currentIndex;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setCurrentIndex(idx);
+                      setZoomLevel(1);
                     }}
-                  />
-                </button>
-              ))}
+                    className={cn(
+                      "relative flex-shrink-0 w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5",
+                      isActive
+                        ? "border-gold shadow-md scale-105 opacity-100 ring-1 ring-gold/40"
+                        : "border-transparent opacity-60 hover:opacity-100"
+                    )}
+                  >
+                    {item.type === "video" ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-[#0C363A] text-gold p-1 select-none">
+                        <Play className="text-gold fill-gold/20" size={20} />
+                        <span className="text-[8px] md:text-[9px] font-mono tracking-wider font-extrabold uppercase text-white/90">
+                          {lang === "ar" ? "فيديو" : "VIDEO"}
+                        </span>
+                      </div>
+                    ) : item.type === "pdf" ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-[#0C363A] text-gold p-1 select-none">
+                        <FileText className="text-gold" size={20} />
+                        <span className="text-[8px] md:text-[9px] font-mono tracking-wider font-extrabold uppercase text-white/90">
+                          PDF
+                        </span>
+                      </div>
+                    ) : (
+                      <img 
+                        src={item.url} 
+                        alt="" 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = "none";
+                        }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -361,6 +521,37 @@ export default function ProjectDetails() {
                     <FileText size={16} />
                     <span>{lang === "ar" ? "تحميل ملف وتفاصيل المشروع (PDF)" : "Download Scope Specifications (PDF)"}</span>
                   </a>
+                </div>
+              )}
+
+              {currentProject.tour360Url && (
+                <div className="mt-8 rounded-2xl border border-gold/25 bg-[#0C363A] text-white p-6 shadow-xl max-w-xl relative overflow-hidden group">
+                  {/* Decorative glowing background glow */}
+                  <div className="absolute -right-16 -bottom-16 w-32 h-32 rounded-full bg-gold/10 transition-all duration-700 blur-[30px] pointer-events-none" />
+                  
+                  <h3 className="mb-4 flex items-center gap-2 font-serif-ar text-base font-extrabold text-white relative z-10">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-gold"></span>
+                    </span>
+                    {lang === "ar" ? "الجولة الافتراضية 360° التفاعلية" : "Interactive 360° Virtual Tour"}
+                  </h3>
+                  <p className="text-xs text-white/80 leading-relaxed mb-5 font-sans relative z-10">
+                    {lang === "ar" 
+                      ? "استمتع بتجربة بصرية فريدة واستكشف تفاصيل المشروع والأبعاد الهندسية من خلال جولة افتراضية تفاعلية بزاوية 360 درجة."
+                      : "Experience a unique virtual walkthrough and explore the project details and spatial layout with our 360° interactive tour."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTour360Open(currentProject.tour360Url)}
+                    className="w-full flex items-center justify-between gap-3 rounded-xl border border-white/10 px-5 py-3.5 text-xs font-extrabold transition-all duration-300 hover:border-gold hover:bg-gold hover:text-[#061F22] text-white bg-white/5 group/btn relative z-10"
+                  >
+                    <span className="flex items-center gap-2">
+                      <ExternalLink size={14} className="text-gold group-hover/btn:text-[#061F22]" />
+                      <span>{lang === "ar" ? "ابدأ الجولة التفاعلية 360°" : "Start 360° Interactive Tour"}</span>
+                    </span>
+                    <span className="text-[10px] bg-gold/20 group-hover/btn:bg-[#061F22]/15 text-gold group-hover/btn:text-[#061F22] px-2.5 py-0.5 rounded-md font-mono font-bold animate-pulse">360°</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -396,6 +587,59 @@ export default function ProjectDetails() {
         </section>
 
       </div>
+
+      {tour360Open && createPortal(
+        <div className="fixed inset-0 z-[230] flex flex-col justify-between bg-[#061F22]/95 backdrop-blur-xl p-3 md:p-6 animate-fadeIn">
+          {/* Header */}
+          <div className="relative z-50 flex items-center justify-between gap-4 pb-3 border-b border-white/10 select-none">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-gold"></span>
+              </span>
+              <h2 className="font-serif-ar text-base md:text-lg font-extrabold text-white">
+                {lang === "ar" ? "الجولة الافتراضية 360°" : "360° Virtual Tour"}
+                <span className="text-gold mx-2 font-sans font-medium text-xs md:text-sm opacity-80">
+                  - {lang === "ar" ? currentProject.nameAr : currentProject.name}
+                </span>
+              </h2>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <a
+                href={tour360Open}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-[#0C363A]/80 text-gold px-3.5 py-2 text-xs font-bold transition-all duration-300 hover:bg-gold hover:text-[#061F22] hover:scale-105 active:scale-95 shadow-lg"
+                title={lang === "ar" ? "فتح في علامة تبويب جديدة" : "Open in new tab"}
+              >
+                <ExternalLink size={14} />
+                <span>{lang === "ar" ? "فتح في نافذة جديدة" : "Open in new window"}</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setTour360Open(null)}
+                className="grid h-10 w-10 place-items-center rounded-full border border-gold/30 bg-[#0C363A] text-gold transition-all duration-300 hover:bg-gold hover:text-[#061F22] hover:scale-110 shadow-lg active:scale-95"
+                title={lang === "ar" ? "إغلاق" : "Close"}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Tour Iframe container */}
+          <div className="flex-1 w-full h-full rounded-xl overflow-hidden border border-gold/35 mt-4 bg-black relative">
+            <iframe
+              src={tour360Open}
+              title={lang === "ar" ? currentProject.nameAr : currentProject.name}
+              allow="xr-spatial-tracking; gyroscope; accelerometer; vr"
+              allowFullScreen
+              scrolling="no"
+              className="absolute inset-0 w-full h-full border-none"
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

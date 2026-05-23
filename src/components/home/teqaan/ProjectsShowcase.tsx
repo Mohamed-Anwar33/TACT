@@ -118,6 +118,40 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
     displayItems = VIDEO_PROJECTS.slice(0, 2);
   }
 
+  // Dynamic values
+  const hasCustomTitle = lang === "ar" ? !!section?.titleAr : !!section?.titleEn;
+  const defaultTitleAr = <>سابقة أعمال <span className="text-[#C18556] font-serif italic">تتحدى تفاصيلها</span></>;
+  const defaultTitleEn = <>Portfolio That <span className="text-[#C18556] font-serif italic">Defies Details</span></>;
+
+  const renderTitle = () => {
+    if (!hasCustomTitle) {
+      return lang === "ar" ? defaultTitleAr : defaultTitleEn;
+    }
+    const titleText = lang === "ar" ? section?.titleAr || "" : section?.titleEn || "";
+    const separator = titleText.includes("|") ? "|" : titleText.includes(" - ") ? " - " : titleText.includes("\n") ? "\n" : null;
+    if (separator) {
+      const parts = titleText.split(separator);
+      const main = parts[0].trim();
+      const sub = parts.slice(1).join(separator).trim();
+      return (
+        <>
+          {main} <span className="text-[#C18556] font-serif italic">{sub}</span>
+        </>
+      );
+    }
+    return titleText;
+  };
+
+  const bodyText = lang === "ar" ? section?.bodyAr : section?.bodyEn;
+  const renderBody = () => {
+    if (!bodyText) {
+      return lang === "ar" 
+        ? "تصفح مشاريعنا المقسمة بدقة لتلبي تطلعاتك المعمارية، ما بين التصاميم ثلاثية الأبعاد الراقية وفيديوهات التنفيذ الفعلي على أرض الواقع."
+        : "Browse our projects categorized neatly to match your architectural vision, from high-end 3D designs to real executed walkthroughs.";
+    }
+    return bodyText;
+  };
+
   return (
     <section className="relative w-full py-24 md:py-32 overflow-hidden bg-gradient-to-br from-[#061F22] via-[#0C363A] to-[#061F22]" dir={lang === "ar" ? "rtl" : "ltr"}>
       {/* Decorative Grid Patterns */}
@@ -137,7 +171,7 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
             <div className="flex items-center justify-center gap-4 mb-4">
               <div className="w-[44px] h-px bg-[#C18556]/55" />
               <span className="text-[#C18556] text-[13px] md:text-[14px] uppercase tracking-widest font-bold">
-                {lang === "ar" ? "معرض أعمال تاكت" : "TACT PORTFOLIO"}
+                {lang === "ar" ? section?.sectionNameAr || "معرض أعمال تاكت" : section?.sectionNameEn || "TACT PORTFOLIO"}
               </span>
               <div className="w-[44px] h-px bg-[#C18556]/55" />
             </div>
@@ -145,19 +179,13 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
           
           <Reveal delay={150}>
             <h2 className="text-3xl md:text-5xl font-bold text-white leading-[1.2] mb-6">
-              {lang === "ar" ? (
-                <>سابقة أعمال <span className="text-[#C18556] font-serif italic">تتحدى تفاصيلها</span></>
-              ) : (
-                <>Portfolio That <span className="text-[#C18556] font-serif italic">Defies Details</span></>
-              )}
+              {renderTitle()}
             </h2>
           </Reveal>
 
           <Reveal delay={300}>
             <p className="text-[14px] md:text-[16px] text-white/70 leading-[1.7] mx-auto max-w-[680px]">
-              {lang === "ar" 
-                ? "تصفح مشاريعنا المقسمة بدقة لتلبي تطلعاتك المعمارية، ما بين التصاميم ثلاثية الأبعاد الراقية وفيديوهات التنفيذ الفعلي على أرض الواقع."
-                : "Browse our projects categorized neatly to match your architectural vision, from high-end 3D designs to real executed walkthroughs."}
+              {renderBody()}
             </p>
           </Reveal>
         </div>

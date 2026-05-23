@@ -20,10 +20,24 @@ export default function MediaPreview({ url, type, alt, height = 160, className =
 
   if (guessType === "video") {
     return (
-      <div className={`video-card ${className}`} style={{ height }}>
-        <video src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted preload="metadata" />
-        <button className="play-btn" onClick={onPlay} type="button">
-          <span><Play size={20} fill="currentColor" /></span>
+      <div style={{
+        position: "relative",
+        width: "100%",
+        height,
+        background: "#0C363A",
+        overflow: "hidden",
+        flexShrink: 0
+      }} className={className}>
+        <video src={url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} muted preload="metadata" />
+        <button
+          className="play-btn"
+          onClick={onPlay}
+          type="button"
+          style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "transparent", border: "none", cursor: "pointer" }}
+        >
+          <span style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(193,133,86,0.85)", display: "grid", placeItems: "center", color: "#0C363A" }}>
+            <Play size={16} fill="currentColor" />
+          </span>
         </button>
       </div>
     );
@@ -45,7 +59,7 @@ export default function MediaPreview({ url, type, alt, height = 160, className =
       src={url}
       alt={alt || ""}
       className={className}
-      style={{ width: "100%", height, objectFit: "contain", background: "#fcfbfa", border: "1px solid #e5e0d5", borderRadius: 8, display: "block" }}
+      style={{ width: "100%", height, objectFit: "cover", background: "#f0ece4", display: "block" }}
       onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
     />
   );

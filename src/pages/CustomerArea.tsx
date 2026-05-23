@@ -5,6 +5,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { CatalogPackage, getPackages, getUnlockedPackageIds } from "@/lib/catalog";
+import { isInternalPhoneEmail, phoneToDisplay } from "@/lib/phoneAuth";
 
 export default function CustomerArea() {
   const { lang } = useLang();
@@ -40,20 +41,9 @@ export default function CustomerArea() {
   const activePackages = packages.filter((pkg) => unlockedIds.includes(pkg.id));
   const userName = profile?.full_name ?? user?.user_metadata?.full_name ?? (lang === "ar" ? "عميل مميز" : "Valued Client");
   const rawPhone = profile?.phone ?? user?.user_metadata?.phone ?? "";
-  const formatPhoneForDisplay = (phone: string) => {
-    if (!phone) return (lang === "ar" ? "غير مسجل" : "Not Provided");
-    let clean = phone.trim();
-    if (clean.startsWith("+20")) {
-      return "0" + clean.substring(3);
-    }
-    if (clean.startsWith("20")) {
-      return "0" + clean.substring(2);
-    }
-    return clean;
-  };
-  const userPhone = formatPhoneForDisplay(rawPhone);
+  const userPhone = phoneToDisplay(rawPhone) || (lang === "ar" ? "غير مسجل" : "Not Provided");
   const rawEmail = user?.email || "";
-  const isDummyEmail = rawEmail.endsWith("@tact-client.com");
+  const isDummyEmail = isInternalPhoneEmail(rawEmail);
   const userEmail = isDummyEmail ? (lang === "ar" ? "مسجل برقم الهاتف" : "Registered via Phone") : rawEmail;
 
   return (

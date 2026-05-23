@@ -70,6 +70,44 @@ export default function TeamPreview({ section }: { section?: any }) {
   const isRtl = lang === "ar";
   const [members, setMembers] = useState<any[]>(FALLBACK_OWNERS);
 
+  const hasCustomTitle = isRtl ? !!section?.titleAr : !!section?.titleEn;
+  const renderTitle = () => {
+    if (!hasCustomTitle) {
+      return isRtl ? (
+        <>تعرف على <span className="text-[#C18556] italic">الشركاء المؤسسين</span></>
+      ) : (
+        <>Meet Our <span className="text-[#C18556] italic">Founding Owners</span></>
+      );
+    }
+    const titleText = isRtl ? section?.titleAr || "" : section?.titleEn || "";
+    const separator = titleText.includes("|") ? "|" : titleText.includes(" - ") ? " - " : titleText.includes("\n") ? "\n" : null;
+    if (separator) {
+      const parts = titleText.split(separator);
+      const main = parts[0].trim();
+      const sub = parts.slice(1).join(separator).trim();
+      return (
+        <>
+          {main} <br /> <span className="text-[#C18556]/80 italic">{sub}</span>
+        </>
+      );
+    }
+    return titleText;
+  };
+
+  const bodyText = isRtl ? section?.bodyAr : section?.bodyEn;
+  const renderBody = () => {
+    if (!bodyText) {
+      return isRtl 
+        ? "العقول القيادية المبدعة التي تقود تاكت للهندسة والتصميم نحو الريادة وصناعة أرقى المساحات السكنية والتجارية."
+        : "The creative leadership driving Tact Architecture & Decoration towards standard excellence and premium interior engineering.";
+    }
+    return bodyText.split("\n").filter(Boolean).map((para: string, i: number) => (
+      <span key={i} className="block mb-4 last:mb-0">
+        {para}
+      </span>
+    ));
+  };
+
   useEffect(() => {
     let alive = true;
     getCmsTeam().then((rows: CmsTeamMember[]) => {
@@ -167,20 +205,14 @@ export default function TeamPreview({ section }: { section?: any }) {
           
           <Reveal delay={150}>
             <h2 className="text-4xl md:text-5xl font-serif text-white font-bold leading-tight mb-6">
-              {isRtl ? (
-                <>تعرف على <span className="text-[#C18556] italic">الشركاء المؤسسين</span></>
-              ) : (
-                <>Meet Our <span className="text-[#C18556] italic">Founding Owners</span></>
-              )}
+              {renderTitle()}
             </h2>
           </Reveal>
 
           <Reveal delay={300}>
-            <p className="text-base md:text-lg text-white/70 leading-relaxed mx-auto max-w-2xl">
-              {isRtl 
-                ? "العقول القيادية المبدعة التي تقود تاكت للهندسة والتصميم نحو الريادة وصناعة أرقى المساحات السكنية والتجارية."
-                : "The creative leadership driving Tact Architecture & Decoration towards standard excellence and premium interior engineering."}
-            </p>
+            <div className="text-base md:text-lg text-white/70 leading-relaxed mx-auto max-w-2xl">
+              {renderBody()}
+            </div>
           </Reveal>
         </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Edit2, Trash2, Plus, Eye, EyeOff, Image as ImageIcon, ChevronDown, ChevronUp, Grip, Film, Sparkles, Quote, Download, Star, ArrowRight, ArrowLeft, Layout, Building2, Paintbrush, Home, Briefcase, Armchair, HardHat, Key } from "lucide-react";
+import { Edit2, Trash2, Plus, Eye, EyeOff, Image as ImageIcon, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Grip, Film, Sparkles, Quote, Download, Star, ArrowRight, ArrowLeft, Layout, Building2, Paintbrush, Home, Briefcase, Armchair, HardHat, Key } from "lucide-react";
 import { toast } from "sonner";
 import AdminHeader from "@/components/admin/AdminHeader";
 import SaveButton from "@/components/admin/SaveButton";
@@ -33,6 +33,61 @@ const PAGE_NAMES: Record<string, { ar: string; en: string }> = {
   team: { ar: "فريق العمل", en: "Team" },
   testimonials: { ar: "العملاء", en: "Clients" },
   contact: { ar: "تواصل معنا", en: "Contact" },
+};
+
+const SECTION_DEFAULTS: Record<string, { title_ar: string; title_en: string; body_ar: string; body_en: string; cta_label_ar?: string; cta_label_en?: string }> = {
+  hero: {
+    title_ar: "\u0646\u062d\u0648\u0651\u0644 \u0627\u0644\u0645\u0633\u0627\u062d\u0627\u062a \u0625\u0644\u0649 \u062a\u062c\u0631\u0628\u0629 \u0645\u062a\u0643\u0627\u0645\u0644\u0629 \u0645\u0646 \u0627\u0644\u062a\u0635\u0645\u064a\u0645 \u062d\u062a\u0649 \u0627\u0644\u062a\u0633\u0644\u064a\u0645",
+    title_en: "We turn spaces into a complete experience — from design to delivery.",
+    body_ar: "\u062a\u0635\u0645\u064a\u0645 \u062f\u0627\u062e\u0644\u064a\u060c \u062a\u0646\u0641\u064a\u0630\u060c \u062a\u0634\u0637\u064a\u0628\u0627\u062a\u060c \u0648\u0641\u0631\u0634 \u0646\u0647\u0627\u0626\u064a \u0628\u0645\u0639\u0627\u064a\u064a\u0631 \u0647\u0646\u062f\u0633\u064a\u0629 \u0631\u0627\u0642\u064a\u0629.",
+    body_en: "Interior design, execution, finishing, and final furnishing — crafted to architectural standards.",
+    cta_label_ar: "\u0627\u0628\u062f\u0623 \u0627\u0644\u062a\u062c\u0631\u0628\u0629",
+    cta_label_en: "GET STARTED"
+  },
+  "about-preview": {
+    title_ar: "\u0647\u0646\u062f\u0633\u0629 \u0627\u0644\u0645\u0639\u0646\u0649 | \u062f\u0627\u062e\u0644 \u0643\u0644 \u0645\u0633\u0627\u062d\u0629",
+    title_en: "Engineering Meaning | Inside Every Space",
+    body_ar: "\u0646\u062d\u0646 \u0634\u0631\u0643\u0629 \u0645\u062a\u062e\u0635\u0635\u0629 \u0641\u064a \u0627\u0644\u062a\u0635\u0645\u064a\u0645 \u0648\u0627\u0644\u062a\u0646\u0641\u064a\u0630 \u0648\u0627\u0644\u062a\u0634\u0637\u064a\u0628\u0627\u062a \u0627\u0644\u0645\u062a\u0643\u0627\u0645\u0644\u0629\u060c \u0646\u0639\u0645\u0644 \u0628\u0631\u0624\u064a\u0629 \u0647\u0646\u062f\u0633\u064a\u0629 \u062f\u0642\u064a\u0642\u0629 \u0648\u0645\u0639\u0627\u064a\u064a\u0631 \u062a\u0646\u0641\u064a\u0630 \u0639\u0627\u0644\u064a\u0629. \u0646\u0645\u062a\u0644\u0643 \u062e\u0628\u0631\u0629 \u062a\u0645\u062a\u062f \u0644\u0623\u0643\u062b\u0631 \u0645\u0646 12 \u0639\u0627\u0645\u0627\u064b \u0641\u064a \u0625\u062f\u0627\u0631\u0629 \u0648\u062a\u0646\u0641\u064a\u0630 \u0627\u0644\u0645\u0634\u0631\u0648\u0639\u0627\u062a \u0627\u0644\u0633\u0643\u0646\u064a\u0629 \u0648\u0627\u0644\u0625\u062f\u0627\u0631\u064a\u0629.\n\n\u0646\u0641\u0630\u0646\u0627 \u0628\u0646\u062c\u0627\u062d \u0623\u0643\u062b\u0631 \u0645\u0646 60 \u0645\u0634\u0631\u0648\u0639\u0627\u064b\u060c \u0645\u0639 \u062a\u0644\u0632\u0627\u0645 \u0643\u0627\u0645\u0644 \u0628\u0627\u0644\u062c\u0648\u062f\u0629\u060c \u0648\u0627\u0644\u062f\u0642\u0629\u060c \u0648\u0627\u062d\u062a\u0631\u0627\u0645 \u062a\u0641\u0627\u0635\u064a\u0644 \u0643\u0644 \u0645\u0633\u0627\u062d\u0629. \u0646\u0642\u062f\u0651\u0645 \u062a\u062c\u0631\u0628\u0629 \u0645\u062a\u0643\u0627\u0645\u0644\u0629 \u062a\u0628\u062f\u0623 \u0645\u0646 \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u0648\u062d\u062f\u0629 \u0648\u062d\u062a\u0649 \u0645\u0631\u062d\u0644\u0629 \u0627\u0644\u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u0646\u0647\u0627\u0626\u064a.",
+    body_en: "We are a firm specialized in integrated design, execution, and finishing, operating with precise architectural vision and high execution standards. We possess over 12 years of experience in managing and delivering projects.\n\nWe have successfully completed over 60 projects, with full commitment to quality, precision, and respect for the details of every space. We offer a comprehensive experience from unit handover to final delivery.",
+    cta_label_ar: "\u0627\u0644\u0645\u0632\u064a\u062f \u0639\u0646\u0627",
+    cta_label_en: "LEARN MORE"
+  },
+  "team-preview": {
+    title_ar: "\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 | \u0627\u0644\u0634\u0631\u0643\u0627\u0621 \u0627\u0644\u0645\u0624\u0633\u0633\u064a\u0646",
+    title_en: "Meet Our | Founding Owners",
+    body_ar: "\u0627\u0644\u0639\u0642\u0648\u0644 \u0627\u0644\u0642\u064a\u0627\u062f\u064a\u0629 \u0627\u0644\u0645\u062b\u064a\u0631\u0629 \u0627\u0644\u062a\u064a \u062a\u0642\u0648\u062f \u062a\u0627\u0643\u062a \u0644\u0644\u0647\u0646\u062f\u0633\u0629 \u0648\u0627\u0644\u062a\u0635\u0645\u064a\u0645 \u0646\u062d\u0648 \u0627\u0644\u0631\u064a\u0627\u062f\u0629 \u0648\u0635\u0646\u0627\u0639\u0629 \u0623\u0631\u0642\u0649 \u0627\u0644\u0645\u0633\u0627\u062d\u0627\u062a \u0627\u0644\u0633\u0643\u0646\u064a\u0629 \u0648\u0627\u0644\u062a\u062c\u0627\u0631\u064a\u0629.",
+    body_en: "The creative leadership driving Tact Architecture & Decoration towards standard excellence and premium interior engineering."
+  },
+  "testimonials": {
+    title_ar: "\u062b\u0642\u0629 \u062a\u064f\u0628\u0646\u0649 | \u0645\u0639 \u0643\u0644 \u062a\u0633\u0644\u064a\u0645",
+    title_en: "Trust Built | With Every Unit",
+    body_ar: "\u0646\u0648\u062b\u0642 \u0622\u0631\u0627\u0621 \u0639\u0645\u0644\u0627\u0626\u0646\u0627 \u0628\u0643\u0644 \u0645\u0635\u062f\u0627\u0642\u064a\u0629 \u0639\u0628\u0631 \u062a\u063a\u0637\u064a\u0627\u062a \u0645\u0631\u0626\u064a\u0629 \u0648\u062a\u0641\u0627\u0635\u064a\u0644 \u062d\u064a\u0629 \u0639\u0644\u0649 \u0623\u0631\u0636 \u0627\u0644\u0648\u0627\u0642\u0639 \u062a\u062c\u0633\u062f \u0627\u0644\u062a\u0632\u0627\u0645\u0646\u0627 \u0627\u0644\u062a\u0627\u0645 \u0628\u0627\u0644\u062c\u0648\u062f\u0629 \u0648\u0627\u0644\u062f\u0642\u0629.",
+    body_en: "We document our clients' experiences with absolute credibility through video coverage and live updates on the ground."
+  },
+  "works-preview": {
+    title_ar: "\u0633\u0627\u0628\u0642\u0629 \u0623\u0639\u0645\u0627\u0644 | \u062a\u062a\u062d\u062f\u0649 \u062a\u0641\u0627\u0635\u064a\u0644\u0647\u0627",
+    title_en: "Portfolio That | Defies Details",
+    body_ar: "\u062a\u0635\u0641\u062d \u0645\u0634\u0627\u0631\u064a\u0639\u0646\u0627 \u0627\u0644\u0645\u0642\u0633\u0645\u0626 \u0628\u062f\u0642\u0629 \u0644\u062a\u0644\u0628\u064a \u062a\u0637\u0644\u0639\u0627\u062a\u0643 \u0627\u0644\u0645\u0639\u0645\u0627\u0631\u064a\u0629\u060c \u0645\u0627 \u0628\u064a\u0646 \u0627\u0644\u062a\u0635\u0627\u0645\u064a\u0645 \u062b\u0644\u0627\u062b\u064a\u0629 \u0627\u0644\u0623\u0628\u0639\u0627\u062f \u0627\u0635\u0644\u0627\u062d\u064a\u0629 \u0627\u0644\u0637\u0642\u064a\u0629 \u0648\u0641\u064a\u062f\u064a\u0648\u0647\u0627\u062a \u0627\u0644\u062a\u0646\u0641\u064a\u0630 \u0627\u0644\u0641\u0639\u064a \u0639\u0644\u0649 \u0623\u0631\u0636 \u0627\u0644\u0648\u0627\u0642\u0639.",
+    body_en: "Browse our projects categorized neatly to match your architectural vision, from high-end 3D designs to real executed walkthroughs.",
+    cta_label_ar: "\u0639\u0631\u0636 \u0627\u0644\u0623\u0639\u0645\u0627\u0644",
+    cta_label_en: "View Work"
+  },
+  "services-preview": {
+    title_ar: "\u062a\u062c\u0631\u0628\u0629 \u0645\u062a\u0643\u0627\u0645\u0644\u0629 \u0628\u062a\u0641\u0627\u0635\u064a\u0644 | \u062a\u0644\u064a\u0642 \u0628\u0627\u0644\u0646\u0638\u0631",
+    title_en: "Integrated Experience with | Refined Details",
+    body_ar: "\u0646\u062d\u0648\u0651\u0644 \u0627\u0644\u0641\u0643\u0631\u0629 \u0625\u0644\u0649 \u0645\u0633\u0627\u062d\u0629 \u0645\u062a\u0643\u0627\u0645\u0644\u0629\u060c \u0645\u0646 \u0627\u0644\u062a\u062e\u0635\u064a\u0635 \u0627\u062e\u062a\u0628\u0627\u0631 \u0627\u0644\u0623\u0648\u0644\u064a \u062d\u062a\u0649 \u0623\u062f\u0642 \u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u062a\u0646\u0641\u064a\u0630\u060c \u0628\u0645\u0639\u0627\u064a\u064a\u0631 \u0647\u0646\u062f\u0633\u064a\u0629 \u0639\u0627\u0644\u064a\u0629 \u0648\u0631\u0624\u064a\u0629 \u0641\u0646\u064a\u0629 \u0631\u0627\u0642\u064a\u0629.",
+    body_en: "Transforming ideas into integrated spaces, from initial planning to the finest execution details, with international standards and refined vision.",
+    cta_label_ar: "\u0639\u0631\u0636 \u0627\u0644\u0643\u0644",
+    cta_label_en: "View All"
+  },
+  "packages-cta": {
+    title_ar: "\u062e\u062a\u0631 \u0627\u0644\u0628\u0627\u0642\u0629 | \u0627\u0644\u0623\u0646\u0633\u0628 \u0644\u0645\u0633\u0627\u062d\u062a\u0643",
+    title_en: "Choose the | Perfect Package for Your Space",
+    body_ar: "\u0628\u0627\u0642\u0627\u062a \u0645\u0631\u0646\u0629 \u062a\u0646\u0627\u0633\u0628 \u0645\u0631\u0626\u064a\u0629 \u062a\u0646\u0627\u0633\u0628 \u0645\u0631\u0627\u062d\u0644 \u0645\u062e\u062a\u0644\u0641\u0629 \u0645\u0646 \u0627\u0644\u062a\u0635\u0645\u064a\u0645 \u0648\u0627\u0644\u062a\u0646\u0641\u064a\u0630\u060c \u0645\u0639 \u0625\u0645\u0643\u0627\u0646\u064a\u0629 \u062a\u062e\u0635\u064a\u0635 \u0627\u0644\u0639\u0631\u0636 \u062d\u0633\u0628 \u0627\u062d\u062a\u064a\u0627\u062c \u0645\u0634\u0631\u0648\u0639\u0643.",
+    body_en: "Flexible packages catering to different stages of design and execution, with customizable options to match your project needs and ambitions.",
+    cta_label_ar: "\u0637\u0644\u0628 \u0645\u0639\u0627\u064a\u0646\u0629 \u0645\u062c\u0627\u0646\u064a\u0629",
+    cta_label_en: "REQUEST CONSULTATION"
+  }
 };
 
 const blank = {
@@ -71,6 +126,12 @@ export default function PageSectionsManager() {
   const [dbProjects, setDbProjects] = useState<any[]>([]);
   const [dbTeam, setDbTeam] = useState<any[]>([]);
   const [dbServices, setDbServices] = useState<any[]>([]);
+
+  // New luxury workspace states
+  const [activeIdx, setActiveIdx] = useState<number>(0);
+  const [statsEditing, setStatsEditing] = useState<any | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newSection, setNewSection] = useState<any>({ ...blank });
 
 /* ─── Stats Editor ─── */
 function StatsEditor({ editing, setEditing }: { editing: any; setEditing: (v: any) => void }) {
@@ -1454,7 +1515,7 @@ function TeamSectionEditor({ dbTeam, onRefresh, editing, setEditing }: { dbTeam:
 }
 
 /* ─── Real-Time Section Live Preview ─── */
-function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProjects = [], dbTeam = [], dbServices = [] }: { editing: any; sectionMedia: any[]; clientReviews?: any[]; dbProjects?: any[]; dbTeam?: any[]; dbServices?: any[] }) {
+function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProjects = [], dbTeam = [], dbServices = [], statsSection = null }: { editing: any; sectionMedia: any[]; clientReviews?: any[]; dbProjects?: any[]; dbTeam?: any[]; dbServices?: any[]; statsSection?: any }) {
   const [previewLang, setPreviewLang] = useState<"ar" | "en">("ar");
   const [reviewIdx, setReviewIdx] = useState(0);
 
@@ -1474,63 +1535,109 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
   const renderPreview = () => {
     switch (editing.section_key) {
       case "hero":
+        let stats: any[] = [];
+        const defaultStats = [
+          { value_ar: "+12", value_en: "+12", label_ar: "\u0633\u0646\u0629 \u062e\u0628\u0631\u0629", label_en: "Years Experience" },
+          { value_ar: "+60", value_en: "+60", label_ar: "\u0645\u0634\u0631\u0648\u0639 \u0645\u0646\u0641\u0630", label_en: "Completed Projects" },
+          { value_ar: "\u0645\u062a\u0643\u0627\u0645\u0644", value_en: "Integrated", label_ar: "\u0645\u0646 \u0627\u0644\u0641\u0643\u0631\u0629 \u0644\u0644\u062a\u0646\u0641\u064a\u0630", label_en: "From Concept to Reality" },
+          { value_ar: "\u0645\u0639\u062a\u0645\u062f", value_en: "Certified", label_ar: "\u0628\u0623\u0639\u0644\u0649 \u0645\u0639\u0627\u064a\u064a\u0631 \u0627\u0644\u062c\u0648\u062f\u0629", label_en: "Highest Quality Standards" },
+        ];
+
+        if (statsSection) {
+          try {
+            stats = typeof statsSection.body_ar === "string" && statsSection.body_ar.startsWith("[")
+              ? JSON.parse(statsSection.body_ar)
+              : [];
+          } catch {
+            stats = [];
+          }
+        }
+        if (!stats || stats.length === 0) {
+          stats = defaultStats;
+        }
         return (
-          <div style={{
-            position: "relative",
-            background: "#0C363A",
-            borderRadius: 12,
-            padding: "1.5rem",
-            color: "#fff",
-            overflow: "hidden",
-            border: "1px solid rgba(193, 133, 86, 0.3)",
-            height: 180,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            direction: dir
-          }}>
-            {/* Background Image / Video opacity cover */}
-            {(mainImage || mainVideo) && (
-              <div style={{ position: "absolute", inset: 0, opacity: 0.25, zIndex: 0 }}>
-                {mainImage ? (
-                  <img src={mainImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <video src={mainVideo} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted loop autoPlay />
-                )}
-                <div style={{ position: "absolute", inset: 0, background: "#0C363A", opacity: 0.5 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{
+              position: "relative",
+              background: "#0C363A",
+              borderRadius: 12,
+              padding: "1.5rem",
+              color: "#fff",
+              overflow: "hidden",
+              border: "1px solid rgba(193, 133, 86, 0.3)",
+              height: 180,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              direction: dir
+            }}>
+              {/* Background Image / Video opacity cover */}
+              {(mainImage || mainVideo) && (
+                <div style={{ position: "absolute", inset: 0, opacity: 0.25, zIndex: 0 }}>
+                  {mainImage ? (
+                    <img src={mainImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <video src={mainVideo} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted loop autoPlay />
+                  )}
+                  <div style={{ position: "absolute", inset: 0, background: "#0C363A", opacity: 0.5 }} />
+                </div>
+              )}
+
+              {/* Architectural Grid overlay */}
+              <div style={{ position: "absolute", inset: 8, border: "1px solid rgba(193, 133, 86, 0.15)", pointerEvents: "none", zIndex: 1 }}>
+                <div style={{ position: "absolute", top: 0, left: 0, width: 6, height: 6, borderTop: "2px solid #C18556", borderLeft: "2px solid #C18556" }} />
+                <div style={{ position: "absolute", top: 0, right: 0, width: 6, height: 6, borderTop: "2px solid #C18556", borderRight: "2px solid #C18556" }} />
+                <div style={{ position: "absolute", bottom: 0, left: 0, width: 6, height: 6, borderBottom: "2px solid #C18556", borderLeft: "2px solid #C18556" }} />
+                <div style={{ position: "absolute", bottom: 0, right: 0, width: 6, height: 6, borderBottom: "2px solid #C18556", borderRight: "2px solid #C18556" }} />
+              </div>
+
+              <div style={{ position: "relative", zIndex: 2, textAlign: isAr ? "right" : "left" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <span style={{ color: "#C18556", fontSize: "0.55rem", fontWeight: 700, letterSpacing: isAr ? "normal" : "0.2em" }}>
+                    {isAr ? "تاكت للعمارة والديكور" : "TACT ARCHITECTURE"}
+                  </span>
+                  <div style={{ width: 16, height: 1, background: "rgba(193, 133, 86, 0.4)" }} />
+                </div>
+                <h1 style={{ fontSize: "1.2rem", fontWeight: 700, fontFamily: "serif", lineHeight: 1.2, color: "#fff", marginBottom: 6 }}>
+                  {t_title || (isAr ? "فخامة التصميم الهندسي" : "Luxury Architectural Design")}
+                </h1>
+                <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.8)", marginBottom: 12, maxWidth: "85%", lineHeight: 1.4 }}>
+                  {t_body || (isAr ? "نص فرعي يصف تفاصيل ورؤية هذا القسم الفاخر على موقع الشركة..." : "Sub-headline text describing the details and premium view of this section...")}
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ background: "#C18556", color: "#0C363A", padding: "4px 12px", borderRadius: 2, fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.05em" }}>
+                    {t_cta || (isAr ? "ابدأ التجربة" : "GET STARTED")}
+                  </span>
+                  <span style={{ border: "1px solid rgba(255,255,255,0.4)", color: "#fff", padding: "4px 12px", borderRadius: 2, fontSize: "0.6rem", fontWeight: 700 }}>
+                    {isAr ? "أعمالنا" : "PORTFOLIO"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {stats.length > 0 && (
+              <div style={{
+                background: "#0C363A",
+                borderRadius: 12,
+                padding: "0.85rem 1rem",
+                display: "grid",
+                gridTemplateColumns: `repeat(${Math.min(stats.length, 4)}, 1fr)`,
+                gap: 8,
+                border: "1px solid rgba(193, 133, 86, 0.2)",
+                direction: dir
+              }}>
+                {stats.map((s: any, i: number) => (
+                  <div key={i} style={{ textAlign: "center", borderInlineStart: i > 0 ? "1px solid rgba(193,133,86,0.15)" : "none", paddingInlineStart: i > 0 ? 8 : 0 }}>
+                    <div style={{ color: "#C18556", fontSize: "0.95rem", fontWeight: 700, fontFamily: "serif" }}>
+                      {isAr ? s.value_ar : s.value_en}
+                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.5rem", letterSpacing: "0.05em", marginTop: 2 }}>
+                      {isAr ? s.label_ar : s.label_en}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Architectural Grid overlay */}
-            <div style={{ position: "absolute", inset: 8, border: "1px solid rgba(193, 133, 86, 0.15)", pointerEvents: "none", zIndex: 1 }}>
-              <div style={{ position: "absolute", top: 0, left: 0, width: 6, height: 6, borderTop: "2px solid #C18556", borderLeft: "2px solid #C18556" }} />
-              <div style={{ position: "absolute", top: 0, right: 0, width: 6, height: 6, borderTop: "2px solid #C18556", borderRight: "2px solid #C18556" }} />
-              <div style={{ position: "absolute", bottom: 0, left: 0, width: 6, height: 6, borderBottom: "2px solid #C18556", borderLeft: "2px solid #C18556" }} />
-              <div style={{ position: "absolute", bottom: 0, right: 0, width: 6, height: 6, borderBottom: "2px solid #C18556", borderRight: "2px solid #C18556" }} />
-            </div>
-
-            <div style={{ position: "relative", zIndex: 2, textAlign: isAr ? "right" : "left" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <span style={{ color: "#C18556", fontSize: "0.55rem", fontWeight: 700, letterSpacing: isAr ? "normal" : "0.2em" }}>
-                  {isAr ? "تاكت للعمارة والديكور" : "TACT ARCHITECTURE"}
-                </span>
-                <div style={{ width: 16, height: 1, background: "rgba(193, 133, 86, 0.4)" }} />
-              </div>
-              <h1 style={{ fontSize: "1.2rem", fontWeight: 700, fontFamily: "serif", lineHeight: 1.2, color: "#fff", marginBottom: 6 }}>
-                {t_title || (isAr ? "فخامة التصميم الهندسي" : "Luxury Architectural Design")}
-              </h1>
-              <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.8)", marginBottom: 12, maxWidth: "85%", lineHeight: 1.4 }}>
-                {t_body || (isAr ? "نص فرعي يصف تفاصيل ورؤية هذا القسم الفاخر على موقع الشركة..." : "Sub-headline text describing the details and premium view of this section...")}
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <span style={{ background: "#C18556", color: "#0C363A", padding: "4px 12px", borderRadius: 2, fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.05em" }}>
-                  {t_cta || (isAr ? "ابدأ التجربة" : "GET STARTED")}
-                </span>
-                <span style={{ border: "1px solid rgba(255,255,255,0.4)", color: "#fff", padding: "4px 12px", borderRadius: 2, fontSize: "0.6rem", fontWeight: 700 }}>
-                  {isAr ? "أعمالنا" : "PORTFOLIO"}
-                </span>
-              </div>
-            </div>
           </div>
         );
 
@@ -2099,7 +2206,40 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
   );
 }
 
+  const HOME_SECTION_ORDER = [
+    "hero",
+    "about-preview",
+    "team-preview",
+    "testimonials",
+    "works-preview",
+    "services-preview",
+    "packages-cta"
+  ];
+
+  const SECTION_NAMES_AR: Record<string, string> = {
+    "hero": "\u0627\u0644\u0628\u062f\u0627\u064a\u0629",
+    "about-preview": "\u0645\u0646 \u0646\u062d\u0646",
+    "team-preview": "\u0645\u062e\u062a\u0635\u0631 \u0627\u0644\u0641\u0631\u064a\u0642",
+    "testimonials": "\u0622\u0631\u0627\u0621 \u0627\u0644\u0639\u0645\u0644\u0627\u0621",
+    "works-preview": "\u0627\u0644\u0645\u0634\u0627\u0631\u064a\u0639",
+    "services-preview": "\u0627\u0644\u062e\u062f\u0645\u0627\u062a",
+    "packages-cta": "\u0627\u0644\u0628\u0627\u0642\u0627\u062a"
+  };
+
+  const displaySections = slug === "home"
+    ? HOME_SECTION_ORDER.map(key => sections.find(s => s.section_key === key)).filter(Boolean)
+    : sections;
+
   useEffect(() => { load(); }, [slug]);
+
+  useEffect(() => {
+    if (displaySections.length > 0) {
+      const idx = Math.min(activeIdx, displaySections.length - 1);
+      setEditing(displaySections[idx]);
+    } else {
+      setEditing(null);
+    }
+  }, [sections, activeIdx]);
 
   async function load() {
     const [secRes, mediaRes, reviewsRes, projectsRes, teamRes, servicesRes] = await Promise.all([
@@ -2110,20 +2250,40 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
       db.from("cms_team_members").select("*").order("sort_order"),
       db.from("cms_services").select("*").order("sort_order"),
     ]);
-    setSections(secRes.data || []);
+    const secList = secRes.data || [];
+    setSections(secList);
     setSectionMedia(mediaRes.data || []);
     setClientReviews(reviewsRes.data || []);
     setDbProjects(projectsRes.data || []);
     setDbTeam(teamRes.data || []);
     setDbServices(servicesRes.data || []);
+
+    if (slug === "home") {
+      const statsRow = secList.find((s: any) => s.section_key === "stats-strip");
+      if (statsRow) {
+        setStatsEditing(statsRow);
+      } else {
+        setStatsEditing({
+          page_slug: "home",
+          section_key: "stats-strip",
+          section_name_ar: "\u0634\u0631\u064a\u0637 \u0627\u0644\u0625\u062d\u0635\u0627\u0626\u064a\u0627\u062a",
+          section_name_en: "Stats Strip",
+          visible: true,
+          sort_order: 1,
+          body_ar: "[]",
+          body_en: "[]"
+        });
+      }
+    }
   }
 
   function openNew() {
-    setEditing({ ...blank, page_slug: slug, sort_order: sections.length });
+    setNewSection({ ...blank, page_slug: slug, sort_order: sections.length * 10 });
+    setShowAddModal(true);
   }
 
-  function openEdit(section: any) {
-    setEditing({ ...section });
+  function handleSelectTab(idx: number) {
+    setActiveIdx(idx);
   }
 
   async function save(e: React.FormEvent) {
@@ -2134,36 +2294,68 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
       const payload = { ...editing, id: editing.id || undefined, sort_order: Number(editing.sort_order) || 0 };
       const { error } = await db.from("cms_sections").upsert(payload, { onConflict: "page_slug,section_key" });
       if (error) throw error;
-      toast.success("تم حفظ القسم بنجاح");
-      setEditing(null);
+
+      if (slug === "home" && editing.section_key === "hero" && statsEditing) {
+        const statsPayload = { ...statsEditing, id: statsEditing.id || undefined, sort_order: Number(statsEditing.sort_order) || 0 };
+        const { error: statsError } = await db.from("cms_sections").upsert(statsPayload, { onConflict: "page_slug,section_key" });
+        if (statsError) throw statsError;
+      }
+
+      toast.success("\u062a\u0645 \u062d\u0641\u0638 \u0627\u0644\u062a\u063a\u064a\u064a\u0631\u0627\u062a \u0628\u0646\u062c\u0627\u062d");
       await load();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error("\u0641\u0634\u0644 \u0627\u0644\u062d\u0641\u0638: " + err.message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function doDelete() {
-    if (!deleteId) return;
-    const { error } = await db.from("cms_sections").delete().eq("id", deleteId);
-    if (error) toast.error(error.message);
-    else { toast.success("تم الحذف"); await load(); }
-    setDeleteId(null);
+  async function moveSection(idx: number, direction: "up" | "down") {
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= displaySections.length) return;
+    
+    const current = displaySections[idx];
+    const sibling = displaySections[targetIdx];
+    
+    const currentOrder = current.sort_order;
+    const siblingOrder = sibling.sort_order;
+    
+    try {
+      await Promise.all([
+        db.from("cms_sections").update({ sort_order: siblingOrder }).eq("id", current.id),
+        db.from("cms_sections").update({ sort_order: currentOrder }).eq("id", sibling.id)
+      ]);
+      toast.success("\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u062a\u0631\u062a\u064a\u062b \u0627\u0644\u0642\u0633\u0645");
+      setActiveIdx(targetIdx);
+      await load();
+    } catch (err: any) {
+      toast.error("\u0641\u0634\u0644 \u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u062a\u0631\u062a\u064a\u062b: " + err.message);
+    }
   }
 
-  async function toggleVisible(section: any) {
-    await db.from("cms_sections").update({ visible: !section.visible }).eq("id", section.id);
-    await load();
+  async function doDelete() {
+    if (!deleteId) return;
+    try {
+      const { error } = await db.from("cms_sections").delete().eq("id", deleteId);
+      if (error) throw error;
+      toast.success("\u062a\u0645 \u062d\u0630\u0641 \u0627\u0644\u0642\u0633\u0645 \u0628\u0646\u062c\u0627\u062d");
+      setActiveIdx(0);
+      await load();
+    } catch (err: any) {
+      toast.error("\u0641\u0634\u0644 \u0627\u0644\u062d\u0630\u0641: " + err.message);
+    } finally {
+      setDeleteId(null);
+    }
   }
 
   const getMedia = (sectionId: string) => sectionMedia.filter(m => m.section_id === sectionId);
   const getThumb = (sectionId: string) => getMedia(sectionId).find(m => m.media_type === "image")?.url;
-  const getVideos = (sectionId: string) => getMedia(sectionId).filter(m => m.media_type === "video");
+
+  const sectionDefaults = (editing && SECTION_DEFAULTS[editing.section_key]) || { title_ar: "", title_en: "", body_ar: "", body_en: "", cta_label_ar: "", cta_label_en: "" };
 
   return (
     <>
-      <AdminHeader title={page.ar} subtitle={`بناء وتنظيم صفحة ${page.ar}`} previewUrl={slug === "home" ? "/" : `/${slug}`}
+      <AdminHeader title={page.ar} subtitle={`\u0628\u0646\u0627\u0621 \u0648\u062a\u0646\u0638\u064a\u0645 \u0635\u0641\u062d\u0629 ${page.ar}`} previewUrl={slug === "home" ? "/" : `/${slug}`}
         actions={
           <button onClick={openNew} style={{
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -2172,250 +2364,118 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
             border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
             boxShadow: "0 2px 8px rgba(12, 54, 58,0.3)",
           }}>
-            <Plus size={16} /> إضافة قسم
+            <Plus size={16} /> {"+ \u0625\u0636\u0627\u0641\u0629 \u0642\u0633\u0645 \u062c\u062f\u064a\u062f"}
           </button>
         }
       />
 
       <div className="admin-content">
-        {/* Page overview bar */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0.85rem 1.25rem", borderRadius: 10,
-          background: "linear-gradient(135deg, #0C363A, #0F6E66)",
-          color: "#fff", marginBottom: "1.5rem",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Sparkles size={18} style={{ color: "#C18556" }} />
-            <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>أقسام الصفحة</span>
-            <span style={{
-              background: "rgba(193, 133, 86,0.2)", color: "#C18556",
-              padding: "2px 10px", borderRadius: 20, fontSize: "0.7rem", fontWeight: 700,
-            }}>
-              {sections.length} قسم
-            </span>
-          </div>
-          <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.5)" }}>
-            اسحب الأقسام لإعادة الترتيب • اضغط للتوسيع
-          </span>
-        </div>
+        {/* 1. Horizontal Scroll Section Navigation Top Bar */}
+        <div className="sections-top-nav premium-scrollbar" style={{ direction: "rtl" }}>
+          {displaySections.map((section, idx) => {
+            const isSelected = activeIdx === idx;
+            const accent = getAccent(section.section_key);
+            const indexLabel = String(idx + 1).padStart(2, "0");
+            const labelAr = SECTION_NAMES_AR[section.section_key] || section.section_name_ar || section.section_name_en;
+            return (
+              <div
+                key={section.id}
+                className={`sections-tab-capsule ${isSelected ? "active" : ""}`}
+                onClick={() => handleSelectTab(idx)}
+              >
+                <span className="tab-index">{indexLabel}</span>
+                <span className="tab-title">{labelAr}</span>
+                <span className="tab-subtitle">{section.section_key}</span>
+                
+                <div className="tab-indicator">
+                  <span className={`tab-status-dot ${section.visible ? "visible" : "hidden"}`} />
+                  <span>{section.visible ? "\u0638\u0627\u0647\u0631" : "\u0645\u062e\u0641\u064a"}</span>
+                </div>
 
-        {sections.length === 0 ? (
-          <div style={{
-            textAlign: "center", padding: "4rem 2rem",
-            background: "#fff", borderRadius: 16, border: "2px dashed #d1cbbf",
-          }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f6f3ed", display: "grid", placeItems: "center", margin: "0 auto 1rem" }}>
-              <ImageIcon size={28} style={{ color: "#C18556" }} />
-            </div>
-            <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0C363A", marginBottom: 4 }}>لا توجد أقسام بعد</h3>
-            <p style={{ fontSize: "0.85rem", color: "#999", marginBottom: "1.5rem" }}>ابدأ ببناء صفحتك بإضافة أول قسم</p>
-            <button onClick={openNew} style={{
-              padding: "0.6rem 1.5rem", borderRadius: 8,
-              background: "#0C363A", color: "#fff", border: "none",
-              cursor: "pointer", fontSize: "0.85rem", fontWeight: 600,
-            }}>
-              <Plus size={14} style={{ display: "inline", verticalAlign: -2, marginInlineEnd: 6 }} />
-              إضافة أول قسم
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sections.map((section, idx) => {
-              const accent = getAccent(section.section_key);
-              const thumb = getThumb(section.id);
-              const media = getMedia(section.id);
-              const isExpanded = expandedId === section.id;
-
-              return (
-                <div key={section.id} 
-                  className="group bg-white rounded-xl border border-[#eae5dc] transition-all duration-300 overflow-hidden flex flex-col justify-between"
-                  style={{
-                    borderTop: `4px solid ${accent}`,
-                    boxShadow: isExpanded ? "0 16px 40px rgba(12,54,58,0.12)" : "0 4px 15px rgba(0,0,0,0.025)",
-                    transform: isExpanded ? "translateY(-2px)" : "none",
-                  }}>
-                  
-                  {/* Card Cover Header */}
-                  <div className="relative w-full h-36 bg-[#0C363A] overflow-hidden flex items-center justify-center border-b border-[#eae5dc]">
-                    {thumb ? (
-                      <img src={thumb} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 opacity-40">
-                        <ImageIcon size={28} style={{ color: "#C18556" }} />
-                        <span className="text-[10px] text-white font-bold tracking-widest uppercase">TACT</span>
-                      </div>
-                    )}
-
-                    {/* Order Number Badge */}
-                    <div style={{
-                      position: "absolute", top: 12, right: 12,
-                      padding: "3px 8px", borderRadius: 6,
-                      background: "rgba(0,0,0,0.65)", color: "#fff",
-                      fontSize: "0.72rem", fontWeight: 700, fontFamily: "monospace",
-                      backdropFilter: "blur(4px)",
-                    }}>
-                      {String(idx + 1).padStart(2, "0")}
-                    </div>
-
-                    {/* Visibility Toggle Button */}
+                {slug !== "home" && (
+                  <div className="tab-order-controls">
                     <button
                       type="button"
-                      onClick={e => { e.stopPropagation(); toggleVisible(section); }}
-                      style={{
-                        position: "absolute", top: 12, left: 12,
-                        padding: "4px 10px", borderRadius: 6,
-                        background: section.visible ? "rgba(236,246,244,0.92)" : "rgba(245,245,244,0.92)",
-                        color: section.visible ? "#0F6E66" : "#78716c",
-                        border: "1px solid",
-                        borderColor: section.visible ? "#B9D4D0" : "#e5e0d5",
-                        fontSize: "0.68rem", fontWeight: 700,
-                        cursor: "pointer",
-                        display: "flex", alignItems: "center", gap: 4,
-                        backdropFilter: "blur(4px)",
+                      className="tab-order-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveSection(idx, "up");
                       }}
-                      title={section.visible ? "إخفاء" : "إظهار"}
+                      disabled={idx === 0}
+                      title="\u062a\u062d\u0631\u064a\u0643 \u0644\u0644\u0623\u0645\u0627\u0645"
                     >
-                      {section.visible ? <><Eye size={11} /> ظاهر</> : <><EyeOff size={11} /> مخفي</>}
+                      <ChevronRight size={10} style={{ transform: "rotate(90deg)" }} />
+                    </button>
+                    <button
+                      type="button"
+                      className="tab-order-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveSection(idx, "down");
+                      }}
+                      disabled={idx === displaySections.length - 1}
+                      title="\u062a\u062d\u0631\u064a\u0643 \u0644\u0644\u062e\u0644\u0641"
+                    >
+                      <ChevronLeft size={10} style={{ transform: "rotate(90deg)" }} />
                     </button>
                   </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-                  {/* Card Body */}
-                  <div className="p-4 flex-1 flex flex-col justify-between gap-3">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-[15px] font-bold text-[#0C363A] transition-colors duration-300 group-hover:text-[#C18556] truncate max-w-[150px]">
-                          {section.section_name_ar || section.section_name_en}
-                        </span>
-                        <span className="text-[9px] tracking-wider font-mono px-2 py-0.5 rounded-md font-bold uppercase"
-                          style={{
-                            color: accent,
-                            background: `${accent}12`,
-                            border: `1px solid ${accent}22`,
-                          }}>
-                          {section.section_key}
-                        </span>
-                      </div>
-
-                      {section.title_ar ? (
-                        <p className="text-[13px] text-gray-700 font-medium line-clamp-1">{section.title_ar}</p>
-                      ) : (
-                        <p className="text-[12px] text-gray-300 italic">لا يوجد عنوان لهذا القسم</p>
-                      )}
-
-                      {section.body_ar && (
-                        <p className="text-[12px] text-gray-400 line-clamp-2 leading-relaxed">{section.body_ar}</p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2 border-t border-[#f8f6f0]">
-                      {media.length > 0 && (
-                        <span className="text-[10px] text-gray-500 bg-[#f5f5f4] px-2 py-0.5 rounded flex items-center gap-1 font-medium">
-                          <ImageIcon size={10} /> {media.length} ملفات وسائط
-                        </span>
-                      )}
-                    </div>
+        {/* 2. Luxury Dual-Pane Integrated Editor Workspace */}
+        <div className="luxury-workspace" style={{ direction: "rtl" }}>
+          {/* Right Pane: Luxury Editor Card (60% equivalent) */}
+          <div className="admin-card luxury-border" style={{ padding: "1.5rem" }}>
+            {editing ? (
+              <form onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eae5dc", paddingBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className="text-[17px] font-bold text-[#0C363A]">
+                      {SECTION_NAMES_AR[editing.section_key] || editing.section_name_ar || editing.section_name_en}
+                    </span>
+                    <span style={{ fontSize: "0.68rem", color: "#C18556", background: "rgba(193, 133, 86, 0.08)", padding: "2px 8px", borderRadius: 4, fontFamily: "monospace" }}>
+                      {editing.section_key}
+                    </span>
                   </div>
 
-                  {/* Expanded Detail Panel */}
-                  {isExpanded && (
-                    <div className="border-t border-[#f0ece4] bg-[#faf8f4] p-4 flex flex-col gap-3 animation-fadeIn text-[12px]">
-                      {section.title_en && (
-                        <div>
-                          <span className="text-[9px] text-[#999] uppercase font-bold block">العنوان بالإنجليزية</span>
-                          <p className="text-gray-700 mt-0.5" dir="ltr">{section.title_en}</p>
-                        </div>
-                      )}
-                      {section.body_ar && (
-                        <div>
-                          <span className="text-[9px] text-[#999] uppercase font-bold block">الوصف بالكامل</span>
-                          <p className="text-gray-600 mt-1 max-h-24 overflow-y-auto leading-relaxed">{section.body_ar}</p>
-                        </div>
-                      )}
-                      {media.length > 0 && (
-                        <div>
-                          <span className="text-[9px] text-[#999] uppercase font-bold block mb-1">معرض وسائط القسم</span>
-                          <div className="grid grid-cols-3 gap-2">
-                            {media.slice(0, 3).map(m => (
-                              <div key={m.id} className="rounded overflow-hidden aspect-video bg-[#0C363A]">
-                                {m.media_type === "image" ? (
-                                  <img src={m.url} className="w-full h-full object-cover" />
-                                ) : (
-                                  <video src={m.url} muted className="w-full h-full object-cover" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          {media.length > 3 && <div className="text-[10px] text-center text-gray-400 mt-1">+{media.length - 3} ملفات أخرى</div>}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Footer Actions */}
-                  <div className="border-t border-[#eae5dc] bg-[#fdfcfb] px-4 py-3 flex items-center justify-between gap-2 mt-auto">
-                    <button 
-                      type="button" 
-                      onClick={() => openEdit(section)} 
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0C363A] text-white text-xs font-bold hover:bg-[#0F6E66] active:scale-95 transition-all cursor-pointer"
+                  {/* Visibility Toggle */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#8a8578" }}>{"\u062d\u0627\u0644\u0629 \u0627\u0644\u0639\u0631\u0636 \u0628\u0627\u0644\u0635\u0641\u062d\u0629:"}</label>
+                    <button
+                      type="button"
+                      onClick={() => setEditing({ ...editing, visible: !editing.visible })}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 8,
+                        border: "1px solid",
+                        borderColor: editing.visible ? "#B9D4D0" : "#e5e0d5",
+                        background: editing.visible ? "#ECF6F4" : "#f5f5f4",
+                        color: editing.visible ? "#0F6E66" : "#78716c",
+                        fontSize: "0.72rem",
+                        fontWeight: 800,
+                        cursor: "pointer"
+                      }}
                     >
-                      <Edit2 size={11} /> تعديل القسم
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={() => setExpandedId(isExpanded ? null : section.id)} 
-                      className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={() => setDeleteId(section.id)} 
-                      className="flex items-center justify-center p-2 rounded-lg border border-[#F1C5BA] bg-white text-[#D84728] hover:bg-[#fff5f3] active:scale-95 transition-all cursor-pointer"
-                      title="حذف"
-                    >
-                      <Trash2 size={12} />
+                      {editing.visible ? "\u0638\u0627\u0647\u0631 \u0628\u0627\u0644\u0635\u0641\u062d\u0629" : "\u0645\u062e\u0641\u064a \u0628\u0627\u0644\u0635\u0641\u062d\u0629"}
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
-      {/* Edit Drawer */}
-      <EditDrawer
-        open={!!editing}
-        title={editing?.id ? `تعديل: ${editing.section_name_ar || editing.section_key}` : "إضافة قسم جديد"}
-        onClose={() => setEditing(null)}
-        footer={<SaveButton loading={busy} label="حفظ القسم" onClick={() => (document.getElementById("section-form") as HTMLFormElement)?.requestSubmit()} />}
-      >
-        {editing && (
-          <form id="section-form" onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-            <div className="form-group">
-              <label>Section Key</label>
-              <Input value={editing.section_key} onChange={e => setEditing({ ...editing, section_key: e.target.value })} placeholder="hero, about-preview, etc." required dir="ltr" />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div className="form-group">
-                <label>اسم القسم (عربي)</label>
-                <Input value={editing.section_name_ar} onChange={e => setEditing({ ...editing, section_name_ar: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>Section Name (EN)</label>
-                <Input value={editing.section_name_en} onChange={e => setEditing({ ...editing, section_name_en: e.target.value })} required dir="ltr" />
-              </div>
-            </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <div className="form-group">
+                    <label>{"\u0627\u0633\u0645 \u0627\u0644\u0642\u0633\u0645 (\u0639\u0631\u0628\u064a)"}</label>
+                    <Input value={editing.section_name_ar || ""} onChange={e => setEditing({ ...editing, section_name_ar: e.target.value })} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Section Name (EN)</label>
+                    <Input value={editing.section_name_en || ""} onChange={e => setEditing({ ...editing, section_name_en: e.target.value })} required dir="ltr" />
+                  </div>
+                </div>
 
-            {/* Content — special handling for stats-strip */}
-            {editing.section_key === "stats-strip" ? (
-              <StatsEditor editing={editing} setEditing={setEditing} />
-            ) : (
-              <>
-                <SectionLivePreview editing={editing} sectionMedia={sectionMedia} clientReviews={clientReviews} dbProjects={dbProjects} dbTeam={dbTeam} dbServices={dbServices} />
+                {/* Specialized Sub-Editors */}
                 {editing.section_key === "testimonials" && (
                   <ClientReviewsEditor clientReviews={clientReviews} onRefresh={load} editing={editing} setEditing={setEditing} />
                 )}
@@ -2431,77 +2491,291 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
                 {editing.section_key === "services-preview" && (
                   <ServicesSectionEditor dbServices={dbServices} onRefresh={load} editing={editing} setEditing={setEditing} />
                 )}
+
+                {/* Main Content Fields */}
                 <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem" }}>
-                  <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700 }}>المحتوى النصي</span>
+                  <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700 }}>{"\u0627\u0644\u0645\u062d\u062a\u0645\u0649 \u0627\u0644\u0646\u0635\u064a \u0644\u0644\u0642\u0633\u0645"}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                  <div className="form-group"><label>العنوان (عربي)</label><Input value={editing.title_ar || ""} onChange={e => setEditing({ ...editing, title_ar: e.target.value })} /></div>
-                  <div className="form-group"><label>Title (EN)</label><Input value={editing.title_en || ""} onChange={e => setEditing({ ...editing, title_en: e.target.value })} dir="ltr" /></div>
+                  <div className="form-group">
+                    <label>{"\u0627\u0644\u0639\u0646\u0648\u0627\u0646 (\u0639\u0631\u0628\u064a)"}</label>
+                    <Input value={editing.title_ar || ""} onChange={e => setEditing({ ...editing, title_ar: e.target.value })} placeholder={sectionDefaults.title_ar || ""} />
+                  </div>
+                  <div className="form-group">
+                    <label>Title (EN)</label>
+                    <Input value={editing.title_en || ""} onChange={e => setEditing({ ...editing, title_en: e.target.value })} dir="ltr" placeholder={sectionDefaults.title_en || ""} />
+                  </div>
                 </div>
-                <div className="form-group"><label>الوصف (عربي)</label><Textarea value={editing.body_ar || ""} onChange={e => setEditing({ ...editing, body_ar: e.target.value })} rows={3} /></div>
-                <div className="form-group"><label>Description (EN)</label><Textarea value={editing.body_en || ""} onChange={e => setEditing({ ...editing, body_en: e.target.value })} rows={3} dir="ltr" /></div>
-              </>
-            )}
+                
+                <div className="form-group">
+                  <label>{"\u0627\u0644\u0648\u0635\u0641 / \u0627\u0644\u0645\u062d\u062a\u0648\u064a \u0627\u0644\u0641\u0631\u0639\u064a (\u0639\u0631\u0628\u064a)"}</label>
+                  <Textarea value={editing.body_ar || ""} onChange={e => setEditing({ ...editing, body_ar: e.target.value })} rows={3} placeholder={sectionDefaults.body_ar || ""} />
+                </div>
+                <div className="form-group">
+                  <label>Description / Sub-content (EN)</label>
+                  <Textarea value={editing.body_en || ""} onChange={e => setEditing({ ...editing, body_en: e.target.value })} rows={3} dir="ltr" placeholder={sectionDefaults.body_en || ""} />
+                </div>
 
-            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem" }}>
-              <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700 }}>زر الإجراء (CTA)</span>
-            </div>
+                {/* Primary CTA Buttons */}
+                <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem" }}>
+                  <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700 }}>{"\u0632\u0631 \u0627\u0644\u0625\u062c\u0631\u0627\u0621 \u0627\u0644\u0623\u0633\u0627\u0633\u064a (CTA)"}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <div className="form-group">
+                    <label>{"\u0646\u0635 \u0627\u0644\u0632\u0631 (\u0639\u0631\u0628\u064a)"}</label>
+                    <Input value={editing.cta_label_ar || ""} onChange={e => setEditing({ ...editing, cta_label_ar: e.target.value })} placeholder={sectionDefaults.cta_label_ar || ""} />
+                  </div>
+                  <div className="form-group">
+                    <label>CTA Button Label (EN)</label>
+                    <Input value={editing.cta_label_en || ""} onChange={e => setEditing({ ...editing, cta_label_en: e.target.value })} dir="ltr" placeholder={sectionDefaults.cta_label_en || ""} />
+                  </div>
+                </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div className="form-group">
-                <label>نص الزر (عربي)</label>
-                <Input value={editing.cta_label_ar || ""} onChange={e => setEditing({ ...editing, cta_label_ar: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>CTA Label (EN)</label>
-                <Input value={editing.cta_label_en || ""} onChange={e => setEditing({ ...editing, cta_label_en: e.target.value })} dir="ltr" />
-              </div>
-            </div>
+                {/* Embedded Stats Editor for Hero Tab on Homepage */}
+                {slug === "home" && editing.section_key === "hero" && statsEditing && (
+                  <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem", marginTop: "0.5rem" }}>
+                    <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700, display: "block", marginBottom: 10 }}>
+                      {"\u0634\u0631\u064a\u0637 \u0627\u0644\u0625\u062d\u0635\u0627\u0626\u064a\u0627\u062a (\u0645\u062f\u0645\u062c \u0645\u0639 \u0642\u0633\u0645 \u0627\u0644\u0628\u062f\u0627\u064a\u0629)"}
+                    </span>
+                    <StatsEditor editing={statsEditing} setEditing={setStatsEditing} />
+                  </div>
+                )}
 
-            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem" }}>
-              <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700 }}>إعدادات العرض</span>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div className="form-group">
-                <label>الترتيب</label>
-                <Input type="number" value={editing.sort_order} onChange={e => setEditing({ ...editing, sort_order: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>الحالة</label>
-                <select value={editing.visible ? "1" : "0"} onChange={e => setEditing({ ...editing, visible: e.target.value === "1" })}
-                  style={{ padding: "0.5rem", borderRadius: 6, border: "1px solid #e5e0d5", fontSize: "0.85rem" }}>
-                  <option value="1">ظاهر</option>
-                  <option value="0">مخفي</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Section media */}
-            {editing.id && !["testimonials", "works-preview", "team-preview"].includes(editing.section_key) && (
-              <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem" }}>
-                <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700, display: "block", marginBottom: 10 }}>
-                  وسائط القسم
-                </span>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginBottom: 12 }}>
-                  {getMedia(editing.id).map(m => (
-                    <div key={m.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden" }}>
-                      <MediaPreview url={m.url} type={m.media_type} height={85} />
-                      <button type="button" onClick={async () => { await db.from("cms_section_media").delete().eq("id", m.id); await load(); }}
-                        style={{ position: "absolute", top: 4, insetInlineEnd: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(216, 71, 40,0.9)", color: "#fff", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: 10 }}>✕</button>
+                {/* Section Media */}
+                {editing.id && !["testimonials", "works-preview", "team-preview", "services-preview"].includes(editing.section_key) && (
+                  <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.75rem" }}>
+                    <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#C18556", fontWeight: 700, display: "block", marginBottom: 10 }}>
+                      {"\u0648\u0633\u0627\u0626\u0637 \u0627\u0644\u0642\u0633\u0645 (\u0635\u0648\u0631 \u0623\u0648 \u0641\u064a\u062f\u064a\u0648 \u0627\u0644\u062e\u0644\u0641\u064a\u0629)"}
+                    </span>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginBottom: 12 }}>
+                      {getMedia(editing.id).map(m => (
+                        <div key={m.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden" }}>
+                          <MediaPreview url={m.url} type={m.media_type} height={85} />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await db.from("cms_section_media").delete().eq("id", m.id);
+                              await load();
+                            }}
+                            style={{
+                              position: "absolute",
+                              top: 4,
+                              insetInlineEnd: 4,
+                              width: 22,
+                              height: 22,
+                              borderRadius: "50%",
+                              background: "rgba(216, 71, 40,0.9)",
+                              color: "#fff",
+                              border: "none",
+                              cursor: "pointer",
+                              display: "grid",
+                              placeItems: "center",
+                              fontSize: 10
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    <MediaUploader
+                      folder="sections"
+                      label={"\u0631\u0641\u0639 \u0635\u0648\u0631 \u0623\u0648 \u0641\u064a\u062f\u064a\u0648\u0647\u0627\u062a"}
+                      multiple
+                      onUploaded={async (url, file) => {
+                        const mediaType = file.type.startsWith("video/") ? "video" : file.type.includes("pdf") ? "pdf" : "image";
+                        await db.from("cms_section_media").upsert({
+                          section_id: editing.id,
+                          role: "section",
+                          media_type: mediaType,
+                          url,
+                          title_ar: file.name,
+                          title_en: file.name,
+                          visible: true
+                        }, { onConflict: "section_id,role,url" });
+                        await load();
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Form Actions Footer */}
+                <div style={{ borderTop: "1px solid #eae5dc", paddingTop: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem" }}>
+                  {slug !== "home" && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteId(editing.id)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#F1C5BA] bg-white text-[#D84728] hover:bg-[#fff5f3] active:scale-95 transition-all cursor-pointer font-bold text-xs"
+                    >
+                      <Trash2 size={12} /> {"\u062d\u0630\u0641 \u0647\u0630\u0627 \u0627\u0644\u0642\u0633\u0645 \u0646\u0647\u0627\u0626\u064a\u0627\u064b"}
+                    </button>
+                  )}
+                  <div style={{ flex: 1 }} />
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="gold-gradient-btn"
+                  >
+                    {busy ? "جاري الحفظ..." : "\u062d\u0641\u0638 \u0627\u0644\u062a\u063a\u064a\u064a\u0631\u0627\u062a"}
+                  </button>
                 </div>
-                <MediaUploader folder="sections" label="رفع صور أو فيديوهات" multiple onUploaded={async (url, file) => {
-                  const mediaType = file.type.startsWith("video/") ? "video" : file.type.includes("pdf") ? "pdf" : "image";
-                  await db.from("cms_section_media").upsert({ section_id: editing.id, role: "section", media_type: mediaType, url, title_ar: file.name, title_en: file.name, visible: true }, { onConflict: "section_id,role,url" });
-                  await load();
-                }} />
+              </form>
+            ) : (
+              <div style={{ textAlign: "center", padding: "4rem 2rem", color: "#8a8578" }}>
+                {"\u0644\u0627 \u064a\u0648\u062c\u062f \u0642\u0633\u0645 \u0645\u062d\u062f\u062f \u0644\u0644\u062a\u0639\u062f\u064a\u0644 \u062d\u0627\u0644\u064a\u0627\u064b. \u0627\u062e\u062a\u0631 \u0642\u0633\u0645\u0627\u064b \u0645\u0646 \u0627\u0644\u0634\u0631\u064a\u0637 \u0627\u0633\u0641\u0644 \u0627\u0644\u0639\u0644\u0648\u064a \u0644\u0644\u0628\u062f\u0621."}
               </div>
             )}
-          </form>
-        )}
-      </EditDrawer>
+          </div>
+
+          {/* Left Pane: Interactive Live Device Viewport Mockup (40% equivalent) */}
+          <div className="mockup-browser">
+            <div className="mockup-header">
+              <div className="mockup-dots">
+                <div className="mockup-dot red" />
+                <div className="mockup-dot yellow" />
+                <div className="mockup-dot green" />
+              </div>
+              <div className="mockup-address">
+                tact.co{slug === "home" ? "/" : `/${slug}`}
+              </div>
+              <div style={{ width: 40 }} />
+            </div>
+            <div className="mockup-body">
+              {editing ? (
+                <SectionLivePreview
+                  editing={editing}
+                  sectionMedia={sectionMedia}
+                  clientReviews={clientReviews}
+                  dbProjects={dbProjects}
+                  dbTeam={dbTeam}
+                  dbServices={dbServices}
+                  statsSection={slug === "home" && editing.section_key === "hero" ? statsEditing : null}
+                />
+              ) : (
+                <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#8a8578", fontSize: "0.8rem", fontStyle: "italic" }}>
+                  {"\u0627\u062e\u062a\u0631 \u0642\u0633\u0645\u0627\u064b \u0644\u0639\u0631\u0636 \u0627\u0644\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0645\u0628\u0627\u0634\u0631\u0629 \u0627\u0644\u0641\u0627\u062e\u0631\u0629 \u0647\u0646\u0627"}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Elegant Centered Animated Modal for Adding Section */}
+      {showAddModal && (
+        <>
+          <div className="modal-overlay" onClick={() => setShowAddModal(false)} />
+          <div className="modal-container">
+            <div className="modal-box">
+              <div className="modal-header">
+                <div className="modal-header-accent" />
+                <h3 className="modal-title">{"\u0625\u0636\u0627\u0641\u0629 \u0642\u0633\u0645 \u062c\u062f\u064a\u062f"}</h3>
+                <button type="button" className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setBusy(true);
+                try {
+                  const payload = {
+                    ...newSection,
+                    page_slug: slug,
+                    sort_order: sections.length * 10
+                  };
+                  delete (payload as any).id;
+                  const { error } = await db.from("cms_sections").insert(payload);
+                  if (error) throw error;
+                  
+                  toast.success("\u062a\u0645 \u0625\u0636\u0627\u0641\u0629 \u0627\u0644\u0642\u0633\u0645 \u0628\u0646\u062c\u0627\u062d");
+                  setShowAddModal(false);
+                  setNewSection({ ...blank });
+                  await load();
+                } catch (err: any) {
+                  toast.error("\u0641\u0634\u0644 \u0625\u0636\u0627\u0641\u0629 \u0627\u0644\u0642\u0633\u0645: " + err.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}>
+                <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div className="form-group">
+                    <label>{"\u0645\u0639\u0631\u0641 \u0627\u0644\u0642\u0633\u0645 \u0627\u0644\u0641\u0631\u064a\u062f (Section Key)"}</label>
+                    <Input
+                      value={newSection.section_key || ""}
+                      onChange={e => setNewSection({ ...newSection, section_key: e.target.value })}
+                      placeholder="e.g. custom-promo"
+                      required
+                      dir="ltr"
+                    />
+                  </div>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="form-group">
+                      <label>{"\u0627\u0633\u0645 \u0627\u0644\u0642\u0633\u0645 (\u0639\u0631\u0628\u064a)"}</label>
+                      <Input
+                        value={newSection.section_name_ar || ""}
+                        onChange={e => setNewSection({ ...newSection, section_name_ar: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Section Name (EN)</label>
+                      <Input
+                        value={newSection.section_name_en || ""}
+                        onChange={e => setNewSection({ ...newSection, section_name_en: e.target.value })}
+                        required
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="form-group">
+                      <label>{"\u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0628\u0627\u0644\u0643\u0627\u0645\u0644 (\u0639\u0631\u0628\u064a)"}</label>
+                      <Input
+                        value={newSection.title_ar || ""}
+                        onChange={e => setNewSection({ ...newSection, title_ar: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Full Title (EN)</label>
+                      <Input
+                        value={newSection.title_en || ""}
+                        onChange={e => setNewSection({ ...newSection, title_en: e.target.value })}
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>{"\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u0642\u0633\u0645 \u0627\u0644\u0646\u0635\u064a (\u0639\u0631\u0628\u064a)"}</label>
+                    <Textarea
+                      value={newSection.body_ar || ""}
+                      onChange={e => setNewSection({ ...newSection, body_ar: e.target.value })}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Section Text Content (EN)</label>
+                    <Textarea
+                      value={newSection.body_en || ""}
+                      onChange={e => setNewSection({ ...newSection, body_en: e.target.value })}
+                      rows={3}
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="modal-cancel-btn" onClick={() => setShowAddModal(false)} dir="rtl">{"\u0625\u0644\u063a\u0627\u0621"}</button>
+                  <button type="submit" disabled={busy} className="gold-gradient-btn">
+                    {busy ? "جاري الإضافة..." : "\u0625\u0636\u0627\u0641\u0629 \u0627\u0644\u0642\u0633\u0645"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </>
+      )}
 
       <ConfirmDialog open={!!deleteId} onConfirm={doDelete} onCancel={() => setDeleteId(null)} />
     </>

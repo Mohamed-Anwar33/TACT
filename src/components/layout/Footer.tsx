@@ -217,7 +217,7 @@ export default function Footer() {
                 <ul className="flex flex-col gap-2">
                   {[
                     { to: "/", labelAr: "الرئيسية", labelEn: "Home" },
-                    { to: "/about", labelAr: "من نحن", labelEn: "About Us" },
+                    { to: "/packages", labelAr: "باقاتنا", labelEn: "Packages" },
                     { to: "/portfolio", labelAr: "أعمالنا", labelEn: "Portfolio" },
                     { to: "/testimonials", labelAr: "آراء العملاء", labelEn: "Testimonials" },
                     { to: "/contact", labelAr: "تواصل معنا", labelEn: "Contact" },

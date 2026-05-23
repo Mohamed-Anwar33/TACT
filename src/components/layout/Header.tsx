@@ -40,8 +40,8 @@ export default function Header() {
 
   const items = [
     { to: "/", ar: "الرئيسية", en: "Home" },
-    { to: "/about", ar: "من نحن", en: "About" },
     { to: "/services", ar: "خدماتنا", en: "Services" },
+    { to: "/packages", ar: "باقاتنا", en: "Packages" },
     { to: "/portfolio", ar: "أعمالنا", en: "Portfolio" },
     { to: "/team", ar: "فريق العمل", en: "Team" },
     { to: "/testimonials", ar: "العملاء", en: "Clients" },

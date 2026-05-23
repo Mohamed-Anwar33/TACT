@@ -7,7 +7,7 @@ import SaveButton from "@/components/admin/SaveButton";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizePackageImageUrl } from "@/lib/catalog";
+import { getPackageCategoryWeight, normalizePackageImageUrl } from "@/lib/catalog";
 
 const db = supabase as any;
 
@@ -253,33 +253,34 @@ export default function SelectionsManager() {
     "style-preview": 0,
     "تحديد الاستايل": 0,
     "صور الموديل قبل الاختيار": 0,
-    "doors": 1,
-    "internal-doors": 1,
-    "flooring": 2,
-    "ceiling": 3,
-    "suspended-ceilings": 3,
-    "walls": 4,
-    "plumbing": 5,
-    "fixtures": 5,
-    "ac": 6,
-    "air-conditioning": 6,
-    "windows": 7,
-    "heating": 8,
-    "الأبواب": 1,
-    "الأبواب الداخلية": 1,
-    "الأرضيات": 2,
-    "أرضيات": 2,
-    "الأسقف": 3,
-    "أسقف": 3,
-    "الأسقف المعلقة": 3,
-    "الحوائط": 4,
-    "حوائط": 4,
-    "دهانات": 4,
-    "السباكة": 5,
-    "سباكة": 5,
-    "سخانات": 6,
-    "تكييفات": 7,
-    "شبابيك": 8
+    "ceiling": 10,
+    "suspended-ceilings": 10,
+    "flooring": 20,
+    "walls": 30,
+    "doors": 40,
+    "internal-doors": 40,
+    "plumbing": 50,
+    "fixtures": 50,
+    "windows": 70,
+    "ac": 80,
+    "air-conditioning": 80,
+    "heating": 60,
+    "الأبواب": 40,
+    "الأبواب الداخلية": 40,
+    "أبواب": 40,
+    "الأرضيات": 20,
+    "أرضيات": 20,
+    "الأسقف": 10,
+    "أسقف": 10,
+    "الأسقف المعلقة": 10,
+    "الحوائط": 30,
+    "حوائط": 30,
+    "دهانات": 30,
+    "السباكة": 50,
+    "سباكة": 50,
+    "سخانات": 60,
+    "تكييفات": 80,
+    "شبابيك": 70
   };
 
   const getStyleWeight = (styleId?: string, styleName?: string) => {
@@ -311,13 +312,20 @@ export default function SelectionsManager() {
     if (categoryId) {
       const dbCat = categoriesList.find(c => c.id === categoryId || c.slug === categoryId);
       if (dbCat && typeof dbCat.sort_order === "number") {
-        return dbCat.sort_order;
+        return getPackageCategoryWeight(dbCat);
       }
       const slugLower = categoryId.toLowerCase();
       if (CATEGORY_ORDER_FALLBACK[slugLower] !== undefined) {
         return CATEGORY_ORDER_FALLBACK[slugLower];
       }
     }
+    const sharedWeight = getPackageCategoryWeight({
+      slug: categoryId || categoryName || "",
+      name_ar: categoryName || "",
+      name_en: categoryName || "",
+      sort_order: 0,
+    });
+    if (sharedWeight !== 999) return sharedWeight;
     if (categoryName) {
       const trimmed = categoryName.trim();
       if (CATEGORY_ORDER_FALLBACK[trimmed] !== undefined) {
@@ -406,6 +414,9 @@ export default function SelectionsManager() {
     const sortedStylesKeys = Object.keys(grouped).sort((a, b) => {
       const styleIdA = grouped[a][0]?.styleId;
       const styleIdB = grouped[b][0]?.styleId;
+      if (styleIdA === "custom_uploads" && styleIdB === "custom_uploads") return 0;
+      if (styleIdA === "custom_uploads") return 1;
+      if (styleIdB === "custom_uploads") return -1;
       return getStyleWeight(styleIdA, a) - getStyleWeight(styleIdB, b);
     });
 
@@ -689,14 +700,34 @@ export default function SelectionsManager() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                {Object.entries(activeParsed).map(([styleName, items]: [string, any[]]) => (
+                {Object.entries(activeParsed).map(([styleName, items]: [string, any[]]) => { const isCustomUploadGroup = items[0]?.styleId === "custom_uploads"; return (
                   <div key={styleName} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                     
                     {/* Style Banner */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "2px solid #073b35", paddingBottom: "6px" }}>
-                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#c9964c" }} />
-                      <h4 style={{ color: "#073b35", fontWeight: 800, fontSize: "1.05rem", margin: 0 }}>استايل: {styleName}</h4>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: `2px solid ${isCustomUploadGroup ? "#d97706" : "#073b35"}`, paddingBottom: "6px" }}>
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: isCustomUploadGroup ? "#f59e0b" : "#c9964c" }} />
+                      <h4 style={{ color: isCustomUploadGroup ? "#d97706" : "#073b35", fontWeight: 800, fontSize: "1.05rem", margin: 0 }}>{isCustomUploadGroup ? "⚠️ " : ""}استايل: {styleName}</h4>
                     </div>
+
+                    {/* Custom Upload Warning Banner */}
+                    {isCustomUploadGroup && (
+                      <div style={{
+                        padding: "12px 16px",
+                        background: "linear-gradient(135deg, #fffbeb, #fef3c7)",
+                        border: "1.5px solid #f59e0b",
+                        borderRadius: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        fontSize: "0.78rem",
+                        color: "#92400e",
+                        fontWeight: 600,
+                        boxShadow: "0 2px 8px rgba(245,158,11,0.15)"
+                      }}>
+                        <span style={{ fontSize: "1.2rem" }}>⚠️</span>
+                        <span>هذه صورة خارجية مرفوعة من العميل وليست من تصنيفات الكتالوج المحددة</span>
+                      </div>
+                    )}
 
                     {/* Options Details Grid */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -799,7 +830,7 @@ export default function SelectionsManager() {
                     </div>
 
                   </div>
-                ))}
+                ); })}
               </div>
             )}
 
@@ -1001,6 +1032,44 @@ export default function SelectionsManager() {
               .note-text {
                 white-space: pre-line;
               }
+              .print-custom-warning {
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #fffbeb, #fef3c7) !important;
+                border: 2px solid #d97706;
+                border-radius: 8px;
+                font-size: 0.85rem;
+                color: #92400e;
+                font-weight: 700;
+                margin-bottom: 15px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                page-break-inside: avoid;
+              }
+              .print-custom-warning .warning-icon {
+                font-size: 1.3rem;
+              }
+              .print-custom-item-notice {
+                margin-top: 8px;
+                padding: 8px 12px;
+                background: #fffbeb !important;
+                border-right: 4px solid #d97706;
+                border-radius: 6px;
+                font-size: 0.78rem;
+                color: #92400e;
+                font-weight: 600;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .print-style-title.custom-upload {
+                color: #d97706 !important;
+                border-bottom-color: #d97706 !important;
+              }
+              .print-option-card.custom-upload {
+                border-color: #f59e0b !important;
+              }
               .print-signature-section {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
@@ -1024,7 +1093,11 @@ export default function SelectionsManager() {
               <div style={{ fontSize: "0.8rem", color: "#666", marginTop: 4 }}>شركة التميز والتنفيذ الفاخر للأعمال الإنشائية والديكور</div>
             </div>
             <div style={{ textAlign: "left" }}>
-              <div className="print-logo-icon" style={{ marginInlineStart: "auto" }}>T</div>
+              <img 
+                src={window.location.origin + "/logo.png"} 
+                alt="TACT Logo" 
+                style={{ height: "45px", width: "auto", objectFit: "contain", marginBottom: "4px", display: "block", marginInlineStart: "auto" }} 
+              />
               <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#c9964c" }}>TACT ARCHITECTS</div>
             </div>
           </div>
@@ -1048,12 +1121,21 @@ export default function SelectionsManager() {
           </div>
 
           {/* Grouped Visual visualizer */}
-          {Object.entries(activeParsed).map(([styleName, items]: [string, any[]]) => (
+          {Object.entries(activeParsed).map(([styleName, items]: [string, any[]]) => { const isCustomPrintGroup = items[0]?.styleId === "custom_uploads"; return (
             <div key={styleName} className="print-style-section">
-              <div className="print-style-title">الاستايل المعماري المختار: {styleName}</div>
+              <div className={`print-style-title${isCustomPrintGroup ? " custom-upload" : ""}`}>
+                {isCustomPrintGroup ? "⚠️ " : ""}الاستايل المعماري المختار: {styleName}
+              </div>
+              
+              {isCustomPrintGroup && (
+                <div className="print-custom-warning">
+                  <span className="warning-icon">⚠️</span>
+                  <span>هذه صورة خارجية مرفوعة من العميل وليست من تصنيفات الكتالوج المحددة</span>
+                </div>
+              )}
               
               {items.map((item, idx) => (
-                <div key={idx} className="print-option-card">
+                <div key={idx} className={`print-option-card${isCustomPrintGroup ? " custom-upload" : ""}`}>
                   {item.imageUrl && (
                     <img 
                       className="print-option-img" 
@@ -1069,6 +1151,11 @@ export default function SelectionsManager() {
                       </div>
                       <h3 className="print-option-title">{item.choice}</h3>
                       <p className="print-option-desc">{item.description || "مواصفات المادة أو البند المحدد من الكتالوج الرسمي."}</p>
+                      {isCustomPrintGroup && (
+                        <div className="print-custom-item-notice">
+                          ⚠️ هذه صورة خارجية مرفوعة من العميل وليست من تصنيفات الكتالوج المحددة
+                        </div>
+                      )}
                     </div>
 
                     {/* Printable Luxury Badges */}
@@ -1106,7 +1193,7 @@ export default function SelectionsManager() {
                 </div>
               ))}
             </div>
-          ))}
+          ); })}
 
           {/* Signoff */}
           <div className="print-signature-section">

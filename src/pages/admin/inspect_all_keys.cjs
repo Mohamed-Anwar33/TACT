@@ -9,11 +9,11 @@ async function inspect() {
   try {
     const { data: sections, error } = await supabase
       .from('cms_sections')
-      .select('id, section_key, section_name_ar, title_ar, body_ar, title_en, body_en')
-      .eq('page_slug', 'about')
-      .order('sort_order');
+      .select('page_slug, section_key, section_name_ar, section_name_en')
+      .order('page_slug');
     if (error) throw error;
-    console.log("ABOUT SECTIONS IN DB:");
+    
+    console.log("ALL SECTIONS IN DB:");
     console.log(JSON.stringify(sections, null, 2));
   } catch (err) {
     console.error("Error inspecting:", err);

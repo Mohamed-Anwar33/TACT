@@ -21,6 +21,7 @@ const ROUTE_PERMISSIONS: { prefix: string; permission: AdminPermission; exact?: 
   { prefix: "/admin/packages", permission: "content" },
   { prefix: "/admin/contact", permission: "clients" },
   { prefix: "/admin/unlocks", permission: "clients" },
+  { prefix: "/admin/users", permission: "clients" },
   { prefix: "/admin/selections", permission: "clients" },
   { prefix: "/admin/questionnaires", permission: "clients" },
   { prefix: "/admin/roles", permission: "roles" },

@@ -11,7 +11,6 @@ import ServicesGrid from "@/components/home/teqaan/ServicesGrid";
 import ProjectsShowcase from "@/components/home/teqaan/ProjectsShowcase";
 import TestimonialsSection from "@/components/home/teqaan/TestimonialsSection";
 import FinalCTA from "@/components/home/teqaan/FinalCTA";
-import PdfBookletsSection from "@/components/home/teqaan/PdfBookletsSection";
 import { cn } from "@/lib/utils";
 import { CmsSection, getCmsSections } from "@/lib/publicCms";
 
@@ -229,13 +228,12 @@ export default function Home() {
       </section>
 
       <div className="relative z-[60]">
-        <PhilosophySection />
+        <PhilosophySection section={sections["about-preview"]} />
         <TeamPreview section={sections["team-preview"]} />
         <TestimonialsSection section={sections["testimonials"]} />
         <ProjectsShowcase section={sections["works-preview"]} />
         <ServicesGrid section={sections["services-preview"]} />
-        {sections["pdf-booklets"] && <PdfBookletsSection />}
-        <FinalCTA />
+        <FinalCTA section={sections["packages-cta"]} />
       </div>
     </>
   );

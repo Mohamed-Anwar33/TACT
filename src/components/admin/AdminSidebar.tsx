@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Home, FileText, Briefcase, Image, Users, MessageSquare,
   Mail, Settings, LogOut, LayoutDashboard, Menu, X, BookOpen,
-  Package, Unlock, Shield,
+  Package, Unlock, Shield, UserRound,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { AdminPermission, hasAdminPermission } from "@/auth/adminPermissions";
@@ -14,17 +14,16 @@ const NAV_ITEMS: { group: string; groupEn: string; items: { path: string; icon: 
   ]},
   { group: "إدارة الصفحات والمحتوى", groupEn: "Content", items: [
     { path: "/admin/pages/home", icon: Home, ar: "الرئيسية", en: "Home Page", permission: "content" },
-    { path: "/admin/pages/about", icon: FileText, ar: "من نحن", en: "About", permission: "content" },
     { path: "/admin/services", icon: Briefcase, ar: "خدماتنا", en: "Services", permission: "content" },
     { path: "/admin/projects", icon: Image, ar: "أعمالنا", en: "Projects", permission: "content" },
     { path: "/admin/team", icon: Users, ar: "فريق العمل", en: "Team", permission: "content" },
     { path: "/admin/clients", icon: MessageSquare, ar: "عملاء الموقع", en: "Site Clients", permission: "content" },
     { path: "/admin/packages", icon: Package, ar: "الباقات", en: "Packages", permission: "content" },
-    { path: "/admin/pages/presentations", icon: BookOpen, ar: "العروض والكتيبات", en: "Presentations", permission: "content" },
   ]},
   { group: "متابعة العملاء", groupEn: "Client Follow-up", items: [
     { path: "/admin/contact", icon: Mail, ar: "رسائل العملاء", en: "Client Messages", permission: "clients" },
     { path: "/admin/unlocks", icon: Unlock, ar: "تفعيل الباقات", en: "Package Unlocks", permission: "clients" },
+    { path: "/admin/users", icon: UserRound, ar: "المستخدمين المسجلين", en: "Registered Users", permission: "clients" },
     { path: "/admin/selections", icon: FileText, ar: "اختيارات العملاء", en: "Client Selections", permission: "clients" },
     { path: "/admin/questionnaires", icon: FileText, ar: "استبيانات العملاء", en: "Customer Questionnaires", permission: "clients" },
   ]},

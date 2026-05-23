@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
-import { getUnlockedPackageIds } from "@/lib/catalog";
+import { getUnlockedPackageIds, getPackages } from "@/lib/catalog";
 import Reveal from "@/components/ui-luxe/Reveal";
 import { Check, ArrowLeft, ArrowRight, Star, Crown, Shield, Layout } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CmsSection } from "@/lib/publicCms";
 
 const packageCovers: Record<string, string> = {
   economy: "/real-content/Packages/package-covers/economy.jpg",
@@ -13,74 +14,82 @@ const packageCovers: Record<string, string> = {
   luxury: "/real-content/Packages/package-covers/luxury.jpg",
 };
 
-export default function FinalCTA() {
+export default function FinalCTA({ section }: { section?: CmsSection }) {
   const { lang } = useLang();
   const { user, profile, loading } = useAuth();
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  const [packages, setPackages] = useState<any[]>(() => [
+    {
+      id: "economy",
+      name_ar: "باقة أساسية",
+      name_en: "Basic Package",
+      price_label: "6,000",
+      description_ar: "باقة مثالية للشركات الناشئة ورواد الأعمال الذين يحتاجون إلى الأدوات الأساسية للانطلاق بثقة.",
+      description_en: "Ideal for startups and entrepreneurs who need the essential tools to launch with confidence.",
+      featured: false,
+      features_ar: ["تصميم 3D متكامل", "إشراف هندسي دقيق", "ضمان جودة الخامات", "تسليم على المفتاح"],
+      features_en: ["Full 3D Design", "Strict engineering supervision", "Premium material guarantee", "Turnkey handover"],
+      cover_url: ""
+    },
+    {
+      id: "medium",
+      name_ar: "باقة متوسطة",
+      name_en: "Standard Package",
+      price_label: "8,000",
+      description_ar: "باقة متوازنة تمنحك جميع الأدوات والمخططات الأساسية لإدارة أعمالك بكفاءة وتحقيق نمو مستدام.",
+      description_en: "A balanced package that gives you all the essential tools and designs to manage efficiently.",
+      featured: true,
+      badge_ar: "الأكثر طلباً",
+      badge_en: "Most Popular",
+      features_ar: ["تصميم 3D متكامل", "إشراف هندسي دقيق", "ضمان جودة الخامات", "تسليم على المفتاح"],
+      features_en: ["Full 3D Design", "Strict engineering supervision", "Premium material guarantee", "Turnkey handover"],
+      cover_url: ""
+    },
+    {
+      id: "luxury",
+      name_ar: "باقة فاخرة",
+      name_en: "Premium Package",
+      price_label: "10,000",
+      description_ar: "باقة متكاملة مصممة للشركات الكبيرة التي تحتاج إلى حلول متقدمة ودعم مخصص وتجربة احترافية بلا حدود.",
+      description_en: "A complete package designed for large enterprises requiring advanced solutions and dedicated support.",
+      featured: false,
+      features_ar: ["تصميم 3D متكامل", "إشراف هندسي دقيق", "ضمان جودة الخامات", "تسليم على المفتاح"],
+      features_en: ["Full 3D Design", "Strict engineering supervision", "Premium material guarantee", "Turnkey handover"],
+      cover_url: ""
+    }
+  ]);
 
   useEffect(() => {
     let alive = true;
     async function load() {
-      if (!user?.id) return;
       try {
-        const unlocked = await getUnlockedPackageIds(user.id, !!profile?.packages_unlocked);
+        const [allPackages, unlocked] = await Promise.all([
+          getPackages(),
+          user?.id ? getUnlockedPackageIds(user.id, !!profile?.packages_unlocked) : Promise.resolve([])
+        ]);
         if (!alive) return;
+        if (allPackages && allPackages.length > 0) {
+          setPackages(allPackages);
+        }
         setUnlockedIds(unlocked);
       } catch (err) {
-        console.error("Failed to load unlocked package IDs in FinalCTA:", err);
+        console.error("Failed to load packages in FinalCTA:", err);
       }
     }
-    if (!loading && user?.id) {
+    if (!loading) {
       load();
-    } else if (!user) {
-      setUnlockedIds([]);
     }
     return () => {
       alive = false;
     };
   }, [user?.id, profile?.packages_unlocked, loading]);
 
-  const packagesData = [
-    {
-      id: "economy",
-      num: "01",
-      nameAr: "باقة أساسية",
-      nameEn: "Basic Package",
-      price: "6,000",
-      descAr: "باقة مثالية للشركات الناشئة ورواد الأعمال الذين يحتاجون إلى الأدوات الأساسية للانطلاق بثقة.",
-      descEn: "Ideal for startups and entrepreneurs who need the essential tools to launch with confidence.",
-      icon: Layout,
-      featured: false,
-    },
-    {
-      id: "medium",
-      num: "02",
-      nameAr: "باقة متوسطة",
-      nameEn: "Standard Package",
-      price: "8,000",
-      descAr: "باقة متوازنة تمنحك جميع الأدوات والمخططات الأساسية لإدارة أعمالك بكفاءة وتحقيق نمو مستدام.",
-      descEn: "A balanced package that gives you all the essential tools and designs to manage efficiently.",
-      icon: Star,
-      featured: true,
-      badgeAr: "الأكثر طلباً",
-      badgeEn: "Most Popular",
-    },
-    {
-      id: "luxury",
-      num: "03",
-      nameAr: "باقة فاخرة",
-      nameEn: "Premium Package",
-      price: "10,000",
-      descAr: "باقة متكاملة مصممة للشركات الكبيرة التي تحتاج إلى حلول متقدمة ودعم مخصص وتجربة احترافية بلا حدود.",
-      descEn: "A complete package designed for large enterprises requiring advanced solutions and dedicated support.",
-      icon: Crown,
-      featured: false,
-    }
-  ];
-
-  const features = lang === "ar"
-    ? ["تصميم 3D متكامل", "إشراف هندسي دقيق", "ضمان جودة الخامات", "تسليم على المفتاح"]
-    : ["Full 3D Design", "Strict engineering supervision", "Premium material guarantee", "Turnkey handover"];
+  const getPackageIcon = (id: string) => {
+    if (id === "economy") return Layout;
+    if (id === "medium") return Star;
+    if (id === "luxury") return Crown;
+    return Star;
+  };
 
   return (
     <section className="relative w-full py-24 md:py-32 overflow-hidden bg-gradient-to-b from-[#0C363A] via-[#051E20] to-[#031314]" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -111,7 +120,7 @@ export default function FinalCTA() {
                 <div className="w-1.5 h-1.5 rotate-45 bg-[#C18556]/80" />
               </div>
               <span className="text-[#C18556] text-[11px] font-bold uppercase tracking-[0.4em]">
-                {lang === "ar" ? "الباقات" : "PACKAGES"}
+                {lang === "ar" ? section?.sectionNameAr || "الباقات" : section?.sectionNameEn || "PACKAGES"}
               </span>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rotate-45 bg-[#C18556]/80" />
@@ -122,33 +131,52 @@ export default function FinalCTA() {
           
           <Reveal delay={150}>
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif text-white/95 leading-tight mb-6">
-              {lang === "ar" ? (
-                <>
-                  اختر الباقة <span className="text-[#C18556] font-normal italic">الأنسب</span> لمساحتك
-                </>
-              ) : (
-                <>
-                  Choose the <span className="text-[#C18556] font-normal italic">Perfect Package</span> for Your Space
-                </>
-              )}
+              {(() => {
+                const titleText = lang === "ar" ? section?.titleAr : section?.titleEn;
+                if (!titleText) {
+                  return lang === "ar" ? (
+                    <>
+                      اختر الباقة <span className="text-[#C18556] font-normal italic">الأنسب</span> لمساحتك
+                    </>
+                  ) : (
+                    <>
+                      Choose the <span className="text-[#C18556] font-normal italic">Perfect Package</span> for Your Space
+                    </>
+                  );
+                }
+                const separator = titleText.includes("|") ? "|" : titleText.includes(" - ") ? " - " : titleText.includes("\n") ? "\n" : null;
+                if (separator) {
+                  const parts = titleText.split(separator);
+                  const main = parts[0].trim();
+                  const sub = parts.slice(1).join(separator).trim();
+                  return (
+                    <>
+                      {main} <span className="text-[#C18556] font-normal italic">{sub}</span>
+                    </>
+                  );
+                }
+                return titleText;
+              })()}
             </h2>
           </Reveal>
 
           <Reveal delay={300}>
             <p className="text-sm md:text-base text-white/60 leading-relaxed max-w-2xl mx-auto font-light">
               {lang === "ar" 
-                ? "باقات مرنة تناسب مراحل مختلفة من التصميم والتنفيذ، مع إمكانية تخصيص العرض حسب احتياج مشروعك وطموحاتك."
-                : "Flexible packages catering to different stages of design and execution, with customizable options to match your project needs and ambitions."}
+                ? section?.bodyAr || "باقات مرنة تناسب مراحل مختلفة من التصميم والتنفيذ، مع إمكانية تخصيص العرض حسب احتياج مشروعك وطموحاتك."
+                : section?.bodyEn || "Flexible packages catering to different stages of design and execution, with customizable options to match your project needs and ambitions."}
             </p>
           </Reveal>
         </div>
 
         {/* Packages Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10 items-stretch max-w-6xl mx-auto px-4 mt-16">
-          {packagesData.map((p, i) => {
+          {packages.map((p, i) => {
             const isFeatured = p.featured;
-            const Icon = p.icon;
+            const Icon = getPackageIcon(p.id);
             const isUnlocked = unlockedIds.includes(p.id);
+            const cardNum = String(i + 1).padStart(2, "0");
+            const coverImg = p.cover_url || packageCovers[p.id];
 
             return (
               <Reveal key={p.id} delay={i * 120} className="h-full">
@@ -175,26 +203,30 @@ export default function FinalCTA() {
                       lang === "ar" ? "left-4" : "right-4"
                     )}>
                       <Star size={10} fill="currentColor" className="stroke-none" />
-                      <span>{lang === "ar" ? p.badgeAr : p.badgeEn}</span>
+                      <span>{lang === "ar" ? p.badge_ar || "الأكثر طلباً" : p.badge_en || "Most Popular"}</span>
                     </div>
                   ) : null}
 
                   {/* Perfectly scaled cover image container */}
                   <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/25">
-                    {/* Blurred backup background */}
-                    <div 
-                      className="absolute inset-0 bg-cover bg-center blur-md opacity-25 scale-110 pointer-events-none"
-                      style={{ backgroundImage: `url(${packageCovers[p.id]})` }}
-                    />
-                    
-                    {/* Raw main image containing full details */}
-                    <img
-                      src={packageCovers[p.id]}
-                      alt={lang === "ar" ? p.nameAr : p.nameEn}
-                      loading="lazy"
-                      decoding="async"
-                      className="relative w-full h-full object-contain image-crisp package-cover-zoom"
-                    />
+                    {coverImg && (
+                      <>
+                        {/* Blurred backup background */}
+                        <div 
+                          className="absolute inset-0 bg-cover bg-center blur-md opacity-25 scale-110 pointer-events-none"
+                          style={{ backgroundImage: `url(${coverImg})` }}
+                        />
+                        
+                        {/* Raw main image containing full details */}
+                        <img
+                          src={coverImg}
+                          alt={lang === "ar" ? p.name_ar : p.name_en}
+                          loading="lazy"
+                          decoding="async"
+                          className="relative w-full h-full object-contain image-crisp package-cover-zoom"
+                        />
+                      </>
+                    )}
 
                     {/* Numeric Badge Pill */}
                     <div className={cn(
@@ -202,7 +234,7 @@ export default function FinalCTA() {
                       lang === "ar" ? "right-4" : "left-4",
                       isFeatured ? "border-[#C18556]/40 text-[#C18556]" : "border-white/10 text-white/70"
                     )}>
-                      {p.num}
+                      {cardNum}
                     </div>
                   </div>
 
@@ -223,22 +255,22 @@ export default function FinalCTA() {
 
                       {/* Package Name */}
                       <h3 className="text-xl font-bold font-serif text-[#C18556] mb-3">
-                        {lang === "ar" ? p.nameAr : p.nameEn}
+                        {lang === "ar" ? p.name_ar : p.name_en}
                       </h3>
 
                       {/* Package Price */}
                       <div className="mb-4 flex items-baseline gap-1.5">
                         <span className="font-serif text-5xl font-medium tracking-tight text-white/95">
-                          {p.price}
+                          {p.price_label}
                         </span>
                         <span className="text-[10px] font-bold text-white/40 tracking-widest uppercase">
-                          {lang === "ar" ? "جنيه / م²" : "EGP / m²"}
+                          {lang === "ar" ? p.unit_label_ar || "جنيه / م²" : p.unit_label_en || "EGP / m²"}
                         </span>
                       </div>
 
                       {/* Description */}
                       <p className="text-xs text-white/60 leading-relaxed mb-6 font-light min-h-[40px] line-clamp-2">
-                        {lang === "ar" ? p.descAr : p.descEn}
+                        {lang === "ar" ? p.description_ar : p.description_en}
                       </p>
 
                       {/* Divider */}
@@ -246,7 +278,7 @@ export default function FinalCTA() {
 
                       {/* Features Checklist */}
                       <ul className="space-y-3.5 flex-1 mb-8">
-                        {features.map((feat, idx) => (
+                        {(lang === "ar" ? p.features_ar : p.features_en)?.map((feat: string, idx: number) => (
                           <li key={idx} className="flex items-center gap-3 text-xs text-white/80">
                             <div className="w-4 h-4 rounded-full bg-[#C18556]/15 border border-[#C18556]/30 flex items-center justify-center text-[#C18556] flex-shrink-0 transition-all duration-500 luxury-motion group-hover:scale-125 group-hover:bg-[#C18556] group-hover:text-[#0C363A] group-hover:shadow-[0_0_14px_rgba(193,133,86,0.35)]">
                               <Check size={9} className="stroke-[3]" />
@@ -302,10 +334,10 @@ export default function FinalCTA() {
             <div className="flex items-center justify-center gap-6 mt-4">
               <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-[#C18556]/40 hidden sm:block" />
               <Link 
-                to="/questionnaire" 
+                to={section?.ctaUrl || "/questionnaire"} 
                 className="inline-flex items-center gap-2 text-xs text-[#C18556] font-bold uppercase tracking-[0.18em] hover:text-white transition-all underline underline-offset-4 group"
               >
-                <span>{lang === "ar" ? "اطلب عرضاً مخصصاً الآن" : "REQUEST A BESPOKE PROPOSAL NOW"}</span>
+                <span>{lang === "ar" ? section?.ctaLabelAr || "اطلب عرضاً مخصصاً الآن" : section?.ctaLabelEn || "REQUEST A BESPOKE PROPOSAL NOW"}</span>
                 {lang === "ar" ? (
                   <ArrowLeft size={13} className="transition-transform duration-300 group-hover:-translate-x-1" />
                 ) : (

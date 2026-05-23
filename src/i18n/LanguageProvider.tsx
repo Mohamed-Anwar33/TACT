@@ -3,7 +3,7 @@ import { translations, TranslationKey } from "./translations";
 
 type Lang = "ar" | "en";
 interface Ctx { lang: Lang; setLang: (l: Lang) => void; t: (k: TranslationKey) => string; dir: "rtl" | "ltr"; }
-const LangCtx = createContext<Ctx | null>(null);
+export const LangCtx = createContext<Ctx | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem("tact-lang") as Lang) || "ar");

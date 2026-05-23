@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Edit2, Trash2, Plus, Image as ImageIcon, Film, Eye, ChevronRight, ChevronLeft } from "lucide-react";
+import { Edit2, Trash2, Plus, Image as ImageIcon, Film, Eye, ChevronRight, ChevronLeft, FileText } from "lucide-react";
 import { toast } from "sonner";
 import AdminHeader from "@/components/admin/AdminHeader";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -11,14 +11,14 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { parseAreaNumber } from "@/lib/publicCms";
+import { parseAreaNumber, CmsAreaRange, defaultAreaRanges } from "@/lib/publicCms";
 
 const db = supabase as any;
 
 const blank = {
   id: "", title_en: "", title_ar: "", category_en: "", category_ar: "",
   area: "", description_en: "", description_ar: "", cover_url: "",
-  video_url: "", pdf_url: "", external_url: "", sort_order: 0, visible: true,
+  video_url: "", pdf_url: "", tour360_url: "", external_url: "", sort_order: 0, visible: true,
   project_kind: "design",
 };
 
@@ -30,24 +30,139 @@ export default function ProjectsManager() {
   const [busy, setBusy] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [tab, setTab] = useState<"grid" | "table">("grid");
+  const [projectKindTab, setProjectKindTab] = useState<"design" | "execution">("design");
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [tempGallery, setTempGallery] = useState<string[]>([]);
 
+  // Area Ranges state variables
+  const [areaRanges, setAreaRanges] = useState<CmsAreaRange[]>(defaultAreaRanges);
+  const [isEditingRanges, setIsEditingRanges] = useState(false);
+  const [tempRanges, setTempRanges] = useState<CmsAreaRange[]>([]);
+  const [savingRanges, setSavingRanges] = useState(false);
+  const [selectedAreaRangeId, setSelectedAreaRangeId] = useState<string>("all");
+
+  const designCount = projects.filter(p => (p.project_kind || (p.video_url ? "execution" : "design")) === "design").length;
+  const executionCount = projects.filter(p => (p.project_kind || (p.video_url ? "execution" : "design")) === "execution").length;
+  const filteredProjects = projects.filter(p => {
+    const kind = p.project_kind || (p.video_url ? "execution" : "design");
+    return kind === projectKindTab;
+  });
+  
+  const displayedProjects = filteredProjects.filter(p => {
+    if (projectKindTab !== "design" || selectedAreaRangeId === "all") return true;
+    const range = areaRanges.find(r => r.id === selectedAreaRangeId);
+    if (!range) return true;
+    const areaNum = parseAreaNumber(p.area);
+    if (areaNum === null || Number.isNaN(areaNum)) return false;
+    const minMatch = range.min === null || range.min === undefined || areaNum >= range.min;
+    const maxMatch = range.max === null || range.max === undefined || areaNum <= range.max;
+    return minMatch && maxMatch;
+  });
+
+  const currentKind = editing?.project_kind || (editing?.video_url ? "execution" : "design");
+
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    setSelectedAreaRangeId("all");
+  }, [projectKindTab]);
 
   useEffect(() => {
     setTempGallery([]);
   }, [editing]);
 
   async function load() {
-    const [pRes, mRes, sRes] = await Promise.all([
+    const [pRes, mRes, sRes, rRes] = await Promise.all([
       db.from("cms_projects").select("*").order("sort_order"),
       db.from("cms_project_media").select("*").order("sort_order"),
       db.from("cms_sections").select("*").eq("page_slug", "home").eq("section_key", "works-preview").maybeSingle(),
+      db.from("cms_sections").select("*").eq("page_slug", "portfolio").eq("section_key", "area-ranges").maybeSingle(),
     ]);
     setProjects(pRes.data || []);
     setProjectMedia(mRes.data || []);
     setSection(sRes.data || null);
+
+    if (rRes.data && rRes.data.metadata && Array.isArray(rRes.data.metadata.ranges)) {
+      setAreaRanges(rRes.data.metadata.ranges);
+    } else {
+      setAreaRanges(defaultAreaRanges);
+    }
+  }
+
+  // Area ranges management helpers
+  async function saveAreaRanges(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingRanges(true);
+    try {
+      for (const range of tempRanges) {
+        if (!range.titleAr.trim() || !range.titleEn.trim()) {
+          throw new Error("يجب كتابة العناوين باللغتين العربية والإنجليزية لجميع التقسيمات");
+        }
+        if (range.min !== null && isNaN(range.min)) {
+          throw new Error("يجب كتابة أرقام صحيحة للمساحة الصغرى");
+        }
+        if (range.max !== null && isNaN(range.max)) {
+          throw new Error("يجب كتابة أرقام صحيحة للمساحة الكبرى");
+        }
+      }
+
+      const { error } = await db.from("cms_sections").upsert({
+        page_slug: "portfolio",
+        section_key: "area-ranges",
+        section_name_en: "Area Ranges",
+        section_name_ar: "تقسيمات المساحات",
+        metadata: {
+          ranges: tempRanges
+        },
+        visible: true,
+        sort_order: 100
+      }, { onConflict: "page_slug,section_key" });
+
+      if (error) throw error;
+
+      toast.success("تم حفظ تقسيمات المساحات وصورها الجاذبة بنجاح");
+      setIsEditingRanges(false);
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ أثناء حفظ التقسيمات");
+    } finally {
+      setSavingRanges(false);
+    }
+  }
+
+  function moveRange(index: number, direction: "up" | "down") {
+    const nextIdx = direction === "up" ? index - 1 : index + 1;
+    if (nextIdx < 0 || nextIdx >= tempRanges.length) return;
+    const next = [...tempRanges];
+    const temp = next[index];
+    next[index] = next[nextIdx];
+    next[nextIdx] = temp;
+    setTempRanges(next);
+  }
+
+  function deleteRange(index: number) {
+    if (confirm("هل أنت متأكد من حذف هذا التقسيم للمساحة؟")) {
+      setTempRanges(tempRanges.filter((_, i) => i !== index));
+    }
+  }
+
+  function addRange() {
+    const newId = `range-${Date.now()}`;
+    const newRange: CmsAreaRange = {
+      id: newId,
+      titleAr: "تصنيف جديد",
+      titleEn: "New Category",
+      min: 0,
+      max: null,
+      imageUrl: ""
+    };
+    setTempRanges([...tempRanges, newRange]);
+  }
+
+  function updateRangeField(index: number, field: keyof CmsAreaRange, value: any) {
+    const next = [...tempRanges];
+    next[index] = { ...next[index], [field]: value };
+    setTempRanges(next);
   }
 
   function getMedia(projectId: string) { return projectMedia.filter(m => m.project_id === projectId); }
@@ -87,7 +202,10 @@ export default function ProjectsManager() {
           media_type: "image",
           role: "gallery",
           url,
-          title_en: `Image ${idx + 1}`,
+          title_en: projectKind === "design" ? "" : `Image ${idx + 1}`,
+          title_ar: projectKind === "design" ? "" : `صورة ${idx + 1}`,
+          alt_en: projectKind === "design" ? "" : `Image ${idx + 1}`,
+          alt_ar: projectKind === "design" ? "" : `صورة ${idx + 1}`,
           visible: true,
           sort_order: (idx + 1) * 10
         }));
@@ -210,11 +328,51 @@ export default function ProjectsManager() {
     }
   }
 
+  async function moveProject(displayedIdx: number, direction: "up" | "down") {
+    const targetDisplayedIdx = direction === "up" ? displayedIdx - 1 : displayedIdx + 1;
+    if (targetDisplayedIdx < 0 || targetDisplayedIdx >= displayedProjects.length) return;
+
+    setBusy(true);
+    try {
+      const nextProjects = [...projects];
+      const idxA = projects.findIndex(p => p.id === displayedProjects[displayedIdx].id);
+      const idxB = projects.findIndex(p => p.id === displayedProjects[targetDisplayedIdx].id);
+      
+      if (idxA !== -1 && idxB !== -1) {
+        const temp = nextProjects[idxA];
+        nextProjects[idxA] = nextProjects[idxB];
+        nextProjects[idxB] = temp;
+        
+        const updates = nextProjects.map((proj, index) => {
+          const newOrder = (index + 1) * 10;
+          return db.from("cms_projects").update({ sort_order: newOrder }).eq("id", proj.id);
+        });
+
+        await Promise.all(updates);
+        toast.success("تم إعادة ترتيب المشاريع بنجاح");
+        await load();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ أثناء إعادة الترتيب");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateMediaRole(mediaId: string, role: string) {
     setProjectMedia(prev => prev.map(m => m.id === mediaId ? { ...m, role } : m));
     const { error } = await db.from("cms_project_media").update({ role }).eq("id", mediaId);
     if (error) {
       toast.error("حدث خطأ أثناء تحديث تصنيف الصورة");
+      await load();
+    }
+  }
+
+  async function updateMediaField(mediaId: string, field: "title_ar" | "title_en" | "alt_ar" | "alt_en" | "role", value: string) {
+    setProjectMedia(prev => prev.map(m => m.id === mediaId ? { ...m, [field]: value } : m));
+    const { error } = await db.from("cms_project_media").update({ [field]: value || null }).eq("id", mediaId);
+    if (error) {
+      toast.error("حدث خطأ أثناء تحديث بيانات الصورة");
       await load();
     }
   }
@@ -225,12 +383,16 @@ export default function ProjectsManager() {
     const currentMedia = getMedia(editing.id);
     const maxOrder = currentMedia.length > 0 ? Math.max(...currentMedia.map(m => m.sort_order)) : 0;
     
+    const isDesign = currentKind === "design";
     await db.from("cms_project_media").upsert({ 
       project_id: editing.id, 
       media_type: mediaType, 
       role: "gallery", 
       url, 
-      title_en: file.name, 
+      title_en: isDesign ? "" : file.name, 
+      title_ar: isDesign ? "" : file.name,
+      alt_en: isDesign ? "" : file.name,
+      alt_ar: isDesign ? "" : file.name,
       visible: true,
       sort_order: maxOrder + 10 
     }, { onConflict: "project_id,url" });
@@ -265,33 +427,342 @@ export default function ProjectsManager() {
     <>
       <AdminHeader title="أعمالنا" subtitle="إدارة المشاريع" previewUrl="/portfolio"
         actions={
-          <button onClick={() => setEditing({ ...blank, sort_order: projects.length })}
+          <button onClick={() => setEditing({ ...blank, project_kind: projectKindTab, sort_order: projects.length })}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0.5rem 1rem", borderRadius: 8, background: "#0C363A", color: "#fff", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
             <Plus size={16} /> إضافة مشروع
           </button>
         }
       />
-
       <div className="admin-content">
-        {/* Tabs */}
-        <div className="admin-tabs">
-          <button className={`admin-tab ${tab === "grid" ? "active" : ""}`} onClick={() => setTab("grid")}>عرض البطاقات</button>
-          <button className={`admin-tab ${tab === "table" ? "active" : ""}`} onClick={() => setTab("table")}>عرض الجدول</button>
+        {/* Premium Switching Bar (Designs vs Executions) */}
+        <div style={{ display: "flex", gap: "12px", marginBottom: "1.75rem", flexWrap: "wrap", borderBottom: "1px solid #eae5dc", paddingBottom: "1rem" }}>
+          <button 
+            type="button"
+            className={`section-tab-btn ${projectKindTab === "design" ? "active" : ""}`}
+            onClick={() => setProjectKindTab("design")}
+            style={{ border: "1px solid" }}
+          >
+            <ImageIcon size={16} />
+            <span>معرض التصميمات (المساحات)</span>
+            <span className="badge-num">{designCount}</span>
+          </button>
+          <button 
+            type="button"
+            className={`section-tab-btn ${projectKindTab === "execution" ? "active" : ""}`}
+            onClick={() => setProjectKindTab("execution")}
+            style={{ border: "1px solid" }}
+          >
+            <Film size={16} />
+            <span>معرض التنفيذ الفعلي (الفيديوهات)</span>
+            <span className="badge-num">{executionCount}</span>
+          </button>
         </div>
 
-        {projects.length === 0 ? (
+        {/* Area Ranges Premium Banner */}
+        {projectKindTab === "design" && (
+          <div 
+            style={{ 
+              background: "linear-gradient(135deg, #0C363A 0%, #061F22 100%)", 
+              borderRadius: "16px", 
+              padding: "1.5rem", 
+              marginBottom: "2rem", 
+              border: "1px solid #c18556",
+              boxShadow: "0 10px 30px rgba(12, 54, 58, 0.15)",
+              color: "#fff",
+              position: "relative",
+              overflow: "hidden"
+            }}
+          >
+            {/* Background elements */}
+            <div style={{ position: "absolute", top: "-50px", left: "-50px", width: "150px", height: "150px", borderRadius: "50%", background: "rgba(193, 133, 86, 0.1)", filter: "blur(40px)" }} />
+            
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", position: "relative", zIndex: 2 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "0.25rem" }}>
+                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#C18556" }} />
+                  <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#fff", margin: 0 }}>إدارة تقسيمات المساحات وصورها الجاذبة</h2>
+                </div>
+                <p style={{ fontSize: "0.8rem", color: "rgba(255, 255, 255, 0.7)", maxWidth: "600px", lineHeight: "1.5", margin: "8px 0 0 0" }}>
+                  تحكم بشكل كامل في تصنيفات المساحات المعروضة لعملائك، عدل نطاقات المساحات (المتر المربع)، وأضف صور خلفية مذهلة لكل تصنيف لتجذب الزوار وتزيد التفاعل.
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setTempRanges([...areaRanges]);
+                  setIsEditingRanges(true);
+                }}
+                style={{ 
+                  background: "linear-gradient(90deg, #C18556, #d49c6d)", 
+                  color: "#061F22", 
+                  border: "none", 
+                  padding: "0.6rem 1.25rem", 
+                  borderRadius: "8px", 
+                  fontWeight: 700, 
+                  fontSize: "0.85rem",
+                  cursor: "pointer", 
+                  boxShadow: "0 4px 15px rgba(193, 133, 86, 0.3)",
+                  transition: "all 0.3s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <Edit2 size={14} />
+                تعديل تقسيمات المساحات وصورها
+              </button>
+            </div>
+
+            {/* Quick overview of categories inside the banner */}
+            <div 
+              style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", 
+                gap: "1rem", 
+                marginTop: "1.25rem", 
+                position: "relative", 
+                zIndex: 2 
+              }}
+            >
+              {areaRanges.map((range) => {
+                const count = projects.filter((p) => {
+                  const kind = p.project_kind || (p.video_url ? "execution" : "design");
+                  if (kind !== "design") return false;
+                  const areaNum = parseAreaNumber(p.area);
+                  if (areaNum === null || Number.isNaN(areaNum)) return false;
+                  const minMatch = range.min === null || range.min === undefined || areaNum >= range.min;
+                  const maxMatch = range.max === null || range.max === undefined || areaNum <= range.max;
+                  return minMatch && maxMatch;
+                }).length;
+
+                const isSelected = selectedAreaRangeId === range.id;
+
+                return (
+                  <div 
+                    key={range.id}
+                    onClick={() => setSelectedAreaRangeId(isSelected ? "all" : range.id)}
+                    style={{ 
+                      background: isSelected ? "rgba(193, 133, 86, 0.15)" : "rgba(255,255,255,0.04)", 
+                      border: isSelected ? "1.5px solid #C18556" : "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: "10px",
+                      padding: "0.85rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      position: "relative",
+                      overflow: "hidden",
+                      cursor: "pointer",
+                      transition: "all 0.25s ease-in-out",
+                      boxShadow: isSelected ? "0 4px 15px rgba(193, 133, 86, 0.3)" : "none",
+                      transform: isSelected ? "scale(1.02)" : "none"
+                    }}
+                  >
+                    {range.imageUrl ? (
+                      <img 
+                        src={range.imageUrl} 
+                        alt="" 
+                        style={{ width: "50px", height: "50px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} 
+                      />
+                    ) : (
+                      <div 
+                        style={{ 
+                          width: "50px", 
+                          height: "50px", 
+                          borderRadius: "6px", 
+                          background: "rgba(193, 133, 86, 0.15)", 
+                          display: "grid", 
+                          placeItems: "center", 
+                          color: "#C18556",
+                          flexShrink: 0
+                        }}
+                      >
+                        <ImageIcon size={18} />
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <h4 style={{ fontSize: "0.85rem", fontWeight: 700, margin: 0, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", color: "#fff" }}>
+                        {range.titleAr}
+                      </h4>
+                      <p style={{ fontSize: "0.7rem", color: "#C18556", margin: "2px 0 0", fontWeight: 600 }}>
+                        {range.min !== null ? `${range.min}م²` : "0م²"} إلى {range.max !== null ? `${range.max}م²` : "∞"}
+                      </p>
+                      <span style={{ fontSize: "0.65rem", color: isSelected ? "#fff" : "rgba(255,255,255,0.5)", fontWeight: isSelected ? 700 : 400 }}>
+                        {count} مشاريع
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Area Category Pills Bar */}
+        {projectKindTab === "design" && (
+          <div style={{
+            background: "#fbfbfa",
+            border: "1px solid #e5e0d5",
+            borderRadius: "12px",
+            padding: "0.75rem 1rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flexWrap: "wrap",
+            boxShadow: "0 4px 15px rgba(0,0,0,0.01)"
+          }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#0C363A", marginInlineEnd: "8px" }}>تصفية حسب المساحة:</span>
+            
+            {/* "All" button */}
+            <button
+              type="button"
+              onClick={() => setSelectedAreaRangeId("all")}
+              style={{
+                background: selectedAreaRangeId === "all" ? "linear-gradient(90deg, #0C363A, #061F22)" : "#fff",
+                color: selectedAreaRangeId === "all" ? "#fff" : "#0C363A",
+                border: selectedAreaRangeId === "all" ? "1px solid #0C363A" : "1px solid #e5e0d5",
+                borderRadius: "8px",
+                padding: "0.45rem 1rem",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: selectedAreaRangeId === "all" ? "0 4px 10px rgba(12, 54, 58, 0.2)" : "none"
+              }}
+            >
+              <span>الكل</span>
+              <span style={{ 
+                fontSize: "0.68rem", 
+                background: selectedAreaRangeId === "all" ? "#C18556" : "rgba(12, 54, 58, 0.1)", 
+                color: selectedAreaRangeId === "all" ? "#fff" : "#0C363A",
+                borderRadius: "20px",
+                padding: "2px 6px",
+                fontWeight: 700
+              }}>
+                {projects.filter(p => (p.project_kind || (p.video_url ? "execution" : "design")) === "design").length}
+              </span>
+            </button>
+
+            {areaRanges.map((range) => {
+              const count = projects.filter((p) => {
+                const kind = p.project_kind || (p.video_url ? "execution" : "design");
+                if (kind !== "design") return false;
+                const areaNum = parseAreaNumber(p.area);
+                if (areaNum === null || Number.isNaN(areaNum)) return false;
+                const minMatch = range.min === null || range.min === undefined || areaNum >= range.min;
+                const maxMatch = range.max === null || range.max === undefined || areaNum <= range.max;
+                return minMatch && maxMatch;
+              }).length;
+
+              const isSelected = selectedAreaRangeId === range.id;
+
+              return (
+                <button
+                  key={range.id}
+                  type="button"
+                  onClick={() => setSelectedAreaRangeId(range.id)}
+                  style={{
+                    background: isSelected ? "linear-gradient(90deg, #0C363A, #061F22)" : "#fff",
+                    color: isSelected ? "#fff" : "#0C363A",
+                    border: isSelected ? "1px solid #0C363A" : "1px solid #e5e0d5",
+                    borderRadius: "8px",
+                    padding: "0.45rem 1rem",
+                    fontSize: "0.8rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    boxShadow: isSelected ? "0 4px 10px rgba(12, 54, 58, 0.2)" : "none"
+                  }}
+                >
+                  <span>{range.titleAr}</span>
+                  <span style={{ 
+                    fontSize: "0.68rem", 
+                    background: isSelected ? "#C18556" : "rgba(12, 54, 58, 0.1)", 
+                    color: isSelected ? "#fff" : "#0C363A",
+                    borderRadius: "20px",
+                    padding: "2px 6px",
+                    fontWeight: 700
+                  }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* View Mode Tabs (Grid vs Table) */}
+        <div className="admin-tabs" style={{ borderBottom: "none", marginBottom: "1.25rem", justifyContent: "flex-end" }}>
+          <button className={`admin-tab ${tab === "grid" ? "active" : ""}`} onClick={() => setTab("grid")} style={{ borderBottomWidth: 3 }}>عرض البطاقات</button>
+          <button className={`admin-tab ${tab === "table" ? "active" : ""}`} onClick={() => setTab("table")} style={{ borderBottomWidth: 3 }}>عرض الجدول</button>
+        </div>
+
+        {filteredProjects.length === 0 ? (
           <div className="admin-card">
             <div className="card-body" style={{ textAlign: "center", padding: "3rem", color: "#999" }}>
-              <ImageIcon size={48} style={{ margin: "0 auto 1rem", opacity: 0.3 }} />
-              <p>لا توجد مشاريع بعد</p>
-              <button onClick={() => setEditing({ ...blank })} style={{ marginTop: "1rem", padding: "0.5rem 1.5rem", borderRadius: 8, background: "#0C363A", color: "#fff", border: "none", cursor: "pointer" }}>
+              {projectKindTab === "design" ? (
+                <ImageIcon size={48} style={{ margin: "0 auto 1rem", opacity: 0.3 }} />
+              ) : (
+                <Film size={48} style={{ margin: "0 auto 1rem", opacity: 0.3 }} />
+              )}
+              <p>{projectKindTab === "design" ? "لا توجد مشاريع تصميم بعد" : "لا توجد مشاريع تنفيذ بعد"}</p>
+              <button onClick={() => setEditing({ ...blank, project_kind: projectKindTab })} style={{ marginTop: "1rem", padding: "0.5rem 1.5rem", borderRadius: 8, background: "#0C363A", color: "#fff", border: "none", cursor: "pointer" }}>
                 إضافة أول مشروع
               </button>
             </div>
           </div>
+        ) : displayedProjects.length === 0 ? (
+          <div className="admin-card">
+            <div className="card-body" style={{ textAlign: "center", padding: "4rem 2rem", color: "#999" }}>
+              <ImageIcon size={48} style={{ margin: "0 auto 1.25rem", opacity: 0.25, color: "#C18556" }} />
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0C363A", marginBottom: "0.5rem" }}>لا توجد مشاريع في هذا النطاق</h3>
+              <p style={{ fontSize: "0.85rem", color: "#8a8578", maxWidth: "400px", margin: "0 auto 1.5rem", lineHeight: "1.6" }}>
+                لم يتم تصنيف أي من مشاريع التصميمات الحالية ضمن نطاق المساحة المحدد. يمكنك إضافة مشروع جديد أو العودة لعرض الكل.
+              </p>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                <button 
+                  onClick={() => setSelectedAreaRangeId("all")} 
+                  style={{ 
+                    padding: "0.5rem 1.5rem", 
+                    borderRadius: 8, 
+                    background: "#0C363A", 
+                    color: "#fff", 
+                    border: "none", 
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    boxShadow: "0 4px 10px rgba(12, 54, 58, 0.15)"
+                  }}
+                >
+                  عرض جميع المشاريع
+                </button>
+                <button 
+                  onClick={() => setEditing({ ...blank, project_kind: projectKindTab, sort_order: projects.length })} 
+                  style={{ 
+                    padding: "0.5rem 1.5rem", 
+                    borderRadius: 8, 
+                    background: "#fff", 
+                    color: "#C18556", 
+                    border: "1px solid #C18556", 
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                    fontWeight: 600
+                  }}
+                >
+                  إضافة مشروع جديد
+                </button>
+              </div>
+            </div>
+          </div>
         ) : tab === "grid" ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
-            {projects.map(p => (
+            {displayedProjects.map((p, idx) => (
               <div key={p.id} className="admin-card" style={{ overflow: "hidden" }}>
                 <div style={{ height: 180, background: "#0C363A", position: "relative" }}>
                   {p.cover_url ? (
@@ -340,9 +811,29 @@ export default function ProjectsManager() {
                 </div>
                 <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #f0ece4", display: "flex", justifyContent: "space-between", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                   <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 2, marginInlineEnd: 4 }}>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => moveProject(idx, "up")}
+                        style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid #e5e0d5", background: idx === 0 ? "#f9f9f9" : "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, color: "#0C363A", display: "inline-flex", alignItems: "center" }}
+                        title="ترتيب لأعلى"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === displayedProjects.length - 1}
+                        onClick={() => moveProject(idx, "down")}
+                        style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid #e5e0d5", background: idx === displayedProjects.length - 1 ? "#f9f9f9" : "#fff", cursor: idx === displayedProjects.length - 1 ? "not-allowed" : "pointer", opacity: idx === displayedProjects.length - 1 ? 0.3 : 1, color: "#0C363A", display: "inline-flex", alignItems: "center" }}
+                        title="ترتيب لأسفل"
+                      >
+                        ▼
+                      </button>
+                    </div>
                     <button onClick={() => {
                       const selectedIds: string[] = section?.metadata?.selectedIds || [];
-                      setEditing({ ...p, pinOnHome: selectedIds.includes(String(p.id)) });
+                      setEditing({ ...p, project_kind: projectKindTab, pinOnHome: selectedIds.includes(String(p.id)) });
                     }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
                       <Edit2 size={12} /> تعديل
                     </button>
@@ -388,17 +879,39 @@ export default function ProjectsManager() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>الصورة</th><th>المشروع</th><th>التصنيف</th><th>المساحة</th><th>صور</th><th>فيديو</th><th>الحالة</th><th>الرئيسية</th><th>إجراءات</th>
+                    <th>الصورة</th><th>المشروع</th><th>التصنيف</th><th>الترتيب</th><th>المساحة</th><th>صور</th><th>فيديو</th><th>الحالة</th><th>الرئيسية</th><th>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map(p => (
+                  {displayedProjects.map((p, idx) => (
                     <tr key={p.id}>
                       <td><div style={{ width: 56, height: 40, borderRadius: 6, overflow: "hidden", background: "#f0ece4" }}>
                         {p.cover_url && <img src={p.cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                       </div></td>
                       <td style={{ fontWeight: 600 }}>{p.title_ar || p.title_en}</td>
                       <td>{p.category_ar || p.category_en || "-"}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveProject(idx, "up")}
+                            style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #e5e0d5", background: idx === 0 ? "#f9f9f9" : "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, color: "#0C363A", fontSize: "10px", display: "inline-flex", alignItems: "center" }}
+                            title="ترتيب لأعلى"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === displayedProjects.length - 1}
+                            onClick={() => moveProject(idx, "down")}
+                            style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #e5e0d5", background: idx === displayedProjects.length - 1 ? "#f9f9f9" : "#fff", cursor: idx === displayedProjects.length - 1 ? "not-allowed" : "pointer", opacity: idx === displayedProjects.length - 1 ? 0.3 : 1, color: "#0C363A", fontSize: "10px", display: "inline-flex", alignItems: "center" }}
+                            title="ترتيب لأسفل"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </td>
                       <td>{p.area || "-"}</td>
                       <td>{imgCount(p.id)}</td>
                       <td>{vidCount(p.id)}</td>
@@ -436,7 +949,7 @@ export default function ProjectsManager() {
                         <div style={{ display: "flex", gap: 4 }}>
                           <button onClick={() => {
                             const selectedIds: string[] = section?.metadata?.selectedIds || [];
-                            setEditing({ ...p, pinOnHome: selectedIds.includes(String(p.id)) });
+                            setEditing({ ...p, project_kind: projectKindTab, pinOnHome: selectedIds.includes(String(p.id)) });
                           }} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer" }}><Edit2 size={12} /></button>
                           <button onClick={() => setDeleteId(p.id)} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #F1C5BA", background: "#fff", cursor: "pointer", color: "#D84728" }}><Trash2 size={12} /></button>
                         </div>
@@ -591,31 +1104,7 @@ export default function ProjectsManager() {
                                   )}
                                 </div>
                               </div>
-                              {!isTemp && (
-                                <input 
-                                  type="text"
-                                  value={m.role === "gallery" || m.role === "cover" ? "" : (m.role || "")}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setProjectMedia(prev => prev.map(item => item.id === m.id ? { ...item, role: val } : item));
-                                  }}
-                                  onBlur={(e) => updateMediaRole(m.id, e.target.value)}
-                                  placeholder="الشقة / القسم (مثال: شقة 101)"
-                                  style={{ 
-                                    width: "100%", 
-                                    padding: "6px 4px", 
-                                    fontSize: "0.68rem", 
-                                    border: "none",
-                                    borderTop: "1px solid #e5e0d5",
-                                    outline: "none",
-                                    boxSizing: "border-box",
-                                    textAlign: "center",
-                                    background: "#fff",
-                                    color: "#0C363A",
-                                    fontWeight: 500
-                                  }}
-                                />
-                              )}
+
                             </div>
                           );
                         })}
@@ -644,51 +1133,142 @@ export default function ProjectsManager() {
             </div>
 
             {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" && (
-              <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem" }}>
-                <div className="form-group">
-                  <label>فيديو التنفيذ</label>
-                  {editing.video_url && <MediaPreview url={editing.video_url} type="video" height={110} onPlay={() => setVideoPreview(editing.video_url)} />}
-                  <Input
-                    value={editing.video_url || ""}
-                    onChange={e => setEditing({ ...editing, video_url: e.target.value })}
-                    placeholder="رابط mp4 أو YouTube أو Vimeo"
-                    dir="ltr"
-                    style={{ marginTop: 8 }}
-                  />
+              <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1.25rem", marginTop: "0.5rem" }}>
+                <div style={{ 
+                  border: "1px dashed #c18556", 
+                  borderRadius: 12, 
+                  padding: "1.25rem", 
+                  background: "#fbfbfa", 
+                  boxShadow: "0 4px 12px rgba(12, 54, 58, 0.02)" 
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0C363A", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Film size={14} style={{ color: "#C18556" }} />
+                      <span>فيديو التنفيذ (ملف أو رابط)</span>
+                    </label>
+                    {editing.video_url && (
+                      <button 
+                        type="button" 
+                        onClick={() => setEditing({ ...editing, video_url: "" })}
+                        style={{ border: "none", background: "rgba(216, 71, 40,0.1)", color: "#D84728", cursor: "pointer", fontSize: "0.68rem", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}
+                      >
+                        حذف الفيديو الحالي
+                      </button>
+                    )}
+                  </div>
+
+                  {editing.video_url ? (
+                    <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e0d5" }}>
+                      <MediaPreview url={editing.video_url} type="video" height={130} onPlay={() => setVideoPreview(editing.video_url)} />
+                      <div style={{ background: "#fff", padding: "8px 12px", borderTop: "1px solid #e5e0d5", fontSize: "0.7rem", color: "#666", wordBreak: "break-all" }}>
+                        <span style={{ fontWeight: 600, color: "#0C363A" }}>الرابط الحالي: </span>
+                        {editing.video_url}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <MediaUploader
+                        folder="projects"
+                        label="رفع فيديو التنفيذ (اسحب ملف MP4)"
+                        accept="video/*"
+                        onUploaded={(url) => setEditing({ ...editing, video_url: url })}
+                      />
+                      
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0" }}>
+                        <span style={{ flex: 1, height: 1, background: "#eae5dc" }} />
+                        <span style={{ fontSize: "0.65rem", color: "#8a8578", fontWeight: 700 }}>أو أدخل رابط فيديو مباشرة</span>
+                        <span style={{ flex: 1, height: 1, background: "#eae5dc" }} />
+                      </div>
+
+                      <Input
+                        value={editing.video_url || ""}
+                        onChange={e => setEditing({ ...editing, video_url: e.target.value })}
+                        placeholder="ضع رابط YouTube أو Vimeo أو mp4 هنا..."
+                        dir="ltr"
+                      />
+                    </div>
+                  )}
+
+                  <p style={{ fontSize: "0.65rem", color: "#8a8578", marginTop: 8, lineHeight: 1.4 }}>
+                    يمكنك سحب وإفلات مقطع فيديو MP4 لرفعه على الخادم، أو لصق رابط فيديو جاهز (من يوتيوب أو فيميو) مباشرة.
+                  </p>
                 </div>
-                <MediaUploader
-                  folder="projects"
-                  label="رفع فيديو التنفيذ"
-                  accept="video/*"
-                  onUploaded={(url) => setEditing({ ...editing, video_url: url })}
-                />
-                <p style={{ fontSize: "0.65rem", color: "#999", marginTop: 8 }}>
-                  يمكن استخدام فيديو مرفوع، أو لصق رابط YouTube/Vimeo في الحقل أعلاه.
-                </p>
               </div>
             )}
 
-            {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "design" && (
-              <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem" }}>
-                <div className="form-group">
-                  <label>ملف PDF للتصميم</label>
-                  {editing.pdf_url && <MediaPreview url={editing.pdf_url} type="pdf" height={90} />}
-                  <Input
-                    value={editing.pdf_url || ""}
-                    onChange={e => setEditing({ ...editing, pdf_url: e.target.value })}
-                    placeholder="رابط ملف PDF"
-                    dir="ltr"
-                    style={{ marginTop: 8 }}
-                  />
+            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1.25rem", marginTop: "0.5rem" }}>
+              <div style={{ 
+                border: "1px dashed #eae5dc", 
+                borderRadius: 12, 
+                padding: "1.25rem", 
+                background: "#fbfbfa", 
+                boxShadow: "0 4px 12px rgba(12, 54, 58, 0.02)" 
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0C363A", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <FileText size={14} style={{ color: "#C18556" }} />
+                    <span>ملف PDF للمشروع (ملف أو رابط)</span>
+                  </label>
+                  {editing.pdf_url && (
+                    <button 
+                      type="button" 
+                      onClick={() => setEditing({ ...editing, pdf_url: "" })}
+                      style={{ border: "none", background: "rgba(216, 71, 40,0.1)", color: "#D84728", cursor: "pointer", fontSize: "0.68rem", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}
+                    >
+                      حذف الملف الحالي
+                    </button>
+                  )}
                 </div>
-                <MediaUploader
-                  folder="projects"
-                  label="رفع ملف PDF للتصميم"
-                  accept="application/pdf,.pdf"
-                  onUploaded={(url) => setEditing({ ...editing, pdf_url: url })}
-                />
+
+                {editing.pdf_url ? (
+                  <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e0d5" }}>
+                    <MediaPreview url={editing.pdf_url} type="pdf" height={90} />
+                    <div style={{ background: "#fff", padding: "8px 12px", borderTop: "1px solid #e5e0d5", fontSize: "0.7rem", color: "#666", wordBreak: "break-all" }}>
+                      <span style={{ fontWeight: 600, color: "#0C363A" }}>الرابط الحالي: </span>
+                      {editing.pdf_url}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <MediaUploader
+                      folder="projects"
+                      label="رفع ملف PDF للمشروع"
+                      accept="application/pdf,.pdf"
+                      onUploaded={(url) => setEditing({ ...editing, pdf_url: url })}
+                    />
+                    
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0" }}>
+                      <span style={{ flex: 1, height: 1, background: "#eae5dc" }} />
+                      <span style={{ fontSize: "0.65rem", color: "#8a8578", fontWeight: 700 }}>أو أدخل رابط PDF مباشرة</span>
+                      <span style={{ flex: 1, height: 1, background: "#eae5dc" }} />
+                    </div>
+
+                    <Input
+                      value={editing.pdf_url || ""}
+                      onChange={e => setEditing({ ...editing, pdf_url: e.target.value })}
+                      placeholder="ضع رابط ملف PDF هنا..."
+                      dir="ltr"
+                    />
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+
+            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem" }}>
+              <div className="form-group">
+                <label>رابط الجولة الافتراضية 360°</label>
+                <Input
+                  value={editing.tour360_url || ""}
+                  onChange={e => setEditing({ ...editing, tour360_url: e.target.value })}
+                  placeholder="مثال: https://kuula.co/share/collection/..."
+                  dir="ltr"
+                  style={{ marginTop: 8 }}
+                />
+                <p style={{ fontSize: "0.68rem", color: "#8a8578", marginTop: 4 }}>
+                  يمكنك إضافة رابط الجولة الافتراضية التفاعلية 360 درجة (مثل Kuula أو Matterport).
+                </p>
+              </div>
+            </div>
 
             <div className="form-group"><label>رابط خارجي</label><Input value={editing.external_url || ""} onChange={e => setEditing({ ...editing, external_url: e.target.value })} dir="ltr" /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
@@ -715,6 +1295,185 @@ export default function ProjectsManager() {
             </div>
           </form>
         )}
+      </EditDrawer>
+
+      <ConfirmDialog open={!!deleteId} onConfirm={doDelete} onCancel={() => setDeleteId(null)} />
+
+      <EditDrawer 
+        open={isEditingRanges} 
+        title="إدارة تقسيمات المساحات وصورها الجاذبة" 
+        onClose={() => setIsEditingRanges(false)} 
+        width={680}
+        footer={<SaveButton loading={savingRanges} label="حفظ تقسيمات المساحات" onClick={() => (document.getElementById("ranges-form") as HTMLFormElement | null)?.requestSubmit()} />}
+      >
+        <form id="ranges-form" onSubmit={saveAreaRanges} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, background: "#f5f5f4", padding: "10px 14px", borderRadius: 8 }}>
+            <span style={{ fontSize: "0.78rem", color: "#666", fontWeight: 500 }}>
+              * يمكنك إعادة ترتيب المساحات أو إضافتها أو حذفها وتعيين صورة خلفية مميزة لكل منها.
+            </span>
+            <button 
+              type="button" 
+              onClick={addRange}
+              style={{ 
+                padding: "0.45rem 1rem", 
+                borderRadius: 8, 
+                background: "#0C363A", 
+                color: "#fff", 
+                border: "none", 
+                cursor: "pointer", 
+                fontSize: "0.78rem", 
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4
+              }}
+            >
+              <Plus size={14} /> إضافة تقسيم مساحة
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginTop: "0.5rem" }}>
+            {tempRanges.map((range, index) => {
+              const isFirst = index === 0;
+              const isLast = index === tempRanges.length - 1;
+              return (
+                <div 
+                  key={range.id} 
+                  style={{ 
+                    border: "1px solid #e5e0d5", 
+                    borderRadius: 12, 
+                    padding: "1.25rem", 
+                    background: "#fbfbfa", 
+                    position: "relative",
+                    boxShadow: "0 4px 12px rgba(12, 54, 58, 0.01)"
+                  }}
+                >
+                  {/* Top bar: delete & reorder */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid #f0ece4", paddingBottom: "0.5rem" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0C363A", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 18, height: 18, borderRadius: "50%", background: "#C18556", color: "#fff", display: "grid", placeItems: "center", fontSize: "0.68rem" }}>
+                        {index + 1}
+                      </span>
+                      <span>{range.titleAr || "تقسيم مساحة"}</span>
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {/* Reorder Up */}
+                      <button
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => moveRange(index, "up")}
+                        style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e5e0d5", background: isFirst ? "#f9f9f9" : "#fff", cursor: isFirst ? "not-allowed" : "pointer", opacity: isFirst ? 0.3 : 1, color: "#0C363A", fontSize: "0.68rem" }}
+                        title="ترتيب لأعلى"
+                      >
+                        ▲ لأعلى
+                      </button>
+                      {/* Reorder Down */}
+                      <button
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => moveRange(index, "down")}
+                        style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e5e0d5", background: isLast ? "#f9f9f9" : "#fff", cursor: isLast ? "not-allowed" : "pointer", opacity: isLast ? 0.3 : 1, color: "#0C363A", fontSize: "0.68rem" }}
+                        title="ترتيب لأسفل"
+                      >
+                        ▼ لأسفل
+                      </button>
+                      {/* Delete */}
+                      <button 
+                        type="button" 
+                        onClick={() => deleteRange(index)}
+                        style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #F1C5BA", background: "#fff", color: "#D84728", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                        title="حذف التقسيم"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Range Titles */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#555", display: "block", marginBottom: 4 }}>العنوان (عربي)</label>
+                      <Input 
+                        value={range.titleAr} 
+                        onChange={(e) => updateRangeField(index, "titleAr", e.target.value)} 
+                        required 
+                        placeholder="مثال: من 150 إلى 200 م²" 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#555", display: "block", marginBottom: 4 }}>العنوان (English)</label>
+                      <Input 
+                        value={range.titleEn} 
+                        onChange={(e) => updateRangeField(index, "titleEn", e.target.value)} 
+                        required 
+                        dir="ltr"
+                        placeholder="e.g. 150 to 200 m²" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Min and Max Range limits */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#555", display: "block", marginBottom: 4 }}>المساحة الصغرى (متر مربع)</label>
+                      <Input 
+                        type="number"
+                        value={range.min !== null && range.min !== undefined ? range.min : ""} 
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? 0 : Number(e.target.value);
+                          updateRangeField(index, "min", val);
+                        }} 
+                        required
+                        placeholder="0" 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#555", display: "block", marginBottom: 4 }}>المساحة الكبرى (متر مربع - اتركه فارغاً للحد الأقصى المفتوح)</label>
+                      <Input 
+                        type="number"
+                        value={range.max !== null && range.max !== undefined ? range.max : ""} 
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? null : Number(e.target.value);
+                          updateRangeField(index, "max", val);
+                        }} 
+                        placeholder="مثال: 200" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Background Cover Image Uploader */}
+                  <div style={{ borderTop: "1px dashed #eae5dc", paddingTop: "0.75rem" }}>
+                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#0C363A", display: "block", marginBottom: 6 }}>
+                      صورة خلفية جاذبة للبطاقة
+                    </label>
+                    {range.imageUrl ? (
+                      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                        <div style={{ width: 80, height: 60, borderRadius: 8, overflow: "hidden", border: "1px solid #e5e0d5" }}>
+                          <img src={range.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateRangeField(index, "imageUrl", "")}
+                          style={{ border: "none", background: "rgba(216, 71, 40,0.1)", color: "#D84728", cursor: "pointer", fontSize: "0.7rem", padding: "4px 10px", borderRadius: 6, fontWeight: 700 }}
+                        >
+                          حذف الصورة وتغييرها
+                        </button>
+                      </div>
+                    ) : (
+                      <MediaUploader 
+                        folder="portfolio" 
+                        label="رفع صورة خلفية جاذبة" 
+                        accept="image/*" 
+                        multiple={false} 
+                        onUploaded={(url) => updateRangeField(index, "imageUrl", url)} 
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </form>
       </EditDrawer>
 
       <ConfirmDialog open={!!deleteId} onConfirm={doDelete} onCancel={() => setDeleteId(null)} />

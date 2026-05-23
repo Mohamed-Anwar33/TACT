@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { useLang } from "@/i18n/LanguageProvider";
-import { CatalogOption, CatalogPackage, CatalogStyle, getPackage, getPackageStyles, isPackageUnlocked } from "@/lib/catalog";
+import { CatalogOption, CatalogPackage, CatalogStyle, getPackage, getPackageStyles, isPackageUnlocked, sortPackageCategories, getPackageCategoryWeight } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
@@ -33,6 +33,9 @@ type SectionSelection = {
   style: string;
   category_id: string;
   category: string;
+  category_slug?: string;
+  sort_order?: number;
+  is_style_preview?: boolean;
   notes: string;
   selected: Record<string, SelectionItem>;
 };
@@ -45,11 +48,14 @@ type ImageTile = {
   label: string;
 };
 
-const emptySectionSelection = (style: CatalogStyle, categoryId: string, categoryName: string): SectionSelection => ({
+const emptySectionSelection = (style: CatalogStyle, category: CatalogStyle["categories"][number], categoryName: string): SectionSelection => ({
   style_id: style.id,
   style: style.name_ar,
-  category_id: categoryId,
+  category_id: category.id,
   category: categoryName,
+  category_slug: category.slug,
+  sort_order: category.sort_order,
+  is_style_preview: category.slug === "style-preview",
   notes: "",
   selected: {},
 });
@@ -69,15 +75,119 @@ export default function Configurator() {
   const [showStylePreview, setShowStylePreview] = useState(true);
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
   const [busy, setBusy] = useState(false);
+  const [customUploads, setCustomUploads] = useState<SelectionItem[]>([]);
+  const [uploadingCustom, setUploadingCustom] = useState(false);
+
+  const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    const file = files[0];
+
+    if (!file.type.startsWith("image/")) {
+      toast.error(lang === "ar" ? "يرجى رفع ملف صورة فقط" : "Please upload an image file only");
+      return;
+    }
+
+    setUploadingCustom(true);
+    try {
+      const safeName = file.name.replace(/[^\w.\-]+/g, "-").toLowerCase();
+      const owner = user?.id ?? "guest";
+      const path = `questionnaires/custom-selections/${owner}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+      
+      const { error } = await supabase.storage
+        .from("tact-media")
+        .upload(path, file, { contentType: file.type, upsert: false });
+        
+      if (error) throw error;
+      
+      const { data: publicData } = supabase.storage.from("tact-media").getPublicUrl(path);
+      const imageUrl = publicData.publicUrl;
+
+      const newItem: SelectionItem = {
+        id: `custom_${Date.now()}`,
+        option_id: "custom_upload",
+        style_id: "custom_uploads",
+        style: lang === "ar" ? "خارج الكتالوج" : "Out of Catalog",
+        category_id: "custom_category",
+        category: lang === "ar" ? "صور خارجية مخصصة" : "Custom Uploads",
+        option_name: lang === "ar" ? `صورة خارجية مرفوعة` : `Uploaded Image`,
+        description: lang === "ar" ? "صورة خارجية مرفوعة من العميل للتوضيح والمطابقة." : "External image uploaded by client for matching/reference.",
+        image_url: imageUrl,
+        note: "",
+        place: "",
+        qty: "",
+      };
+
+      setCustomUploads((prev) => [...prev, newItem]);
+      toast.success(lang === "ar" ? "تم رفع الصورة المخصصة بنجاح" : "Custom image uploaded successfully");
+    } catch (err: any) {
+      toast.error(err.message || (lang === "ar" ? "فشل رفع الصورة" : "Image upload failed"));
+    } finally {
+      setUploadingCustom(false);
+    }
+  };
+
+  const removeCustomUpload = (id: string) => {
+    setCustomUploads((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updateCustomUploadField = (id: string, field: 'note' | 'place' | 'qty', value: string) => {
+    setCustomUploads((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
   const wasLightboxOpen = useRef(false);
   const lightboxScrollRef = useRef<HTMLDivElement>(null);
 
   // Zoom Lightbox States
-  const [zoomTile, setZoomTile] = useState<ImageTile | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const activeStyle = styles[activeStyleIdx];
+  const stylePreviewSection = activeStyle?.categories.find((category) => category.slug === "style-preview");
+  const sections = activeStyle ? sortPackageCategories(activeStyle.categories.filter((category) => category.slug !== "style-preview")) : [];
+  const activeSection = showStylePreview && stylePreviewSection ? stylePreviewSection : sections[activeSecIdx];
+  const sectionKey = activeStyle && activeSection ? `${activeStyle.id}_${activeSection.id}` : "";
+  const currentSectionSelection = sectionKey ? selections[sectionKey] : undefined;
+
+  const imageTiles = useMemo<ImageTile[]>(() => {
+    if (!activeSection) return [];
+    return activeSection.options.flatMap((option) => {
+      const mediaItems = option.media?.length
+        ? option.media
+        : option.image_url
+          ? [{ id: `${option.id}-main`, url: option.image_url, alt_ar: option.name_ar, alt_en: option.name_en }]
+          : [];
+      return mediaItems.map((media, mediaIndex) => ({
+        id: `${option.id}:${media.id ?? mediaIndex}`,
+        option,
+        imageUrl: media.url,
+        mediaId: media.id,
+        label: lang === "ar" ? media.alt_ar || option.name_ar : media.alt_en || option.name_en,
+      }));
+    });
+  }, [activeSection, lang]);
+
+  // Derive zoomTile from searchParams and imageTiles
+  const zoomParam = searchParams.get("zoom");
+  const zoomTile = useMemo(() => {
+    if (!zoomParam) return null;
+    return imageTiles.find((t) => t.id === zoomParam) || null;
+  }, [zoomParam, imageTiles]);
+
+  const setZoomTile = (tile: ImageTile | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (tile) {
+      next.set("zoom", tile.id);
+    } else {
+      next.delete("zoom");
+    }
+    setSearchParams(next);
+  };
 
   const resetZoom = () => {
     setZoomScale(1);
@@ -152,7 +262,10 @@ export default function Configurator() {
     if (!zoomTile) return;
     const currentIndex = imageTiles.findIndex((t) => t.id === zoomTile.id);
     if (currentIndex !== -1 && currentIndex < imageTiles.length - 1) {
-      setZoomTile(imageTiles[currentIndex + 1]);
+      const nextTile = imageTiles[currentIndex + 1];
+      const next = new URLSearchParams(searchParams);
+      next.set("zoom", nextTile.id);
+      setSearchParams(next, { replace: true });
       resetZoom();
     }
   };
@@ -161,13 +274,20 @@ export default function Configurator() {
     if (!zoomTile) return;
     const currentIndex = imageTiles.findIndex((t) => t.id === zoomTile.id);
     if (currentIndex > 0) {
-      setZoomTile(imageTiles[currentIndex - 1]);
+      const prevTile = imageTiles[currentIndex - 1];
+      const next = new URLSearchParams(searchParams);
+      next.set("zoom", prevTile.id);
+      setSearchParams(next, { replace: true });
       resetZoom();
     }
   };
 
   const closeLightbox = () => {
-    setZoomTile(null);
+    if (window.history.state && window.history.state.idx > 0) {
+      nav(-1);
+    } else {
+      setZoomTile(null);
+    }
     resetZoom();
     setIsDragging(false);
   };
@@ -220,54 +340,60 @@ export default function Configurator() {
     };
   }, [zoomTile]);
 
-  // Browser back button: close lightbox instead of navigating away
+  // Keyboard navigation for Configurator zoomed tile
   useEffect(() => {
-    const isOpen = !!zoomTile;
-    if (!isOpen) {
-      wasLightboxOpen.current = false;
-      return;
-    }
-    if (!wasLightboxOpen.current) {
-      history.pushState({ lightbox: true }, '');
-      wasLightboxOpen.current = true;
-    }
-    const handlePopState = () => {
-      setZoomTile(null);
-      setZoomScale(1);
-      setZoomPosition({ x: 0, y: 0 });
-      wasLightboxOpen.current = false;
+    if (!zoomTile) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") {
+        if (lang === "ar") {
+          handlePrevTile();
+        } else {
+          handleNextTile();
+        }
+      } else if (e.key === "ArrowLeft") {
+        if (lang === "ar") {
+          handleNextTile();
+        } else {
+          handlePrevTile();
+        }
+      } else if (e.key === "Escape") {
+        closeLightbox();
+      }
     };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [zoomTile]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [zoomTile, imageTiles, lang]);
 
-  const activeStyle = styles[activeStyleIdx];
-  const stylePreviewSection = activeStyle?.categories.find((category) => category.slug === "style-preview");
-  const sections = activeStyle?.categories.filter((category) => category.slug !== "style-preview") ?? [];
-  const activeSection = showStylePreview && stylePreviewSection ? stylePreviewSection : sections[activeSecIdx];
-  const sectionKey = activeStyle && activeSection ? `${activeStyle.id}_${activeSection.id}` : "";
-  const currentSectionSelection = sectionKey ? selections[sectionKey] : undefined;
 
-  const imageTiles = useMemo<ImageTile[]>(() => {
-    if (!activeSection) return [];
-    return activeSection.options.flatMap((option) => {
-      const mediaItems = option.media?.length
-        ? option.media
-        : option.image_url
-          ? [{ id: `${option.id}-main`, url: option.image_url, alt_ar: option.name_ar, alt_en: option.name_en }]
-          : [];
-      return mediaItems.map((media, mediaIndex) => ({
-        id: `${option.id}:${media.id ?? mediaIndex}`,
-        option,
-        imageUrl: media.url,
-        mediaId: media.id,
-        label: lang === "ar" ? media.alt_ar || option.name_ar : media.alt_en || option.name_en,
-      }));
-    });
-  }, [activeSection, lang]);
 
-  const selectedItems = useMemo(() => Object.values(selections).flatMap((section) => Object.values(section.selected ?? {})), [selections]);
-  const selectedCount = selectedItems.length;
+  const sortedSections = useMemo(() => {
+    return Object.entries(selections)
+      .sort(([, a], [, b]) => {
+        if (!!a.is_style_preview !== !!b.is_style_preview) return a.is_style_preview ? -1 : 1;
+        const weightA = getPackageCategoryWeight({
+          slug: a.category_slug || a.category_id,
+          name_en: a.category,
+          name_ar: a.category,
+          sort_order: a.sort_order ?? 0,
+        });
+        const weightB = getPackageCategoryWeight({
+          slug: b.category_slug || b.category_id,
+          name_en: b.category,
+          name_ar: b.category,
+          sort_order: b.sort_order ?? 0,
+        });
+        if (weightA !== weightB) return weightA - weightB;
+        return (a.sort_order ?? 999) - (b.sort_order ?? 999);
+      });
+  }, [selections]);
+  const orderedSelections = useMemo(
+    () => Object.fromEntries(sortedSections),
+    [sortedSections]
+  );
+  const selectedItems = useMemo(() => sortedSections.flatMap(([, section]) => Object.values(section.selected ?? {})), [sortedSections]);
+  const selectedCount = selectedItems.length + customUploads.length;
   const zoomSelection = zoomTile && currentSectionSelection ? currentSectionSelection.selected?.[zoomTile.id] : undefined;
 
   const updateSection = (patch: Partial<SectionSelection>) => {
@@ -277,7 +403,7 @@ export default function Configurator() {
     setSelections((current) => ({
       ...current,
       [key]: {
-        ...(current[key] ?? emptySectionSelection(activeStyle, activeSection.id, categoryName)),
+        ...(current[key] ?? emptySectionSelection(activeStyle, activeSection, categoryName)),
         ...patch,
       },
     }));
@@ -287,9 +413,8 @@ export default function Configurator() {
     if (!activeStyle || !activeSection) return;
     const key = `${activeStyle.id}_${activeSection.id}`;
     const categoryName = lang === "ar" ? activeSection.name_ar : activeSection.name_en;
-    const optionName = lang === "ar" ? tile.option.name_ar : tile.option.name_en;
     setSelections((current) => {
-      const section = current[key] ?? emptySectionSelection(activeStyle, activeSection.id, categoryName);
+      const section = current[key] ?? emptySectionSelection(activeStyle, activeSection, categoryName);
       const selected = { ...(section.selected ?? {}) };
       if (selected[tile.id]) {
         delete selected[tile.id];
@@ -302,7 +427,7 @@ export default function Configurator() {
           style: lang === "ar" ? activeStyle.name_ar : activeStyle.name_en,
           category_id: activeSection.id,
           category: categoryName,
-          option_name: optionName,
+          option_name: tile.label,
           description: lang === "ar" ? tile.option.description_ar : tile.option.description_en,
           image_url: tile.imageUrl,
           note: "",
@@ -371,6 +496,25 @@ export default function Configurator() {
       return;
     }
     setBusy(true);
+    const finalSections = { ...orderedSelections };
+    const finalSectionsOrder = sortedSections.map(([key]) => key);
+
+    if (customUploads.length > 0) {
+      const customKey = "custom_uploads";
+      finalSectionsOrder.push(customKey);
+      finalSections[customKey] = {
+        style_id: "custom_uploads",
+        style: lang === "ar" ? "خارج الكتالوج" : "Out of Catalog",
+        category_id: "custom_category",
+        category: lang === "ar" ? "صور خارجية مخصصة" : "Custom Uploads",
+        notes: "",
+        selected: customUploads.reduce((acc, item) => {
+          acc[item.id] = item;
+          return acc;
+        }, {} as Record<string, SelectionItem>),
+      };
+    }
+
     const { error } = await supabase.from("configurator_selections").insert({
       user_id: user.id,
       package_id: packageId,
@@ -378,7 +522,8 @@ export default function Configurator() {
         version: 2,
         package_id: packageId,
         package_name: lang === "ar" ? pkg?.name_ar : pkg?.name_en,
-        sections: selections,
+        sections_order: finalSectionsOrder,
+        sections: finalSections,
       },
     });
     setBusy(false);
@@ -687,7 +832,7 @@ export default function Configurator() {
                         </div>
 
                         <div className="absolute bottom-3 start-3 end-12 text-white">
-                          <h4 className="font-serif-ar text-base drop-shadow line-clamp-2">{lang === "ar" ? tile.option.name_ar : tile.option.name_en}</h4>
+                          <h4 className="font-serif-ar text-base drop-shadow line-clamp-2">{tile.label}</h4>
                         </div>
 
                         <button
@@ -757,10 +902,110 @@ export default function Configurator() {
               />
             </div>
 
+            {/* Custom Image Upload Section */}
+            <div className="bg-white p-6 rounded-2xl border border-border shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-4 gap-4">
+                <div>
+                  <h3 className="font-serif-ar text-lg text-teal-deep font-bold">
+                    {lang === "ar" ? "هل لديك صور خارجية تود تنفيذها؟ (اختياري)" : "Do you have external designs? (Optional)"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {lang === "ar"
+                      ? "يمكنك رفع أي صورة خارجية من خارج الكتالوج وسنقوم بتضمينها للمهندس والمدير للتنفيذ."
+                      : "Upload any custom image outside the catalog to share with your engineer."}
+                  </p>
+                </div>
+                <label className={cn(
+                  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm border border-gold bg-gold px-6 py-3 text-xs font-bold text-teal-deep transition hover:bg-transparent hover:text-gold",
+                  uploadingCustom && "opacity-55 pointer-events-none"
+                )}>
+                  <Upload size={14} className={cn(uploadingCustom && "animate-spin")} />
+                  <span>{uploadingCustom ? (lang === "ar" ? "جاري الرفع..." : "Uploading...") : (lang === "ar" ? "رفع صورة مخصصة" : "Upload Custom Image")}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingCustom}
+                    onChange={handleCustomImageUpload}
+                  />
+                </label>
+              </div>
+
+              {customUploads.length > 0 ? (
+                <div className="space-y-6 divide-y divide-border">
+                  {customUploads.map((item, index) => (
+                    <div key={item.id} className="pt-6 first:pt-0 grid md:grid-cols-[160px_1fr] gap-6 items-start">
+                      {/* Image preview with delete button overlay */}
+                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center group shadow-sm">
+                        {item.image_url && (
+                          <img src={item.image_url} alt="" className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeCustomUpload(item.id)}
+                          className="absolute inset-0 bg-red-600/90 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center text-white gap-1.5 text-xs font-bold cursor-pointer"
+                        >
+                          <X size={16} />
+                          <span>{lang === "ar" ? "إزالة الصورة" : "Remove"}</span>
+                        </button>
+                      </div>
+
+                      {/* Inputs */}
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] text-muted-foreground block mb-1 font-bold">
+                              {lang === "ar" ? "مكان الاستخدام" : "Usage Location"}
+                            </label>
+                            <Input
+                              value={item.place}
+                              onChange={(e) => updateCustomUploadField(item.id, 'place', e.target.value)}
+                              className="h-10 bg-white text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: غرفة النوم الرئيسية" : "e.g. Master Bedroom"}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-muted-foreground block mb-1 font-bold">
+                              {lang === "ar" ? "الكمية التقديرية" : "Est. Qty"}
+                            </label>
+                            <Input
+                              value={item.qty}
+                              onChange={(e) => updateCustomUploadField(item.id, 'qty', e.target.value)}
+                              className="h-10 bg-white text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: 12 م²" : "e.g. 12 m²"}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] text-muted-foreground block mb-1 font-bold">
+                            {lang === "ar" ? "ملاحظتك أو مواصفات التصميم المطلوبة" : "Image notes / specifications"}
+                          </label>
+                          <Textarea
+                            value={item.note}
+                            onChange={(e) => updateCustomUploadField(item.id, 'note', e.target.value)}
+                            placeholder={lang === "ar" ? "اكتب تفاصيل التصميم المطلوب تنفيذه من هذه الصورة..." : "Detail what you want from this image..."}
+                            className="min-h-[70px] resize-none text-xs bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground/60 text-xs border border-dashed border-border rounded-xl">
+                  {lang === "ar" 
+                    ? "لا توجد صور خارجية مرفوعة حالياً. يمكنك رفع صور لإرفاقها بالتقرير."
+                    : "No custom images uploaded yet. You can upload custom designs to attach to the report."}
+                </div>
+              )}
+            </div>
+
             {selectedCount > 0 && (
               <div className="bg-teal-deep text-ivory rounded-2xl border border-gold/25 p-6">
                 <h3 className="font-serif-ar text-2xl mb-4">{lang === "ar" ? "ملخص الصور المختارة" : "Selected Summary"}</h3>
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {/* Standard catalogue items */}
                   {selectedItems.map((item) => (
                     <div key={item.id} className="flex gap-3 rounded-xl bg-white/8 border border-white/10 p-2 relative group/item">
                       {item.image_url && <img src={item.image_url} alt={item.option_name} className="w-16 h-16 rounded-lg object-cover" />}
@@ -774,6 +1019,28 @@ export default function Configurator() {
                         type="button"
                         onClick={() => removeItem(item)}
                         className="absolute top-1.5 end-1.5 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all duration-200"
+                        title={lang === "ar" ? "إزالة" : "Remove"}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {/* Custom upload items */}
+                  {customUploads.map((item) => (
+                    <div key={item.id} className="flex gap-3 rounded-xl bg-white/8 border border-amber-500/30 p-2 relative group/item ring-1 ring-amber-500/20">
+                      {item.image_url && <img src={item.image_url} alt={item.option_name} className="w-16 h-16 rounded-lg object-cover border border-amber-500/30" />}
+                      <div className="min-w-0 text-sm flex-1">
+                        <span className="inline-block text-[9px] font-bold bg-amber-500/25 text-amber-300 px-1.5 py-0.5 rounded mb-0.5">
+                          {lang === "ar" ? "صورة مخصصة خارجية" : "Custom Upload"}
+                        </span>
+                        <div className="text-amber-300/80 text-xs truncate">{item.category}</div>
+                        <div className="font-bold truncate text-white">{item.option_name}</div>
+                        {item.note && <div className="text-amber-200/70 text-xs line-clamp-2 mt-1">{item.note}</div>}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomUpload(item.id)}
+                        className="absolute top-1.5 end-1.5 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all duration-200 cursor-pointer"
                         title={lang === "ar" ? "إزالة" : "Remove"}
                       >
                         <X size={12} />
@@ -827,7 +1094,7 @@ export default function Configurator() {
                 {lang === "ar" ? "معاينة التفاصيل الدقيقة والخامات" : "FINE DETAIL & MATERIAL INSPECTION"}
               </span>
               <h2 className="font-serif-ar text-sm md:text-xl text-white font-bold drop-shadow line-clamp-1">
-                {lang === "ar" ? zoomTile.option.name_ar : zoomTile.option.name_en}
+                {zoomTile.label || (lang === "ar" ? zoomTile.option.name_ar : zoomTile.option.name_en)}
               </h2>
             </div>
             

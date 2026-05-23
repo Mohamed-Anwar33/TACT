@@ -19,6 +19,7 @@ import {
 import { useLang } from "@/i18n/LanguageProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { looksLikePhoneLogin, phoneToAuthEmail, phoneToProfileValue } from "@/lib/phoneAuth";
 
 type AuthMode = "signin" | "signup" | "reset";
 
@@ -164,9 +165,13 @@ export default function Auth() {
           return;
         }
         
-        const cleanPhone = form.phone.startsWith("0") ? form.phone.slice(1) : form.phone;
-        const phoneKey = cleanPhone ? cleanPhone : Math.random().toString(36).substring(7);
-        const emailToUse = form.email.trim() ? form.email.trim() : `${phoneKey}@tact-client.com`;
+        const profilePhone = phoneToProfileValue(form.phone);
+        const emailToUse = form.email.trim() || phoneToAuthEmail(form.phone);
+        if (!emailToUse) {
+          toast.error(isRtl ? "يرجى إدخال البريد الإلكتروني أو رقم الهاتف" : "Please enter an email or phone number");
+          setBusy(false);
+          return;
+        }
 
         const { data: signUpData, error } = await supabase.auth.signUp({
           email: emailToUse,
@@ -175,7 +180,7 @@ export default function Auth() {
             emailRedirectTo: `${window.location.origin}/customer`,
             data: { 
               full_name: form.full_name, 
-              phone: cleanPhone ? `+20${cleanPhone}` : "" 
+              phone: profilePhone
             },
           },
         });
@@ -219,7 +224,7 @@ export default function Auth() {
           const { error: questionnaireError } = await supabase.from("questionnaires").insert({
             user_id: signUpData.user?.id ?? null,
             name: form.full_name,
-            phone: cleanPhone ? `+20${cleanPhone}` : form.phone,
+            phone: profilePhone || form.phone,
             email: emailToUse,
             address: questionnaire.address,
             project_type: joinValues(questionnaire.projectTypes, questionnaire.projectTypeOther),
@@ -250,18 +255,7 @@ export default function Auth() {
         toast.success(isRtl ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully");
         handleModeChange("signin");
       } else {
-        let emailToUse = form.email.trim();
-        const phoneCleanRegex = /^[+0-9]+$/;
-        if (phoneCleanRegex.test(emailToUse)) {
-          let phoneOnlyDigits = emailToUse.replace(/\D/g, "");
-          if (phoneOnlyDigits.startsWith("20")) {
-            phoneOnlyDigits = phoneOnlyDigits.substring(2);
-          }
-          if (phoneOnlyDigits.startsWith("0")) {
-            phoneOnlyDigits = phoneOnlyDigits.substring(1);
-          }
-          emailToUse = phoneOnlyDigits + "@tact-client.com";
-        }
+        const emailToUse = looksLikePhoneLogin(form.email) ? phoneToAuthEmail(form.email) : form.email.trim();
 
         const { error } = await supabase.auth.signInWithPassword({ 
           email: emailToUse, 

@@ -27,6 +27,7 @@ export default function PackagesManager() {
   const [activePkgId, setActivePkgId] = useState<string | null>(null);
   const [activeStyleId, setActiveStyleId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"info" | "config">("config");
+  const [activeCatId, setActiveCatId] = useState<string | null>(null);
 
   // Editing drawers
   const [editPkg, setEditPkg] = useState<any>(null);
@@ -80,6 +81,22 @@ export default function PackagesManager() {
     }
   }, [activePkgId, styles]);
 
+  // Auto select first category when style changes or categories load
+  useEffect(() => {
+    if (activeStyleId) {
+      const styleCats = categories.filter(c => c.style_id === activeStyleId && c.slug !== "style-preview");
+      if (styleCats.length > 0) {
+        if (!activeCatId || !styleCats.some(c => c.id === activeCatId)) {
+          setActiveCatId(styleCats[0].id);
+        }
+      } else {
+        setActiveCatId(null);
+      }
+    } else {
+      setActiveCatId(null);
+    }
+  }, [activeStyleId, categories, activeCatId]);
+
   async function savePkg(e: React.FormEvent) {
     e.preventDefault();
     if (!editPkg) return;
@@ -108,8 +125,72 @@ export default function PackagesManager() {
     if (!editStyle) return;
     setBusy(true);
     try {
-      const { error } = await db.from("package_styles").upsert(editStyle);
+      // 1. Save style data
+      const stylePayload = {
+        id: editStyle.id || undefined,
+        package_id: editStyle.package_id,
+        name_en: editStyle.name_en,
+        name_ar: editStyle.name_ar,
+        sort_order: Number(editStyle.sort_order) || 0,
+        published: editStyle.published ?? true
+      };
+
+      const { data: savedStyle, error } = await db
+        .from("package_styles")
+        .upsert(stylePayload)
+        .select()
+        .single();
+      
       if (error) throw error;
+      const styleId = savedStyle.id;
+
+      // 2. Handle cover image via style-preview category
+      if (editStyle.cover_url) {
+        let previewCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
+        if (!previewCat) {
+          const { data: newCat, error: catErr } = await db
+            .from("package_categories")
+            .insert({
+              style_id: styleId,
+              slug: "style-preview",
+              name_en: "Style Preview",
+              name_ar: "معاينة الاستايل",
+              sort_order: 0,
+              published: true
+            })
+            .select()
+            .single();
+          if (catErr) throw catErr;
+          previewCat = newCat;
+        }
+
+        const previewOpt = options.find(o => o.category_id === previewCat.id);
+        if (previewOpt) {
+          const { error: optErr } = await db
+            .from("package_options")
+            .update({ image_url: editStyle.cover_url })
+            .eq("id", previewOpt.id);
+          if (optErr) throw optErr;
+        } else {
+          const { error: optErr } = await db
+            .from("package_options")
+            .insert({
+              category_id: previewCat.id,
+              name_en: "Style Preview Option",
+              name_ar: "خيار معاينة الاستايل",
+              image_url: editStyle.cover_url,
+              sort_order: 0,
+              published: true
+            });
+          if (optErr) throw optErr;
+        }
+      } else {
+        const previewCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
+        if (previewCat) {
+          await db.from("package_categories").delete().eq("id", previewCat.id);
+        }
+      }
+
       toast.success("تم حفظ الاستايل بنجاح");
       setEditStyle(null);
       await load();
@@ -161,20 +242,34 @@ export default function PackagesManager() {
       toast.error("فشل الحذف. قد يكون العنصر مرتبطاً ببيانات أخرى.");
     } else {
       toast.success("تم الحذف بنجاح");
+      if (deleteAction.table === "package_categories" && deleteAction.id === activeCatId) {
+        setActiveCatId(null);
+      }
       await load();
     }
     setDeleteAction(null);
   }
 
-  async function addOptMedia(optId: string, url: string) {
+  async function addOptMedia(optId: string, url: string, fileName = "") {
     const { error } = await db.from("package_option_media").insert({ 
       option_id: optId, 
       url, 
       media_type: "image",
+      alt_ar: fileName,
+      alt_en: fileName,
       sort_order: optionMedia.filter(m => m.option_id === optId).length 
     });
     if (error) toast.error(error.message);
     else await load();
+  }
+
+  async function updateOptMediaField(id: string, field: "alt_ar" | "alt_en" | "sort_order", value: string | number) {
+    setOptionMedia(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+    const { error } = await db.from("package_option_media").update({ [field]: value }).eq("id", id);
+    if (error) {
+      toast.error("فشل تحديث بيانات الصورة");
+      await load();
+    }
   }
 
   async function removeOptMedia(id: string) {
@@ -250,10 +345,64 @@ export default function PackagesManager() {
     }
   }
 
+  async function moveCategory(idx: number, direction: "up" | "down") {
+    if (!activeStyle) return;
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= styleCategories.length) return;
+
+    setBusy(true);
+    try {
+      const nextCategories = [...styleCategories];
+      const temp = nextCategories[idx];
+      nextCategories[idx] = nextCategories[targetIdx];
+      nextCategories[targetIdx] = temp;
+
+      const updates = nextCategories.map((cat, index) => {
+        const newOrder = (index + 1) * 10;
+        return db.from("package_categories").update({ sort_order: newOrder }).eq("id", cat.id);
+      });
+
+      await Promise.all(updates);
+      toast.success("تم إعادة ترتيب الأقسام بنجاح");
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ أثناء إعادة الترتيب");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveOption(categoryId: string, idx: number, direction: "prev" | "next") {
+    const catOpts = options.filter(o => o.category_id === categoryId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const targetIdx = direction === "prev" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= catOpts.length) return;
+
+    setBusy(true);
+    try {
+      const nextOptions = [...catOpts];
+      const temp = nextOptions[idx];
+      nextOptions[idx] = nextOptions[targetIdx];
+      nextOptions[targetIdx] = temp;
+
+      const updates = nextOptions.map((opt, index) => {
+        const newOrder = (index + 1) * 10;
+        return db.from("package_options").update({ sort_order: newOrder }).eq("id", opt.id);
+      });
+
+      await Promise.all(updates);
+      toast.success("تم إعادة ترتيب الخيارات بنجاح");
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ أثناء إعادة الترتيب");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const activePackage = packages.find(p => p.id === activePkgId);
   const packageStyles = styles.filter(s => s.package_id === activePkgId);
   const activeStyle = packageStyles.find(s => s.id === activeStyleId) || packageStyles[0];
-  const styleCategories = activeStyle ? categories.filter(c => c.style_id === activeStyle.id) : [];
+  const styleCategories = activeStyle ? categories.filter(c => c.style_id === activeStyle.id && c.slug !== "style-preview") : [];
 
   return (
     <>
@@ -461,7 +610,7 @@ export default function PackagesManager() {
                       
                       <button
                         type="button"
-                        onClick={() => setEditStyle({ package_id: activePackage.id, name_en: "", name_ar: "", sort_order: packageStyles.length, published: true })}
+                        onClick={() => setEditStyle({ package_id: activePackage.id, name_en: "", name_ar: "", sort_order: packageStyles.length, published: true, cover_url: "" })}
                         style={{
                           padding: "0.4rem 0.8rem",
                           borderRadius: "8px",
@@ -484,7 +633,11 @@ export default function PackagesManager() {
                       <div style={{ display: "flex", gap: "4px" }}>
                         <button 
                           type="button"
-                          onClick={() => setEditStyle({ ...activeStyle })}
+                          onClick={() => {
+                            const previewCat = categories.find(c => c.style_id === activeStyle.id && c.slug === "style-preview");
+                            const previewOpt = previewCat ? options.find(o => o.category_id === previewCat.id) : null;
+                            setEditStyle({ ...activeStyle, cover_url: previewOpt?.image_url || "" });
+                          }}
                           style={{ padding: "4px 8px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.7rem", color: "#666" }}
                           title="تعديل اسم الاستايل"
                         >
@@ -503,119 +656,276 @@ export default function PackagesManager() {
                   </div>
 
                   {activeStyle ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "1.25rem" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
                       
-                      {/* Sidebar Categories List */}
-                      <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e5e0d5", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f0ece4", paddingBottom: "6px" }}>
-                          <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#c9964c" }}>بنود التشطيب (الأقسام)</span>
+                      {/* Premium Scrollable Categories Tabs Bar */}
+                      <div style={{
+                        background: "#fff",
+                        borderRadius: "14px",
+                        border: "1px solid #eae5dc",
+                        padding: "0.85rem 1.25rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "1rem",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.02)"
+                      }}>
+                        <div className="premium-scrollbar" style={{ display: "flex", alignItems: "center", gap: "0.75rem", overflowX: "auto", flex: 1, paddingBottom: "4px" }}>
+                          {styleCategories.map((cat, idx) => {
+                            const isActive = cat.id === activeCatId;
+                            const catOpts = options.filter(o => o.category_id === cat.id);
+                            return (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => setActiveCatId(cat.id)}
+                                className={`pkg-category-tab-btn ${isActive ? "active" : ""}`}
+                              >
+                                <span className="badge-num">
+                                  {String(idx + 1).padStart(2, "0")}
+                                </span>
+                                <span>{cat.name_ar}</span>
+                                <span className="count-badge">
+                                  {catOpts.length}
+                                </span>
+                              </button>
+                            );
+                          })}
+
+                          {/* Add Category Button Inline Styled as dashed Tab */}
                           <button
                             type="button"
                             onClick={() => setEditCat({ style_id: activeStyle.id, slug: "", name_en: "", name_ar: "", sort_order: styleCategories.length, published: true })}
                             style={{
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              background: "#073b35",
-                              color: "#fff",
-                              border: "none",
-                              fontSize: "0.65rem",
-                              cursor: "pointer"
+                              padding: "0.55rem 1.1rem",
+                              borderRadius: "10px",
+                              background: "#073b3505",
+                              color: "#073b35",
+                              border: "1px dashed #073b3540",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              transition: "all 0.2s"
                             }}
                           >
-                            + إضافة بند
+                            <Plus size={14} />
+                            <span>إضافة بند تشطيب جديد</span>
                           </button>
                         </div>
-
-                        {styleCategories.length === 0 ? (
-                          <div style={{ textAlign: "center", padding: "1.5rem", color: "#aaa", fontSize: "0.75rem" }}>لا توجد بنود متاحة</div>
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                            {styleCategories.map((cat) => {
-                              const catOpts = options.filter(o => o.category_id === cat.id);
-                              return (
-                                <div 
-                                  key={cat.id}
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "8px",
-                                    background: "#faf8f4",
-                                    border: "1px solid #eae5dc",
-                                    fontSize: "0.8rem"
-                                  }}
-                                >
-                                  <div style={{ display: "flex", flexDirection: "column" }}>
-                                    <span style={{ fontWeight: 700, color: "#073b35" }}>{cat.name_ar}</span>
-                                    <span style={{ fontSize: "0.65rem", color: "#888" }}>({catOpts.length} خيار متاح)</span>
-                                  </div>
-                                  <div style={{ display: "flex", gap: "3px" }}>
-                                    <button 
-                                      type="button"
-                                      onClick={() => setEditCat({ ...cat })}
-                                      style={{ border: "none", background: "none", cursor: "pointer", color: "#666", padding: "2px" }}
-                                    >
-                                      <Edit2 size={11} />
-                                    </button>
-                                    <button 
-                                      type="button"
-                                      onClick={() => setDeleteAction({ table: "package_categories", id: cat.id })}
-                                      style={{ border: "none", background: "none", cursor: "pointer", color: "#dc2626", padding: "2px" }}
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
                       </div>
 
-                      {/* Main Dynamic View of Categories & Options Grid */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                        {styleCategories.map((cat) => {
-                          const catOpts = options.filter(o => o.category_id === cat.id);
+                      {styleCategories.length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "4rem", background: "#fff", borderRadius: "12px", border: "1px dashed #e5e0d5" }}>
+                          <Layers size={40} style={{ color: "#c9964c", opacity: 0.3, marginBottom: "12px" }} />
+                          <h4 style={{ color: "#444", fontWeight: 700 }}>لم تقم بإضافة أي بنود تشطيب لهذا الاستايل بعد</h4>
+                          <p style={{ fontSize: "0.85rem", color: "#777", maxWidth: "380px", margin: "8px auto" }}>
+                            أضف بنوداً مثل (الأرضيات، التكييف، الأبواب) لتتيح للعميل اختيار الخامات والمواد المناسبة له.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setEditCat({ style_id: activeStyle.id, slug: "", name_en: "", name_ar: "", sort_order: styleCategories.length, published: true })}
+                            style={{ padding: "0.5rem 1.25rem", borderRadius: "8px", background: "#073b35", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", marginTop: "8px" }}
+                          >
+                            + إضافة أول بند تشطيب الآن
+                          </button>
+                        </div>
+                      ) : (
+                        (() => {
+                          const activeCategory = styleCategories.find(c => c.id === activeCatId) || styleCategories[0];
+                          if (!activeCategory) return null;
+                          const catOpts = options.filter(o => o.category_id === activeCategory.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+                          const catIdx = styleCategories.findIndex(c => c.id === activeCategory.id);
+
                           return (
-                            <div key={cat.id} style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e5e0d5", padding: "1.25rem" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f0ece4", paddingBottom: "8px", marginBottom: "1rem" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#c9964c" }} />
-                                  <h3 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#073b35", margin: 0 }}>{cat.name_ar} ({cat.name_en})</h3>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                              {/* Focused Category Control Card */}
+                              <div style={{
+                                background: "#fff",
+                                borderRadius: "14px",
+                                border: "1px solid #eae5dc",
+                                padding: "1.25rem 1.5rem",
+                                display: "flex",
+                                flexWrap: "wrap",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: "1.25rem",
+                                boxShadow: "0 4px 20px rgba(0,0,0,0.02)"
+                              }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#c9964c" }} />
+                                  <div>
+                                    <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#073b35", margin: 0 }}>
+                                      {activeCategory.name_ar}
+                                      <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "#777", marginInlineStart: "8px" }}>
+                                        ({activeCategory.name_en})
+                                      </span>
+                                    </h3>
+                                    <p style={{ fontSize: "0.72rem", color: "#8a8578", margin: "4px 0 0 0" }}>
+                                      الرمز الفريد للربط: <code style={{ background: "#faf8f4", padding: "2px 6px", borderRadius: "4px", fontSize: "0.68rem" }}>{activeCategory.slug}</code> • {catOpts.length} خيار تشطيب متاح
+                                    </p>
+                                  </div>
                                 </div>
-                                <button 
-                                  type="button"
-                                  onClick={() => setEditOpt({ category_id: cat.id, name_en: "", name_ar: "", description_en: "", description_ar: "", image_url: "", sort_order: catOpts.length, published: true })}
-                                  style={{ padding: "0.3rem 0.75rem", borderRadius: "6px", background: "#c9964c", color: "#fff", border: "none", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer" }}
-                                >
-                                  + إضافة خيار جديد لـ {cat.name_ar}
-                                </button>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+                                  {/* Reordering Controls */}
+                                  <div style={{ display: "flex", gap: "2px", border: "1px solid #e5e0d5", borderRadius: "8px", background: "#faf8f4", padding: "2px" }}>
+                                    <button
+                                      type="button"
+                                      disabled={catIdx === 0}
+                                      onClick={() => moveCategory(catIdx, "up")}
+                                      style={{
+                                        width: "28px",
+                                        height: "28px",
+                                        borderRadius: "6px",
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: catIdx === 0 ? "not-allowed" : "pointer",
+                                        color: "#555",
+                                        display: "grid",
+                                        placeItems: "center",
+                                        opacity: catIdx === 0 ? 0.3 : 1,
+                                        transition: "all 0.2s"
+                                      }}
+                                      title="ترتيب البند للأمام/أعلى"
+                                    >
+                                      <ChevronUp size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={catIdx === styleCategories.length - 1}
+                                      onClick={() => moveCategory(catIdx, "down")}
+                                      style={{
+                                        width: "28px",
+                                        height: "28px",
+                                        borderRadius: "6px",
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: catIdx === styleCategories.length - 1 ? "not-allowed" : "pointer",
+                                        color: "#555",
+                                        display: "grid",
+                                        placeItems: "center",
+                                        opacity: catIdx === styleCategories.length - 1 ? 0.3 : 1,
+                                        transition: "all 0.2s"
+                                      }}
+                                      title="ترتيب البند للخلف/أسفل"
+                                    >
+                                      <ChevronDown size={16} />
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditCat({ ...activeCategory })}
+                                    style={{
+                                      padding: "0.5rem 1rem",
+                                      borderRadius: "8px",
+                                      border: "1px solid #eae5dc",
+                                      background: "#fff",
+                                      color: "#073b35",
+                                      fontSize: "0.75rem",
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "6px",
+                                      transition: "all 0.2s"
+                                    }}
+                                  >
+                                    <Edit2 size={13} />
+                                    تعديل اسم البند
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteAction({ table: "package_categories", id: activeCategory.id })}
+                                    style={{
+                                      padding: "0.5rem 1rem",
+                                      borderRadius: "8px",
+                                      border: "1px solid #fecaca",
+                                      background: "#fff",
+                                      color: "#dc2626",
+                                      fontSize: "0.75rem",
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "6px",
+                                      transition: "all 0.2s"
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                    حذف البند بالكامل
+                                  </button>
+
+                                  <button 
+                                    type="button"
+                                    onClick={() => setEditOpt({ category_id: activeCategory.id, name_en: "", name_ar: "", description_en: "", description_ar: "", image_url: "", sort_order: catOpts.length, published: true })}
+                                    style={{
+                                      padding: "0.55rem 1.25rem",
+                                      borderRadius: "8px",
+                                      background: "#073b35",
+                                      color: "#fff",
+                                      border: "none",
+                                      fontSize: "0.78rem",
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "6px",
+                                      boxShadow: "0 4px 12px rgba(7,59,53,0.15)",
+                                      transition: "all 0.2s"
+                                    }}
+                                  >
+                                    <Plus size={14} style={{ color: "#c9964c" }} />
+                                    إضافة خيار/مادة جديدة لـ {activeCategory.name_ar}
+                                  </button>
+                                </div>
                               </div>
 
+                              {/* Options Grid */}
                               {catOpts.length === 0 ? (
-                                <div style={{ textAlign: "center", padding: "2rem", color: "#999", fontSize: "0.8rem", border: "1px dashed #e5e0d5", borderRadius: "8px" }}>
-                                  لا توجد خيارات مضافة بعد لهذا البند. اضغط على الزر بالأعلى لإضافة خامات وصور.
+                                <div style={{
+                                  textAlign: "center",
+                                  padding: "3.5rem 2rem",
+                                  color: "#999",
+                                  fontSize: "0.82rem",
+                                  border: "1px dashed #eae5dc",
+                                  background: "#fff",
+                                  borderRadius: "12px",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "8px"
+                                }}>
+                                  <Img size={36} style={{ color: "#c9964c", opacity: 0.4 }} />
+                                  <span>لا توجد خيارات مضافة بعد لهذا البند.</span>
+                                  <span style={{ fontSize: "0.72rem", color: "#bbb" }}>اضغط على زر الإضافة بالأعلى لتنزيل خامات وصور ومعلومات المواد.</span>
                                 </div>
                               ) : (
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
-                                  {catOpts.map((opt) => {
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "1.25rem" }}>
+                                  {catOpts.map((opt, idx) => {
                                     const mediaList = optionMedia.filter(m => m.option_id === opt.id);
                                     return (
                                       <div 
                                         key={opt.id} 
                                         style={{ 
                                           background: "#fff", 
-                                          borderRadius: "10px", 
-                                          border: "1px solid #e5e0d5", 
+                                          borderRadius: "12px", 
+                                          border: "1px solid #eae5dc", 
                                           overflow: "hidden", 
                                           display: "flex", 
                                           flexDirection: "column", 
                                           justifyContent: "space-between",
-                                          boxShadow: "0 2px 6px rgba(0,0,0,0.02)"
+                                          boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+                                          transition: "transform 0.2s, box-shadow 0.2s"
                                         }}
+                                        className="opt-card"
                                       >
-                                        <div style={{ height: "130px", background: "#eee", position: "relative" }}>
+                                        <div style={{ height: "150px", background: "#faf8f4", position: "relative", borderBottom: "1px solid #eae5dc" }}>
                                           {opt.image_url ? (
                                             <img 
                                               src={opt.image_url} 
@@ -624,36 +934,121 @@ export default function PackagesManager() {
                                             />
                                           ) : (
                                             <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "#bbb" }}>
-                                              <Img size={32} />
+                                              <Img size={36} style={{ opacity: 0.3 }} />
                                             </div>
                                           )}
-                                          <div style={{ position: "absolute", bottom: "8px", insetInlineStart: "8px", background: "rgba(0,0,0,0.5)", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "0.6rem" }}>
+                                          <div style={{
+                                            position: "absolute",
+                                            bottom: "8px",
+                                            insetInlineStart: "8px",
+                                            background: "rgba(7, 59, 53, 0.8)",
+                                            backdropFilter: "blur(4px)",
+                                            color: "#fff",
+                                            padding: "3px 8px",
+                                            borderRadius: "6px",
+                                            fontSize: "0.62rem",
+                                            fontWeight: 700
+                                          }}>
                                             {mediaList.length + 1} صور
                                           </div>
                                         </div>
 
-                                        <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: "4px" }}>
+                                        <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "6px" }}>
                                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                            <h4 style={{ fontSize: "0.82rem", fontWeight: 700, color: "#073b35", margin: 0 }}>{opt.name_ar}</h4>
+                                            <h4 style={{ fontSize: "0.88rem", fontWeight: 800, color: "#073b35", margin: 0 }}>{opt.name_ar}</h4>
                                           </div>
-                                          <p style={{ fontSize: "0.7rem", color: "#777", margin: 0, height: "32px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          <p style={{ fontSize: "0.72rem", color: "#777", margin: 0, height: "36px", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "1.4" }}>
                                             {opt.description_ar || "لا يوجد وصف عربي"}
                                           </p>
 
-                                          <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.5rem", marginTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <div style={{ display: "flex", gap: "2px" }}>
-                                              <button 
+                                          <div style={{ display: "flex", gap: "4px", alignItems: "center", borderTop: "1px solid #f0ece4", paddingTop: "0.6rem", marginTop: "4px" }}>
+                                            <span style={{ fontSize: "0.68rem", color: "#888", marginInlineEnd: "auto" }}>ترتيب الخيار:</span>
+                                            
+                                            <div style={{ display: "flex", gap: "2px", background: "#faf8f4", border: "1px solid #eae5dc", borderRadius: "6px", padding: "1px" }}>
+                                              <button
                                                 type="button"
-                                                onClick={() => setEditOpt({ ...opt })}
-                                                style={{ padding: "4px 8px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.68rem", display: "flex", alignItems: "center", gap: "2px" }}
+                                                disabled={idx === 0}
+                                                onClick={() => moveOption(activeCategory.id, idx, "prev")}
+                                                style={{
+                                                  width: "24px",
+                                                  height: "24px",
+                                                  borderRadius: "4px",
+                                                  border: "none",
+                                                  background: idx === 0 ? "transparent" : "#fff",
+                                                  cursor: idx === 0 ? "not-allowed" : "pointer",
+                                                  opacity: idx === 0 ? 0.3 : 1,
+                                                  color: "#555",
+                                                  fontSize: "0.62rem",
+                                                  display: "grid",
+                                                  placeItems: "center"
+                                                }}
+                                                title="نقل لليمين"
                                               >
-                                                <Edit2 size={10} /> تعديل وخامات وصور
+                                                ◀
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={idx === catOpts.length - 1}
+                                                onClick={() => moveOption(activeCategory.id, idx, "next")}
+                                                style={{
+                                                  width: "24px",
+                                                  height: "24px",
+                                                  borderRadius: "4px",
+                                                  border: "none",
+                                                  background: idx === catOpts.length - 1 ? "transparent" : "#fff",
+                                                  cursor: idx === catOpts.length - 1 ? "not-allowed" : "pointer",
+                                                  opacity: idx === catOpts.length - 1 ? 0.3 : 1,
+                                                  color: "#555",
+                                                  fontSize: "0.62rem",
+                                                  display: "grid",
+                                                  placeItems: "center"
+                                                }}
+                                                title="نقل لليسار"
+                                              >
+                                                ▶
                                               </button>
                                             </div>
+                                          </div>
+
+                                          <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "0.6rem", marginTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                            <button 
+                                              type="button"
+                                              onClick={() => setEditOpt({ ...opt })}
+                                              style={{
+                                                padding: "4px 10px",
+                                                borderRadius: "6px",
+                                                border: "1px solid #eae5dc",
+                                                background: "#fff",
+                                                cursor: "pointer",
+                                                fontSize: "0.7rem",
+                                                fontWeight: 700,
+                                                color: "#073b35",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "4px",
+                                                transition: "all 0.2s"
+                                              }}
+                                            >
+                                              <Edit2 size={11} style={{ color: "#c9964c" }} />
+                                              تعديل الخامات والصور
+                                            </button>
+                                            
                                             <button 
                                               type="button"
                                               onClick={() => setDeleteAction({ table: "package_options", id: opt.id })}
-                                              style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer", padding: "4px" }}
+                                              style={{
+                                                width: "26px",
+                                                height: "26px",
+                                                borderRadius: "6px",
+                                                border: "1px solid #fecaca",
+                                                background: "#fff",
+                                                color: "#dc2626",
+                                                cursor: "pointer",
+                                                display: "grid",
+                                                placeItems: "center",
+                                                transition: "all 0.2s"
+                                              }}
+                                              title="حذف الخيار"
                                             >
                                               <Trash2 size={12} />
                                             </button>
@@ -666,8 +1061,8 @@ export default function PackagesManager() {
                               )}
                             </div>
                           );
-                        })}
-                      </div>
+                        })()
+                      )}
 
                     </div>
                   ) : (
@@ -679,7 +1074,7 @@ export default function PackagesManager() {
                       </p>
                       <button 
                         type="button"
-                        onClick={() => setEditStyle({ package_id: activePackage.id, name_en: "", name_ar: "", sort_order: 0, published: true })}
+                        onClick={() => setEditStyle({ package_id: activePackage.id, name_en: "", name_ar: "", sort_order: 0, published: true, cover_url: "" })}
                         style={{ padding: "0.5rem 1.25rem", borderRadius: "8px", background: "#073b35", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", marginTop: "8px" }}
                       >
                         + إضافة أول استايل الآن
@@ -783,6 +1178,186 @@ export default function PackagesManager() {
               </div>
             </div>
 
+            {/* Bilingual Features Checklist Editor */}
+            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem", marginTop: "0.5rem" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#073b35", display: "block", marginBottom: "0.75rem" }}>
+                قائمة مميزات الباقة بالتفصيل (Features Checklist)
+              </span>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                {/* Arabic Features Column */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#c9964c" }}>المميزات بالعربية</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {(editPkg.features_ar || []).map((feat: string, idx: number) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Input 
+                          value={feat} 
+                          onChange={(e) => {
+                            const newFeatures = [...(editPkg.features_ar || [])];
+                            newFeatures[idx] = e.target.value;
+                            setEditPkg({ ...editPkg, features_ar: newFeatures });
+                          }}
+                          placeholder={`ميزة #${idx + 1}`}
+                          style={{ height: 32, fontSize: "0.75rem" }}
+                        />
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            if (idx === 0) return;
+                            const newFeatures = [...(editPkg.features_ar || [])];
+                            const temp = newFeatures[idx];
+                            newFeatures[idx] = newFeatures[idx - 1];
+                            newFeatures[idx - 1] = temp;
+                            setEditPkg({ ...editPkg, features_ar: newFeatures });
+                          }}
+                          style={{ width: "24px", height: "24px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                          title="نقل لأعلى"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === (editPkg.features_ar || []).length - 1}
+                          onClick={() => {
+                            if (idx === (editPkg.features_ar || []).length - 1) return;
+                            const newFeatures = [...(editPkg.features_ar || [])];
+                            const temp = newFeatures[idx];
+                            newFeatures[idx] = newFeatures[idx + 1];
+                            newFeatures[idx + 1] = temp;
+                            setEditPkg({ ...editPkg, features_ar: newFeatures });
+                          }}
+                          style={{ width: "24px", height: "24px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === (editPkg.features_ar || []).length - 1 ? "not-allowed" : "pointer", opacity: idx === (editPkg.features_ar || []).length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                          title="نقل لأسفل"
+                        >
+                          ▼
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newFeatures = (editPkg.features_ar || []).filter((_: any, i: number) => i !== idx);
+                            setEditPkg({ ...editPkg, features_ar: newFeatures });
+                          }}
+                          style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px" }}
+                          title="حذف الميزة"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newFeatures = [...(editPkg.features_ar || []), ""];
+                      setEditPkg({ ...editPkg, features_ar: newFeatures });
+                    }}
+                    style={{
+                      padding: "0.4rem",
+                      borderRadius: "6px",
+                      background: "#073b350a",
+                      color: "#073b35",
+                      border: "1px dashed #073b3530",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      marginTop: "4px",
+                      textAlign: "center"
+                    }}
+                  >
+                    + إضافة ميزة بالعربية
+                  </button>
+                </div>
+
+                {/* English Features Column */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }} dir="ltr">
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#c9964c", textAlign: "left" }}>Features in English</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {(editPkg.features_en || []).map((feat: string, idx: number) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Input 
+                          value={feat} 
+                          onChange={(e) => {
+                            const newFeatures = [...(editPkg.features_en || [])];
+                            newFeatures[idx] = e.target.value;
+                            setEditPkg({ ...editPkg, features_en: newFeatures });
+                          }}
+                          placeholder={`Feature #${idx + 1}`}
+                          style={{ height: 32, fontSize: "0.75rem" }}
+                          dir="ltr"
+                        />
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            if (idx === 0) return;
+                            const newFeatures = [...(editPkg.features_en || [])];
+                            const temp = newFeatures[idx];
+                            newFeatures[idx] = newFeatures[idx - 1];
+                            newFeatures[idx - 1] = temp;
+                            setEditPkg({ ...editPkg, features_en: newFeatures });
+                          }}
+                          style={{ width: "24px", height: "24px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                          title="Move Up"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === (editPkg.features_en || []).length - 1}
+                          onClick={() => {
+                            if (idx === (editPkg.features_en || []).length - 1) return;
+                            const newFeatures = [...(editPkg.features_en || [])];
+                            const temp = newFeatures[idx];
+                            newFeatures[idx] = newFeatures[idx + 1];
+                            newFeatures[idx + 1] = temp;
+                            setEditPkg({ ...editPkg, features_en: newFeatures });
+                          }}
+                          style={{ width: "24px", height: "24px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === (editPkg.features_en || []).length - 1 ? "not-allowed" : "pointer", opacity: idx === (editPkg.features_en || []).length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                          title="Move Down"
+                        >
+                          ▼
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newFeatures = (editPkg.features_en || []).filter((_: any, i: number) => i !== idx);
+                            setEditPkg({ ...editPkg, features_en: newFeatures });
+                          }}
+                          style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px" }}
+                          title="Delete Feature"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newFeatures = [...(editPkg.features_en || []), ""];
+                      setEditPkg({ ...editPkg, features_en: newFeatures });
+                    }}
+                    style={{
+                      padding: "0.4rem",
+                      borderRadius: "6px",
+                      background: "#073b350a",
+                      color: "#073b35",
+                      border: "1px dashed #073b3530",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      marginTop: "4px",
+                      textAlign: "center"
+                    }}
+                  >
+                    + Add Feature in English
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {editPkg.cover_url && <MediaPreview url={editPkg.cover_url} height={120} />}
             <MediaUploader folder="packages" label="صورة غلاف الباقة الأساسية" accept="image/*" onUploaded={url => setEditPkg({ ...editPkg, cover_url: url })} />
           </form>
@@ -809,6 +1384,19 @@ export default function PackagesManager() {
             <div className="form-group">
               <label>ترتيب العرض</label>
               <Input type="number" value={editStyle.sort_order} onChange={e => setEditStyle({ ...editStyle, sort_order: Number(e.target.value) })} />
+            </div>
+
+            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem", marginTop: "1rem" }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35", display: "block", marginBottom: "8px" }}>
+                صورة غلاف الموديل/الاستايل
+              </span>
+              {editStyle.cover_url && <MediaPreview url={editStyle.cover_url} height={120} />}
+              <MediaUploader 
+                folder="style-covers" 
+                label="تحميل صورة الغلاف" 
+                accept="image/*" 
+                onUploaded={url => setEditStyle({ ...editStyle, cover_url: url })} 
+              />
             </div>
           </form>
         )}
@@ -857,10 +1445,16 @@ export default function PackagesManager() {
               <div className="form-group">
                 <label>اسم المادة/الخيار (عربي) *</label>
                 <Input value={editOpt.name_ar} onChange={e => setEditOpt({ ...editOpt, name_ar: e.target.value })} required placeholder="مثال: رخام كرارة إيطالي" />
+                <span style={{ fontSize: "0.68rem", color: "#8a8578", display: "block", marginTop: "4px" }}>
+                  سيظهر كاسم رئيسي للبند، وأيضاً على الصورة مباشرة إذا لم يكن هناك صور معرض بالأسفل.
+                </span>
               </div>
               <div className="form-group">
                 <label>Name (English) *</label>
                 <Input value={editOpt.name_en} onChange={e => setEditOpt({ ...editOpt, name_en: e.target.value })} required dir="ltr" placeholder="e.g. Italian Carrara Marble" />
+                <span style={{ fontSize: "0.68rem", color: "#8a8578", display: "block", marginTop: "4px" }}>
+                  Appears as main option name, and directly on the image if no gallery images are added below.
+                </span>
               </div>
             </div>
 
@@ -890,7 +1484,7 @@ export default function PackagesManager() {
                 label="تحميل صور المادة (للغلاف والمعرض)" 
                 accept="image/*" 
                 multiple={!!editOpt.id} 
-                onUploaded={async (url) => {
+                onUploaded={async (url, file) => {
                   if (!editOpt.id) {
                     // Unsaved option: just set locally as main image
                     setEditOpt({ ...editOpt, image_url: url });
@@ -901,7 +1495,7 @@ export default function PackagesManager() {
                       await db.from("package_options").update({ image_url: url }).eq("id", editOpt.id);
                       await load();
                     } else {
-                      await addOptMedia(editOpt.id, url);
+                      await addOptMedia(editOpt.id, url, file.name);
                     }
                   }
                 }} 
@@ -909,19 +1503,24 @@ export default function PackagesManager() {
 
               {/* Unified List of Images */}
               {((editOpt.image_url) || optionMedia.filter(m => m.option_id === editOpt.id).length > 0) && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
-                  <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#777" }}>الترتيب والتحكم بالصور المعروضة:</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #eae5dc", paddingBottom: "8px" }}>
+                    <span style={{ fontSize: "0.82rem", fontWeight: 800, color: "#073b35" }}>عناوين وصور المعرض (الأسماء المعروضة على الصور)</span>
+                    <span style={{ fontSize: "0.68rem", color: "#8a8578" }}>
+                      هنا يمكنك تعديل الأسماء التي تظهر مباشرة فوق الصور للعميل في الباقات (مثل: Concealed - 101). سيتم حفظ تعديلات الأسماء تلقائياً بمجرد الكتابة والانتقال لحقل آخر.
+                    </span>
+                  </div>
                   
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     
                     {/* 1. Main Image Item */}
                     {editOpt.image_url && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#fffdf9", border: "1px solid #c9964c40", borderRadius: "10px", padding: "8px 12px" }}>
-                        <div style={{ width: "65px", height: "50px", borderRadius: "6px", overflow: "hidden", border: "1px solid #c9964c40", flexShrink: 0 }}>
-                          <img src={editOpt.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#fcfbfa" }} />
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#fffdf9", border: "1px solid #c9964c40", borderRadius: "10px", padding: "10px 14px" }}>
+                        <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #c9964c40", flexShrink: 0 }}>
+                          <img src={editOpt.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#fcfbfa" }} />
                         </div>
                         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                          <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#073b35" }}>الصورة الرئيسية للبند (غلاف الكارت)</span>
+                          <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "#073b35" }}>الصورة الرئيسية للبند (غلاف الكارت)</span>
                           <span style={{ fontSize: "0.62rem", color: "#c9964c", background: "#c9964c15", padding: "2px 8px", borderRadius: "10px", alignSelf: "flex-start", width: "fit-content" }}>⭐ الصورة الأساسية</span>
                         </div>
                         <button
@@ -952,60 +1551,118 @@ export default function PackagesManager() {
                     {editOpt.id && optionMedia.filter(m => m.option_id === editOpt.id)
                       .sort((a, b) => a.sort_order - b.sort_order)
                       .map((m, idx, arr) => (
-                        <div key={m.id} style={{ display: "flex", alignItems: "center", gap: "12px", background: "#fcfbfa", border: "1px solid #e5e0d5", borderRadius: "10px", padding: "8px 12px" }}>
-                          <div style={{ width: "65px", height: "50px", borderRadius: "6px", overflow: "hidden", border: "1px solid #e5e0d5", flexShrink: 0 }}>
-                            <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#fcfbfa" }} />
-                          </div>
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                            <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#444" }}>صورة إضافية بداخل المعرض #{idx + 1}</span>
-                            
-                            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        <div key={m.id} style={{ 
+                          display: "flex", 
+                          flexDirection: "column", 
+                          gap: "10px", 
+                          background: "#fdfdfb", 
+                          border: "1px solid #e2dcd0", 
+                          borderRadius: "12px", 
+                          padding: "12px 14px",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.01)"
+                        }}>
+                          {/* Image preview and actions row */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", borderBottom: "1px dashed #eae5dc", paddingBottom: "8px" }}>
+                            <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", flexShrink: 0 }}>
+                              <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35" }}>
+                                صورة معرض إضافية #{idx + 1}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => makeMainImage(m)}
                                 style={{
-                                  background: "none",
-                                  border: "none",
+                                  background: "rgba(193, 150, 76, 0.1)",
+                                  border: "1px solid rgba(193, 150, 76, 0.3)",
                                   color: "#c9964c",
-                                  fontSize: "0.62rem",
+                                  borderRadius: "6px",
+                                  fontSize: "0.65rem",
                                   fontWeight: 700,
                                   cursor: "pointer",
-                                  padding: 0
+                                  padding: "3px 8px",
+                                  width: "fit-content",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  marginTop: "3px"
                                 }}
                               >
-                                👑 تعيين كصورة رئيسية
+                                👑 تعيين كصورة غلاف الكارت
+                              </button>
+                            </div>
+
+                            {/* Reordering and deleting buttons */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => moveGalleryItem(idx, "prev")}
+                                style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                                title="نقل لأعلى"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === arr.length - 1}
+                                onClick={() => moveGalleryItem(idx, "next")}
+                                style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === arr.length - 1 ? "not-allowed" : "pointer", opacity: idx === arr.length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                                title="نقل لأسفل"
+                              >
+                                ▼
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeOptMedia(m.id)}
+                                style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", marginInlineStart: "6px" }}
+                                title="حذف الصورة"
+                              >
+                                ✕
                               </button>
                             </div>
                           </div>
 
-                          {/* Reordering and deleting buttons */}
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                            <button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => moveGalleryItem(idx, "prev")}
-                              style={{ width: "24px", height: "24px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
-                              title="نقل لأعلى"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              type="button"
-                              disabled={idx === arr.length - 1}
-                              onClick={() => moveGalleryItem(idx, "next")}
-                              style={{ width: "24px", height: "24px", borderRadius: "4px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === arr.length - 1 ? "not-allowed" : "pointer", opacity: idx === arr.length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
-                              title="نقل لأسفل"
-                            >
-                              ▼
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeOptMedia(m.id)}
-                              style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", marginInlineStart: "6px" }}
-                              title="حذف الصورة"
-                            >
-                              ✕
-                            </button>
+                          {/* Beautifully labeled inputs row */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 65px", gap: 10 }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
+                                الاسم على الصورة (عربي) *
+                              </label>
+                              <Input
+                                value={m.alt_ar || ""}
+                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_ar: e.target.value } : item))}
+                                onBlur={e => updateOptMediaField(m.id, "alt_ar", e.target.value)}
+                                placeholder="مثال: كونسيلد - 101"
+                                style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
+                                Text on image (English) *
+                              </label>
+                              <Input
+                                value={m.alt_en || ""}
+                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_en: e.target.value } : item))}
+                                onBlur={e => updateOptMediaField(m.id, "alt_en", e.target.value)}
+                                placeholder="e.g. Concealed - 101"
+                                dir="ltr"
+                                style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
+                                الترتيب
+                              </label>
+                              <Input
+                                type="number"
+                                value={m.sort_order ?? 0}
+                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, sort_order: Number(e.target.value) } : item))}
+                                onBlur={e => updateOptMediaField(m.id, "sort_order", Number(e.target.value) || 0)}
+                                style={{ height: 32, fontSize: "0.72rem", background: "#fff", textAlign: "center" }}
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}

@@ -12,7 +12,28 @@ import {
   Trash2, 
   Plus,
   RefreshCw,
-  Star
+  Star,
+  Compass,
+  Layers,
+  Sparkles,
+  Hammer,
+  Ruler,
+  PenTool,
+  Wrench,
+  Palette,
+  Lightbulb,
+  Bed,
+  Bath,
+  ShieldCheck,
+  TreePine,
+  Droplets,
+  Zap,
+  Flame,
+  Wallpaper,
+  Construction,
+  Maximize,
+  Smile,
+  Files
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminHeader from "@/components/admin/AdminHeader";
@@ -35,6 +56,27 @@ const ICON_MAP: Record<string, any> = {
   "06": Armchair,
   "07": HardHat,
   "08": Key,
+  "09": Compass,
+  "10": Layers,
+  "11": Sparkles,
+  "12": Hammer,
+  "13": Ruler,
+  "14": PenTool,
+  "15": Wrench,
+  "16": Palette,
+  "17": Lightbulb,
+  "18": Bed,
+  "19": Bath,
+  "20": ShieldCheck,
+  "21": TreePine,
+  "22": Droplets,
+  "23": Zap,
+  "24": Flame,
+  "25": Wallpaper,
+  "26": Construction,
+  "27": Maximize,
+  "28": Smile,
+  "29": Files,
 };
 
 const ICON_LABELS: Record<string, string> = {
@@ -46,6 +88,27 @@ const ICON_LABELS: Record<string, string> = {
   "06": "الأثاث والديكور (06 - كرسي مريح)",
   "07": "الإشراف الهندسي (07 - خوذة مهندس)",
   "08": "تسليم مفتاح (08 - مفتاح)",
+  "09": "تخطيط ودراسة معمارية (09 - بوصلة Compass)",
+  "10": "توزيع المساحات والطبقات (10 - طبقات Layers)",
+  "11": "لمسات جمالية وديكور (11 - بريق Sparkles)",
+  "12": "أعمال الهدم والتكسير (12 - شاكوش Hammer)",
+  "13": "رفع المقاسات والقياسات (13 - مسطرة Ruler)",
+  "14": "رسم وتصميم هندسي (14 - قلم PenTool)",
+  "15": "أعمال الصيانة وتجهيز الشبكات (15 - مفتاح ربط Wrench)",
+  "16": "اختيار الألوان وتنسيق المواد (16 - لوحة ألوان Palette)",
+  "17": "توزيع وتصميم الإضاءة والكهرباء (17 - لمبة Lightbulb)",
+  "18": "فرش غرف النوم والمساحات الخاصة (18 - سرير Bed)",
+  "19": "تصميم المطابخ ودورات المياه (19 - حوض استحمام Bath)",
+  "20": "ضمان الجودة والاستلام الهندسية (20 - درع أمان ShieldCheck)",
+  "21": "لاندسكيب وتنسيق حدائق (21 - شجرة TreePine)",
+  "22": "تمديدات السباكة والصرف (22 - قطرات Droplets)",
+  "23": "التمديدات الكهربائية والإنارة (23 - برق Zap)",
+  "24": "أعمال التدفئة والعزل الحراري (24 - لهب Flame)",
+  "25": "الدهانات والديكورات الجدارية (25 - ورق حائط Wallpaper)",
+  "26": "الأعمال الإنشائية والخرسانية (26 - حاجز بناء Construction)",
+  "27": "توسيع وتكبير المساحات واستغلال الفراغات (27 - توسيع Maximize)",
+  "28": "خدمة الاستشارات ورضا العملاء (28 - ابتسامة/رضا Smile)",
+  "29": "التراخيص والرسومات التنفيذية (29 - مستندات Files)",
 };
 
 const blank = { 
@@ -89,6 +152,22 @@ export default function ServicesManager() {
       const pinOnHome = !!editing.pinOnHome;
       const payload = { ...editing, id: editing.id || undefined, sort_order: Number(editing.sort_order) || 0 };
       delete (payload as any).pinOnHome;
+
+      // Auto-generate slug if it doesn't exist or is empty
+      if (!payload.slug) {
+        let baseTitle = payload.title_en || payload.title_ar || `service-${Date.now()}`;
+        let generatedSlug = baseTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '') // restrict to alphanumeric, spaces and hyphens
+          .trim()
+          .replace(/[\s_]+/g, '-')
+          .replace(/-+/g, '-');
+        
+        if (!generatedSlug || /^[-]+$/.test(generatedSlug)) {
+          generatedSlug = `service-${Date.now()}`;
+        }
+        payload.slug = generatedSlug;
+      }
 
       const { data, error } = await db.from("cms_services").upsert(payload, { onConflict: "slug" }).select("id");
       if (error) throw error;
@@ -480,7 +559,7 @@ export default function ServicesManager() {
         footer={<SaveButton loading={busy} label="حفظ الخدمة" onClick={() => (document.getElementById("svc-form") as HTMLFormElement)?.requestSubmit()} />}>
         {editing && (
           <form id="svc-form" onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.75rem" }}>
               <div className="form-group">
                 <label>أيقونة الخدمة</label>
                 <select 
@@ -519,15 +598,6 @@ export default function ServicesManager() {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="form-group">
-                <label>Slug (الرابط الفريد)</label>
-                <Input 
-                  value={editing.slug} 
-                  onChange={e => setEditing({ ...editing, slug: e.target.value })} 
-                  required 
-                  dir="ltr" 
-                />
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>

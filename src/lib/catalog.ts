@@ -78,6 +78,100 @@ export type PaymentMethod = {
 
 const db = supabase as any;
 
+const CATEGORY_ORDER_FALLBACK: Record<string, number> = {
+  "style-preview": 0,
+  "ceiling": 10,
+  "ceilings": 10,
+  "suspended-ceilings": 10,
+  "flooring": 20,
+  "floors": 20,
+  "walls": 30,
+  "wall-finishes": 30,
+  "doors": 40,
+  "internal-doors": 40,
+  "plumbing": 50,
+  "fixtures": 50,
+  "windows": 70,
+  "ac": 80,
+  "air-conditioning": 80,
+  "heating": 60,
+  "water-heaters": 60,
+  // Clean Arabic keys
+  "أسقف": 10,
+  "الأسقف": 10,
+  "الأسقف المعلقة": 10,
+  "أرضيات": 20,
+  "الأرضيات": 20,
+  "حوائط": 30,
+  "الحوائط": 30,
+  "دهانات": 30,
+  "أبواب": 40,
+  "الأبواب": 40,
+  "الأبواب الداخلية": 40,
+  "سباكة": 50,
+  "السباكة": 50,
+  "سخانات": 60,
+  "السخانات": 60,
+  "شبابيك": 70,
+  "الشبابيك": 70,
+  "تكييفات": 80,
+  "التكييفات": 80,
+  "تكييف": 80,
+  // Mojibake fallback keys
+  "Ø§Ù„Ø£Ø³Ù‚Ù ": 10,
+  "Ø£Ø³Ù‚Ù ": 10,
+  "Ø§Ù„Ø£Ø³Ù‚Ù  Ø§Ù„Ù…Ø¹Ù„Ù‚Ø©": 10,
+  "Ø§Ù„Ø£Ø±%D8%B6%D9%8A%D8%A7%D8%AA": 20, // URL/UTF-8 encoded safety check
+  "Ø§Ù„Ø£Ø±Ø¶ÙŠØ§Øª": 20,
+  "Ø£Ø±Ø¶ÙŠØ§Øª": 20,
+  "Ø§Ù„Ø­ÙˆØ§Ø¦Ø·": 30,
+  "Ø­ÙˆØ§Ø¦Ø·": 30,
+  "Ø¯Ù‡Ø§Ù†Ø§Øª": 30,
+  "Ø§Ù„Ø£Ø¨ÙˆØ§Ø¨": 40,
+  "Ø§Ù„Ø£Ø¨ÙˆØ§Ø¨ Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠØ©": 40,
+  "Ø§Ù„Ø³Ø¨Ø§ÙƒØ©": 50,
+  "Ø³Ø¨Ø§ÙƒØ©": 50,
+  "Ø´Ø¨Ø§Ø¨ÙŠÙƒ": 70,
+  "ØªÙƒÙŠÙŠÙ Ø§Øª": 80,
+  "Ø³Ø®Ø§Ù†Ø§Øª": 60,
+};
+
+export function getPackageCategoryWeight(category?: Pick<CatalogCategory, "slug" | "name_ar" | "name_en" | "sort_order"> | null) {
+  if (!category) return 999;
+  
+  // Prioritize database sort_order if valid (> 0)
+  if (typeof category.sort_order === "number" && category.sort_order > 0) {
+    return category.sort_order;
+  }
+  
+  const candidates = [category.slug, category.name_ar, category.name_en].filter(Boolean).map((value) => String(value).trim());
+  
+  // 1. First, check direct matches in fallback map
+  for (const candidate of candidates) {
+    const direct = CATEGORY_ORDER_FALLBACK[candidate] ?? CATEGORY_ORDER_FALLBACK[candidate.toLowerCase()];
+    if (direct !== undefined) return direct;
+  }
+  
+  // 2. Next, check partial matching in fallback keys
+  for (const candidate of candidates) {
+    const lower = candidate.toLowerCase();
+    for (const [key, weight] of Object.entries(CATEGORY_ORDER_FALLBACK)) {
+      const keyLower = key.toLowerCase();
+      if (lower.includes(keyLower) || keyLower.includes(lower)) return weight;
+    }
+  }
+  
+  return 999;
+}
+
+export function sortPackageCategories<T extends Pick<CatalogCategory, "slug" | "name_ar" | "name_en" | "sort_order">>(categories: T[]) {
+  return [...categories].sort((a, b) => {
+    const weight = getPackageCategoryWeight(a) - getPackageCategoryWeight(b);
+    if (weight !== 0) return weight;
+    return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  });
+}
+
 export const fallbackPackages = (): CatalogPackage[] =>
   PACKAGES.map((p, index) => ({
     id: p.id,
@@ -163,7 +257,7 @@ export const fallbackPackageStyles = (packageId: string): CatalogStyle[] => {
     name_en: style.styleNameEn,
     name_ar: style.styleNameAr,
     sort_order: styleIndex + 1,
-    categories: style.sections.map((section, sectionIndex) => ({
+    categories: sortPackageCategories(style.sections.map((section, sectionIndex) => ({
       id: section.id,
       slug: section.id,
       name_en: section.nameEn,
@@ -193,7 +287,7 @@ export const fallbackPackageStyles = (packageId: string): CatalogStyle[] => {
           sort_order: optionIndex + 1,
         };
       }),
-    })),
+    }))),
   }));
 };
 
@@ -267,7 +361,7 @@ export async function getPackageStyles(packageId: string): Promise<CatalogStyle[
     name_en: style.name_en,
     name_ar: style.name_ar,
     sort_order: style.sort_order ?? 0,
-    categories: (categories ?? [])
+    categories: sortPackageCategories((categories ?? [])
       .filter((category: any) => category.style_id === style.id)
       .map((category: any) => ({
         id: category.id,
@@ -313,7 +407,7 @@ export async function getPackageStyles(packageId: string): Promise<CatalogStyle[
               sort_order: option.sort_order ?? 0,
             };
           }),
-      })),
+      }))),
   }));
 }
 

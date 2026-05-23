@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -21,7 +21,6 @@ import Configurator from "./pages/Configurator";
 import Contact from "./pages/Contact";
 import AdminLogin from "./pages/AdminLogin";
 import CustomerArea from "./pages/CustomerArea";
-import Presentations from "./pages/Presentations";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +38,7 @@ import UnlocksManager from "./pages/admin/UnlocksManager";
 import RolesManager from "./pages/admin/RolesManager";
 import SelectionsManager from "./pages/admin/SelectionsManager";
 import QuestionnairesManager from "./pages/admin/QuestionnairesManager";
+import UsersManager from "./pages/admin/UsersManager";
 
 import SettingsPage from "./pages/admin/SettingsPage";
 
@@ -57,7 +57,7 @@ const App = () => (
               {/* Public site routes */}
               <Route element={<SiteLayout />}>
                 <Route path="/" element={<Home />} />
-                <Route path="/about" element={<About />} />
+                <Route path="/about" element={<Navigate to="/" replace />} />
                 <Route path="/services" element={<Services />} />
                 <Route path="/portfolio" element={<Portfolio />} />
                 <Route path="/portfolio/:id" element={<ProjectDetails />} />
@@ -67,7 +67,6 @@ const App = () => (
                 <Route path="/payment" element={<Payment />} />
                 <Route path="/packages" element={<Packages />} />
                 <Route path="/packages/:id/configurator" element={<Configurator />} />
-                <Route path="/presentations" element={<Presentations />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/customer" element={<CustomerArea />} />
               </Route>
@@ -87,6 +86,7 @@ const App = () => (
                 <Route path="contact" element={<ContactManager />} />
                 <Route path="packages" element={<PackagesManager />} />
                 <Route path="unlocks" element={<UnlocksManager />} />
+                <Route path="users" element={<UsersManager />} />
                 <Route path="selections" element={<SelectionsManager />} />
                 <Route path="questionnaires" element={<QuestionnairesManager />} />
                 <Route path="roles" element={<RolesManager />} />

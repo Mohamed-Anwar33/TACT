@@ -52,8 +52,11 @@ export type CmsProject = {
     role: string;
     title_en?: string | null;
     title_ar?: string | null;
+    alt_en?: string | null;
+    alt_ar?: string | null;
     media_type: string;
   }[];
+  tour360Url?: string;
 };
 
 function normalizeArabicDigits(value: string) {
@@ -73,6 +76,36 @@ export function parseAreaNumber(area?: string | null) {
   const match = normalized.match(/\d+(?:[.,]\d+)?/);
   if (!match) return null;
   return Number(match[0].replace(",", "."));
+}
+
+export type CmsAreaRange = {
+  id: string;
+  titleAr: string;
+  titleEn: string;
+  min: number | null;
+  max: number | null;
+  imageUrl?: string;
+};
+
+export const defaultAreaRanges: CmsAreaRange[] = [
+  { id: "less-than-150", titleAr: "أقل من 150 م²", titleEn: "Less than 150 m²", min: 0, max: 149, imageUrl: "" },
+  { id: "150-to-200", titleAr: "من 150 إلى 200 م²", titleEn: "150 to 200 m²", min: 150, max: 200, imageUrl: "" },
+  { id: "200-to-300", titleAr: "من 200 إلى 300 م²", titleEn: "200 to 300 m²", min: 201, max: 300, imageUrl: "" },
+  { id: "more-than-300", titleAr: "أكثر من 300 م²", titleEn: "More than 300 m²", min: 301, max: null, imageUrl: "" },
+];
+
+export async function getCmsAreaRanges(): Promise<CmsAreaRange[]> {
+  const { data, error } = await db
+    .from("cms_sections")
+    .select("metadata")
+    .eq("page_slug", "portfolio")
+    .eq("section_key", "area-ranges")
+    .maybeSingle();
+
+  if (error || !data || !data.metadata || !Array.isArray(data.metadata.ranges)) {
+    return defaultAreaRanges;
+  }
+  return data.metadata.ranges as CmsAreaRange[];
 }
 
 export function getAreaRangeId(area?: string | null) {
@@ -331,6 +364,8 @@ export async function getCmsProjects() {
         role: item.role || "gallery",
         title_en: item.title_en,
         title_ar: item.title_ar,
+        alt_en: item.alt_en,
+        alt_ar: item.alt_ar,
         media_type: item.media_type,
       }));
     const isVideo = !!row.video_url;
@@ -358,6 +393,7 @@ export async function getCmsProjects() {
       externalUrl: row.external_url,
       images: gallery.length ? gallery : row.cover_url ? [resolveMediaUrl(row.cover_url) || row.cover_url] : [],
       mediaItems: projectMedia,
+      tour360Url: row.tour360_url || "",
     } as CmsProject;
   });
 }

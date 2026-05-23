@@ -1,0 +1,560 @@
+﻿diff --git a/src/pages/admin/PageSectionsManager.tsx b/src/pages/admin/PageSectionsManager.tsx
+index 194745f..72e0d20 100644
+--- a/src/pages/admin/PageSectionsManager.tsx
++++ b/src/pages/admin/PageSectionsManager.tsx
+@@ -71,6 +71,7 @@ export default function PageSectionsManager() {
+   const [dbProjects, setDbProjects] = useState<any[]>([]);
+   const [dbTeam, setDbTeam] = useState<any[]>([]);
+   const [dbServices, setDbServices] = useState<any[]>([]);
++  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+ 
+ /* ΓöÇΓöÇΓöÇ Stats Editor ΓöÇΓöÇΓöÇ */
+ function StatsEditor({ editing, setEditing }: { editing: any; setEditing: (v: any) => void }) {
+@@ -2105,85 +2106,12 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
+     const [secRes, mediaRes, reviewsRes, projectsRes, teamRes, servicesRes] = await Promise.all([
+       db.from("cms_sections").select("*").eq("page_slug", slug).order("sort_order"),
+       db.from("cms_section_media").select("*").order("sort_order"),
+-      db.from("cms_client_testimonials").select("*").order("sort_order"),
+-      db.from("cms_projects").select("*").order("sort_order"),
+-      db.from("cms_team_members").select("*").order("sort_order"),
+-      db.from("cms_services").select("*").order("sort_order"),
+-    ]);
+-    setSections(secRes.data || []);
+-    setSectionMedia(mediaRes.data || []);
+-    setClientReviews(reviewsRes.data || []);
+-    setDbProjects(projectsRes.data || []);
+-    setDbTeam(teamRes.data || []);
+-    setDbServices(servicesRes.data || []);
+-  }
+-
+-  function openNew() {
+-    setEditing({ ...blank, page_slug: slug, sort_order: sections.length });
+-  }
+-
+-  function openEdit(section: any) {
+-    setEditing({ ...section });
+-  }
+-
+-  async function save(e: React.FormEvent) {
+-    e.preventDefault();
+-    if (!editing) return;
+-    setBusy(true);
+-    try {
+-      const payload = { ...editing, id: editing.id || undefined, sort_order: Number(editing.sort_order) || 0 };
+-      const { error } = await db.from("cms_sections").upsert(payload, { onConflict: "page_slug,section_key" });
+-      if (error) throw error;
+-      toast.success("╪¬┘à ╪¡┘ü╪╕ ╪º┘ä┘é╪│┘à ╪¿┘å╪¼╪º╪¡");
+-      setEditing(null);
+-      await load();
+-    } catch (err: any) {
+-      toast.error(err.message);
+-    } finally {
+-      setBusy(false);
+-    }
+-  }
+-
+-  async function doDelete() {
+-    if (!deleteId) return;
+-    const { error } = await db.from("cms_sections").delete().eq("id", deleteId);
+-    if (error) toast.error(error.message);
+-    else { toast.success("╪¬┘à ╪º┘ä╪¡╪░┘ü"); await load(); }
+-    setDeleteId(null);
+-  }
+-
+-  async function toggleVisible(section: any) {
+-    await db.from("cms_sections").update({ visible: !section.visible }).eq("id", section.id);
+-    await load();
+-  }
+-
+-  const getMedia = (sectionId: string) => sectionMedia.filter(m => m.section_id === sectionId);
+-  const getThumb = (sectionId: string) => getMedia(sectionId).find(m => m.media_type === "image")?.url;
+-  const getVideos = (sectionId: string) => getMedia(sectionId).filter(m => m.media_type === "video");
+-
+-  return (
+-    <>
+-      <AdminHeader title={page.ar} subtitle={`╪¿┘å╪º╪í ┘ê╪¬┘å╪╕┘è┘à ╪╡┘ü╪¡╪⌐ ${page.ar}`} previewUrl={slug === "home" ? "/" : `/${slug}`}
+-        actions={
+-          <button onClick={openNew} style={{
+-            display: "inline-flex", alignItems: "center", gap: 6,
+-            padding: "0.55rem 1.15rem", borderRadius: 8,
+-            background: "linear-gradient(135deg, #0C363A, #0F6E66)", color: "#fff",
+-            border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
+-            boxShadow: "0 2px 8px rgba(12, 54, 58,0.3)",
+-          }}>
+-            <Plus size={16} /> ╪Ñ╪╢╪º┘ü╪⌐ ┘é╪│┘à
+-          </button>
+-        }
+-      />
+-
+-      <div className="admin-content">
+-        {/* Page overview bar */}
++             {/* Page overview bar */}
+         <div style={{
+           display: "flex", alignItems: "center", justifyContent: "space-between",
+           padding: "0.85rem 1.25rem", borderRadius: 10,
+           background: "linear-gradient(135deg, #0C363A, #0F6E66)",
+-          color: "#fff", marginBottom: "1.5rem",
++          color: "#fff", marginBottom: "1rem",
+         }}>
+           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+             <Sparkles size={18} style={{ color: "#C18556" }} />
+@@ -2196,10 +2124,73 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
+             </span>
+           </div>
+           <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.5)" }}>
+-            ╪º╪│╪¡╪¿ ╪º┘ä╪ú┘é╪│╪º┘à ┘ä╪Ñ╪╣╪º╪»╪⌐ ╪º┘ä╪¬╪▒╪¬┘è╪¿ ΓÇó ╪º╪╢╪║╪╖ ┘ä┘ä╪¬┘ê╪│┘è╪╣
++            ╪º╪╢╪║╪╖ ╪╣┘ä┘ë ╪º┘ä┘é╪│┘à ┘ä┘ä╪º┘å╪¬┘é╪º┘ä ╪º┘ä╪│╪▒┘è╪╣ ┘ê╪¬╪╣╪»┘è┘ä ╪¿┘è╪º┘å╪º╪¬┘ç
+           </span>
+         </div>
+ 
++        {/* Premium Horizontal Tabs Bar for Home Sections */}
++        {sections.length > 0 && (
++          <div style={{
++            background: "#fff",
++            borderRadius: "14px",
++            border: "1px solid #eae5dc",
++            padding: "0.85rem 1.25rem",
++            display: "flex",
++            alignItems: "center",
++            gap: "1rem",
++            marginBottom: "1.5rem",
++            boxShadow: "0 4px 20px rgba(0,0,0,0.02)"
++          }}>
++            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", overflowX: "auto", flex: 1, paddingBottom: "4px" }}>
++              {sections.map((section, idx) => {
++                const isActive = section.id === activeSectionId;
++                return (
++                  <button
++                    key={section.id}
++                    type="button"
++                    onClick={() => setActiveSectionId(section.id)}
++                    style={{
++                      padding: "0.6rem 1.25rem",
++                      borderRadius: "10px",
++                      background: isActive ? "#0C363A" : "#faf8f4",
++                      color: isActive ? "#fff" : "#555",
++                      border: isActive ? "1px solid #0C363A" : "1px solid #eae5dc",
++                      fontSize: "0.82rem",
++                      fontWeight: 700,
++                      cursor: "pointer",
++                      whiteSpace: "nowrap",
++                      display: "flex",
++                      alignItems: "center",
++                      gap: "8px",
++                      transition: "all 0.2s ease-in-out",
++                      boxShadow: isActive ? "0 4px 12px rgba(12,54,58,0.18)" : "none",
++                    }}
++                  >
++                    <span style={{ 
++                      fontSize: "0.68rem", 
++                      background: isActive ? "rgba(255,255,255,0.2)" : "#eae5dc", 
++                      color: isActive ? "#fff" : "#777",
++                      padding: "1px 6px",
++                      borderRadius: "6px",
++                      fontWeight: 700,
++                      fontFamily: "monospace"
++                    }}>
++                      {String(idx + 1).padStart(2, "0")}
++                    </span>
++                    <span>{section.section_name_ar || section.section_name_en}</span>
++                    <span style={{
++                      width: "6px",
++                      height: "6px",
++                      borderRadius: "50%",
++                      background: section.visible ? "#10b981" : "#9ca3af"
++                    }} />
++                  </button>
++                );
++              })}
++            </div>
++          </div>
++        )}
++
+         {sections.length === 0 ? (
+           <div style={{
+             textAlign: "center", padding: "4rem 2rem",
+@@ -2220,97 +2211,281 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
+             </button>
+           </div>
+         ) : (
+-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+-            {sections.map((section, idx) => {
+-              const accent = getAccent(section.section_key);
+-              const thumb = getThumb(section.id);
+-              const media = getMedia(section.id);
+-              const isExpanded = expandedId === section.id;
+-
+-              return (
+-                <div key={section.id} 
+-                  className="group bg-white rounded-xl border border-[#eae5dc] transition-all duration-300 overflow-hidden flex flex-col justify-between"
+-                  style={{
+-                    borderTop: `4px solid ${accent}`,
+-                    boxShadow: isExpanded ? "0 16px 40px rgba(12,54,58,0.12)" : "0 4px 15px rgba(0,0,0,0.025)",
+-                    transform: isExpanded ? "translateY(-2px)" : "none",
+-                  }}>
++          (() => {
++            const activeSection = sections.find(s => s.id === activeSectionId) || sections[0];
++            if (!activeSection) return null;
++            const accent = getAccent(activeSection.section_key);
++            const thumb = getThumb(activeSection.id);
++            const media = getMedia(activeSection.id);
++            const catIdx = sections.findIndex(s => s.id === activeSection.id);
++
++            return (
++              <div style={{
++                display: "grid",
++                gridTemplateColumns: "1.1fr 0.9fr",
++                gap: "2rem",
++                background: "#fff",
++                borderRadius: "16px",
++                border: "1px solid #eae5dc",
++                padding: "1.5rem",
++                boxShadow: "0 10px 30px rgba(0,0,0,0.02)"
++              }} className="cms-workspace-container">
++                
++                {/* Right Column: Section Details and Actions */}
++                <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                   
+-                  {/* Card Cover Header */}
+-                  <div className="relative w-full h-36 bg-[#0C363A] overflow-hidden flex items-center justify-center border-b border-[#eae5dc]">
+-                    {thumb ? (
+-                      <img src={thumb} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+-                    ) : (
+-                      <div className="flex flex-col items-center gap-1.5 opacity-40">
+-                        <ImageIcon size={28} style={{ color: "#C18556" }} />
+-                        <span className="text-[10px] text-white font-bold tracking-widest uppercase">TACT</span>
+-                      </div>
+-                    )}
++                  {/* Visual Title Header */}
++                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", borderBottom: "1px solid #f0ece4", paddingBottom: "12px" }}>
++                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
++                      <span style={{
++                        width: "12px",
++                        height: "12px",
++                        borderRadius: "50%",
++                        background: accent
++                      }} />
++                      <h3 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0C363A", margin: 0 }}>
++                        {activeSection.section_name_ar || activeSection.section_name_en}
++                      </h3>
++                      <span style={{
++                        fontSize: "0.68rem",
++                        background: "rgba(0,0,0,0.65)",
++                        color: "#fff",
++                        padding: "3px 8px",
++                        borderRadius: "6px",
++                        fontWeight: 700,
++                        fontFamily: "monospace"
++                      }}>
++                        ╪º┘ä┘é╪│┘à {String(catIdx + 1).padStart(2, "0")}
++                      </span>
++                    </div>
+ 
+-                    {/* Order Number Badge */}
+-                    <div style={{
+-                      position: "absolute", top: 12, right: 12,
+-                      padding: "3px 8px", borderRadius: 6,
+-                      background: "rgba(0,0,0,0.65)", color: "#fff",
+-                      fontSize: "0.72rem", fontWeight: 700, fontFamily: "monospace",
+-                      backdropFilter: "blur(4px)",
++                    <span style={{
++                      fontSize: "0.72rem",
++                      fontWeight: 800,
++                      color: accent,
++                      background: `${accent}15`,
++                      border: `1px solid ${accent}30`,
++                      padding: "4px 10px",
++                      borderRadius: "6px",
++                      textTransform: "uppercase",
++                      letterSpacing: "0.05em"
+                     }}>
+-                      {String(idx + 1).padStart(2, "0")}
+-                    </div>
++                      {activeSection.section_key}
++                    </span>
++                  </div>
+ 
+-                    {/* Visibility Toggle Button */}
++                  {/* Quick Toggle Settings Strip */}
++                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "0.75rem 1rem", borderRadius: "10px", background: "#faf8f4", border: "1px solid #eae5dc" }}>
++                    <div>
++                      <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#0C363A" }}>╪¡╪º┘ä╪⌐ ╪╕┘ç┘ê╪▒ ╪º┘ä┘é╪│┘à ╪╣┘ä┘ë ╪º┘ä┘à┘ê┘é╪╣</span>
++                      <span style={{ fontSize: "0.68rem", color: "#8a8578", display: "block", marginTop: "2px" }}>╪¬┘ü╪╣┘è┘ä ╪ú┘ê ╪Ñ╪«┘ü╪º╪í ╪º┘ä┘é╪│┘à ╪¿╪º┘ä┘â╪º┘à┘ä ┘à┘å ╪º┘ä╪╡┘ü╪¡╪⌐ ╪º┘ä╪▒╪ª┘è╪│┘è╪⌐</span>
++                    </div>
+                     <button
+                       type="button"
+-                      onClick={e => { e.stopPropagation(); toggleVisible(section); }}
++                      onClick={() => toggleVisible(activeSection)}
+                       style={{
+-                        position: "absolute", top: 12, left: 12,
+-                        padding: "4px 10px", borderRadius: 6,
+-                        background: section.visible ? "rgba(236,246,244,0.92)" : "rgba(245,245,244,0.92)",
+-                        color: section.visible ? "#0F6E66" : "#78716c",
+-                        border: "1px solid",
+-                        borderColor: section.visible ? "#B9D4D0" : "#e5e0d5",
+-                        fontSize: "0.68rem", fontWeight: 700,
++                        padding: "0.45rem 1rem",
++                        borderRadius: "8px",
++                        background: activeSection.visible ? "#ECF6F4" : "#f5f5f4",
++                        color: activeSection.visible ? "#0F6E66" : "#78716c",
++                        border: `1px solid ${activeSection.visible ? "#B9D4D0" : "#e5e0d5"}`,
++                        fontSize: "0.75rem",
++                        fontWeight: 800,
+                         cursor: "pointer",
+-                        display: "flex", alignItems: "center", gap: 4,
+-                        backdropFilter: "blur(4px)",
++                        display: "flex",
++                        alignItems: "center",
++                        gap: "6px"
+                       }}
+-                      title={section.visible ? "╪Ñ╪«┘ü╪º╪í" : "╪Ñ╪╕┘ç╪º╪▒"}
+                     >
+-                      {section.visible ? <><Eye size={11} /> ╪╕╪º┘ç╪▒</> : <><EyeOff size={11} /> ┘à╪«┘ü┘è</>}
++                      {activeSection.visible ? <><Eye size={13} /> ┘à┘ü╪╣┘ä (╪╕╪º┘ç╪▒)</> : <><EyeOff size={13} /> ┘à╪╣╪╖┘ä (┘à╪«┘ü┘è)</>}
+                     </button>
+                   </div>
+ 
+-                  {/* Card Body */}
+-                  <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+-                    <div className="flex flex-col gap-2">
+-                      <div className="flex items-center justify-between gap-2 flex-wrap">
+-                        <span className="text-[15px] font-bold text-[#0C363A] transition-colors duration-300 group-hover:text-[#C18556] truncate max-w-[150px]">
+-                          {section.section_name_ar || section.section_name_en}
+-                        </span>
+-                        <span className="text-[9px] tracking-wider font-mono px-2 py-0.5 rounded-md font-bold uppercase"
+-                          style={{
+-                            color: accent,
+-                            background: `${accent}12`,
+-                            border: `1px solid ${accent}22`,
+-                          }}>
+-                          {section.section_key}
+-                        </span>
+-                      </div>
+-
+-                      {section.title_ar ? (
+-                        <p className="text-[13px] text-gray-700 font-medium line-clamp-1">{section.title_ar}</p>
++                  {/* Metadata display cards */}
++                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
++                    
++                    {/* Arabic Fields */}
++                    <div style={{ background: "#faf8f4", padding: "1rem", borderRadius: "12px", border: "1px solid #eae5dc", display: "flex", flexDirection: "column", gap: "8px" }}>
++                      <span style={{ fontSize: "0.72rem", color: "#C18556", fontWeight: 800, borderBottom: "1px solid #f0ece4", paddingBottom: "4px" }}>╪º┘ä┘à╪¡╪¬┘ê┘ë ╪¿╪º┘ä┘ä╪║╪⌐ ╪º┘ä╪╣╪▒╪¿┘è╪⌐</span>
++                      {activeSection.title_ar ? (
++                        <div>
++                          <span style={{ fontSize: "0.68rem", color: "#888", display: "block" }}>╪º┘ä╪╣┘å┘ê╪º┘å ╪º┘ä╪╕╪º┘ç╪▒:</span>
++                          <p style={{ fontSize: "0.9rem", fontWeight: 700, color: "#0C363A", margin: "2px 0 0" }}>{activeSection.title_ar}</p>
++                        </div>
+                       ) : (
+-                        <p className="text-[12px] text-gray-300 italic">┘ä╪º ┘è┘ê╪¼╪» ╪╣┘å┘ê╪º┘å ┘ä┘ç╪░╪º ╪º┘ä┘é╪│┘à</p>
++                        <p style={{ fontSize: "0.75rem", color: "#aaa", margin: 0, fontStyle: "italic" }}>┘ä╪º ┘è┘ê╪¼╪» ╪╣┘å┘ê╪º┘å ╪╣╪▒╪¿┘è</p>
++                      )}
++                      
++                      {activeSection.body_ar && (
++                        <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "6px", marginTop: "4px" }}>
++                          <span style={{ fontSize: "0.68rem", color: "#888", display: "block" }}>╪º┘ä┘ê╪╡┘ü ╪ú┘ê ╪º┘ä┘à╪¡╪¬┘ê┘ë ╪º┘ä╪▒╪ª┘è╪│┘è:</span>
++                          <p style={{ fontSize: "0.82rem", color: "#444", margin: "2px 0 0", lineHeight: "1.5", whiteSpace: "pre-line" }}>{activeSection.body_ar}</p>
++                        </div>
+                       )}
+ 
+-                      {section.body_ar && (
+-                        <p className="text-[12px] text-gray-400 line-clamp-2 leading-relaxed">{section.body_ar}</p>
++                      {activeSection.cta_label_ar && (
++                        <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "6px", marginTop: "4px" }}>
++                          <span style={{ fontSize: "0.68rem", color: "#888", display: "block" }}>┘å╪╡ ╪▓╪▒ ╪º┘ä╪Ñ╪¼╪▒╪º╪í (CTA):</span>
++                          <span style={{ display: "inline-block", fontSize: "0.7rem", background: "#eae5dc", color: "#0C363A", padding: "2px 8px", borderRadius: "4px", fontWeight: 700, marginTop: "4px" }}>
++                            {activeSection.cta_label_ar}
++                          </span>
++                        </div>
+                       )}
+                     </div>
+ 
+-                    <div className="flex items-center gap-2 pt-2 border-t border-[#f8f6f0]">
+-                      {media.length > 0 && (
+-                        <span className="text-[10px] text-gray-500 bg-[#f5f5f4] px-2 py-0.5 rounded flex items-center gap-1 font-medium">
++                    {/* English Fields */}
++                    {(activeSection.title_en || activeSection.body_en || activeSection.cta_label_en) && (
++                      <div style={{ background: "#faf8f4", padding: "1rem", borderRadius: "12px", border: "1px solid #eae5dc", display: "flex", flexDirection: "column", gap: "8px" }} dir="ltr">
++                        <span style={{ fontSize: "0.72rem", color: "#C18556", fontWeight: 800, borderBottom: "1px solid #f0ece4", paddingBottom: "4px", display: "block", textAlign: "left" }}>English Content</span>
++                        {activeSection.title_en ? (
++                          <div>
++                            <span style={{ fontSize: "0.68rem", color: "#888", display: "block" }}>Title Label:</span>
++                            <p style={{ fontSize: "0.88rem", fontWeight: 700, color: "#0C363A", margin: "2px 0 0" }}>{activeSection.title_en}</p>
++                          </div>
++                        ) : (
++                          <p style={{ fontSize: "0.75rem", color: "#aaa", margin: 0, fontStyle: "italic" }}>No English Title</p>
++                        )}
++                        
++                        {activeSection.body_en && (
++                          <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "6px", marginTop: "4px" }}>
++                            <span style={{ fontSize: "0.68rem", color: "#888", display: "block" }}>Body / Description Content:</span>
++                            <p style={{ fontSize: "0.8rem", color: "#444", margin: "2px 0 0", lineHeight: "1.5", whiteSpace: "pre-line" }}>{activeSection.body_en}</p>
++                          </div>
++                        )}
++
++                        {activeSection.cta_label_en && (
++                          <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "6px", marginTop: "4px" }}>
++                            <span style={{ fontSize: "0.68rem", color: "#888", display: "block" }}>CTA Label:</span>
++                            <span style={{ display: "inline-block", fontSize: "0.68rem", background: "#eae5dc", color: "#0C363A", padding: "2px 8px", borderRadius: "4px", fontWeight: 700, marginTop: "4px" }}>
++                              {activeSection.cta_label_en}
++                            </span>
++                          </div>
++                        )}
++                      </div>
++                    )}
++                  </div>
++
++                  {/* Actions & Buttons */}
++                  <div style={{ display: "flex", gap: "10px", marginTop: "8px", borderTop: "1px solid #f0ece4", paddingTop: "1.25rem" }}>
++                    <button 
++                      type="button" 
++                      onClick={() => openEdit(activeSection)} 
++                      style={{
++                        flex: 1,
++                        display: "flex",
++                        alignItems: "center",
++                        justifyContent: "center",
++                        gap: "6px",
++                        padding: "0.75rem 1rem",
++                        borderRadius: "10px",
++                        background: "#0C363A",
++                        color: "#fff",
++                        border: "none",
++                        fontSize: "0.85rem",
++                        fontWeight: 700,
++                        cursor: "pointer",
++                        boxShadow: "0 4px 12px rgba(12,54,58,0.18)",
++                        transition: "background 0.2s"
++                      }}
++                    >
++                      <Edit2 size={14} /> ╪¬╪╣╪»┘è┘ä ┘à╪¡╪¬┘ê┘ë ┘ê╪╡┘ê╪▒ ╪º┘ä┘é╪│┘à
++                    </button>
++                    
++                    <button 
++                      type="button" 
++                      onClick={() => setDeleteId(activeSection.id)} 
++                      style={{
++                        padding: "0.75rem",
++                        borderRadius: "10px",
++                        border: "1px solid #F1C5BA",
++                        background: "#fff",
++                        color: "#D84728",
++                        cursor: "pointer",
++                        display: "grid",
++                        placeItems: "center",
++                        transition: "all 0.2s"
++                      }}
++                      title="╪¡╪░┘ü ╪º┘ä┘é╪│┘à ╪¿╪º┘ä┘â╪º┘à┘ä"
++                    >
++                      <Trash2 size={16} />
++                    </button>
++                  </div>
++
++                </div>
++
++                {/* Left Column: Real-Time Preview & Media Gallery */}
++                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", borderInlineStart: "1px solid #eae5dc", paddingInlineStart: "1.75rem" }}>
++                  
++                  {/* Instant simulated preview */}
++                  <SectionLivePreview 
++                    editing={activeSection} 
++                    sectionMedia={sectionMedia} 
++                    clientReviews={clientReviews} 
++                    dbProjects={dbProjects} 
++                    dbTeam={dbTeam} 
++                    dbServices={dbServices} 
++                  />
++
++                  {/* Media Files */}
++                  <div>
++                    <div style={{ display: "flex", justifyItems: "center", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
++                      <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0C363A" }}>
++                        ┘à╪╣╪▒╪╢ ╪º┘ä┘ê╪│╪º╪ª╪╖ ┘ê╪º┘ä┘à┘ä┘ü╪º╪¬ ({media.length} ┘à┘ä┘ü╪º╪¬)
++                      </span>
++                    </div>
++
++                    {media.length === 0 ? (
++                      <div style={{ textAlign: "center", padding: "2rem", background: "#faf8f4", border: "1px dashed #eae5dc", borderRadius: "12px", color: "#999", fontSize: "0.8rem", lineHeight: "1.5" }}>
++                        ┘ä╪º ╪¬┘ê╪¼╪» ┘ê╪│╪º╪ª╪╖ ┘à╪▒┘ü┘ê╪╣╪⌐ ┘ä┘ç╪░╪º ╪º┘ä┘é╪│┘à.<br/>
++                        ╪º╪╢╪║╪╖ ╪╣┘ä┘ë <strong>╪¬╪╣╪»┘è┘ä ╪º┘ä┘é╪│┘à</strong> ╪¿╪º┘ä╪ú╪╣┘ä┘ë ┘ä╪▒┘ü╪╣ ╪╡┘ê╪▒ ╪ú┘ê ┘ü┘è╪»┘è┘ê┘ç╪º╪¬ ┘ä┘ä┘é╪│┘à.
++                      </div>
++                    ) : (
++                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: "8px" }}>
++                        {media.map(m => (
++                          <div key={m.id} style={{
++                            position: "relative",
++                            aspectRatio: "1.4",
++                            borderRadius: "8px",
++                            overflow: "hidden",
++                            border: "1px solid #eae5dc",
++                            background: "#faf8f4",
++                            boxShadow: "0 2px 6px rgba(0,0,0,0.01)"
++                          }}>
++                            {m.media_type === "image" ? (
++                              <img src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
++                            ) : (
++                              <video src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
++                            )}
++                            {m.title_ar && (
++                              <div style={{
++                                position: "absolute",
++                                bottom: 0,
++                                left: 0,
++                                right: 0,
++                                background: "rgba(0,0,0,0.6)",
++                                color: "#fff",
++                                fontSize: "0.55rem",
++                                padding: "2px 4px",
++                                textAlign: "center",
++                                overflow: "hidden",
++                                textOverflow: "ellipsis",
++                                whiteSpace: "nowrap"
++                              }}>
++                                {m.title_ar}
++                              </div>
++                            )}
++                          </div>
++                        ))}
++                      </div>
++                    )}
++                  </div>
++
++                </div>
++
++              </div>
++            );
++          })()
++        )}me="text-[10px] text-gray-500 bg-[#f5f5f4] px-2 py-0.5 rounded flex items-center gap-1 font-medium">
+                           <ImageIcon size={10} /> {media.length} ┘à┘ä┘ü╪º╪¬ ┘ê╪│╪º╪ª╪╖
+                         </span>
+                       )}
+@@ -2485,16 +2660,28 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
+                 </span>
+                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginBottom: 12 }}>
+                   {getMedia(editing.id).map(m => (
+-                    <div key={m.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden" }}>
++                    <div key={m.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: "1px solid #eee8dc", background: "#fff" }}>
+                       <MediaPreview url={m.url} type={m.media_type} height={85} />
+                       <button type="button" onClick={async () => { await db.from("cms_section_media").delete().eq("id", m.id); await load(); }}
+                         style={{ position: "absolute", top: 4, insetInlineEnd: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(216, 71, 40,0.9)", color: "#fff", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: 10 }}>Γ£ò</button>
++                      <div style={{ display: "grid", gap: 5, padding: 6 }}>
++                        <Input value={m.title_ar || ""} onChange={e => setSectionMedia(prev => prev.map(item => item.id === m.id ? { ...item, title_ar: e.target.value } : item))} onBlur={e => updateSectionMediaField(m.id, "title_ar", e.target.value)} placeholder="╪º╪│┘à ╪╕╪º┘ç╪▒ ╪╣╪▒╪¿┘è" style={{ height: 28, fontSize: "0.65rem" }} />
++                        <Input value={m.title_en || ""} onChange={e => setSectionMedia(prev => prev.map(item => item.id === m.id ? { ...item, title_en: e.target.value } : item))} onBlur={e => updateSectionMediaField(m.id, "title_en", e.target.value)} placeholder="Visible title EN" dir="ltr" style={{ height: 28, fontSize: "0.65rem" }} />
++                        <Input value={m.alt_ar || ""} onChange={e => setSectionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_ar: e.target.value } : item))} onBlur={e => updateSectionMediaField(m.id, "alt_ar", e.target.value)} placeholder="Alt ╪╣╪▒╪¿┘è" style={{ height: 28, fontSize: "0.65rem" }} />
++                        <Input value={m.alt_en || ""} onChange={e => setSectionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_en: e.target.value } : item))} onBlur={e => updateSectionMediaField(m.id, "alt_en", e.target.value)} placeholder="Alt EN" dir="ltr" style={{ height: 28, fontSize: "0.65rem" }} />
++                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, alignItems: "center" }}>
++                          <Input type="number" value={m.sort_order ?? 0} onChange={e => setSectionMedia(prev => prev.map(item => item.id === m.id ? { ...item, sort_order: Number(e.target.value) } : item))} onBlur={e => updateSectionMediaField(m.id, "sort_order", e.target.value)} title="╪º┘ä╪¬╪▒╪¬┘è╪¿" style={{ height: 28, fontSize: "0.65rem" }} />
++                          <button type="button" onClick={() => updateSectionMediaField(m.id, "visible", m.visible === false)} style={{ height: 28, borderRadius: 6, border: "1px solid #e5e0d5", background: m.visible === false ? "#f5f5f4" : "#ECF6F4", color: m.visible === false ? "#78716c" : "#0F6E66", padding: "0 8px", fontSize: "0.62rem", fontWeight: 700, cursor: "pointer" }}>
++                            {m.visible === false ? "┘à╪«┘ü┘è" : "╪╕╪º┘ç╪▒"}
++                          </button>
++                        </div>
++                      </div>
+                     </div>
+                   ))}
+                 </div>
+                 <MediaUploader folder="sections" label="╪▒┘ü╪╣ ╪╡┘ê╪▒ ╪ú┘ê ┘ü┘è╪»┘è┘ê┘ç╪º╪¬" multiple onUploaded={async (url, file) => {
+                   const mediaType = file.type.startsWith("video/") ? "video" : file.type.includes("pdf") ? "pdf" : "image";
+-                  await db.from("cms_section_media").upsert({ section_id: editing.id, role: "section", media_type: mediaType, url, title_ar: file.name, title_en: file.name, visible: true }, { onConflict: "section_id,role,url" });
++                  await db.from("cms_section_media").upsert({ section_id: editing.id, role: "section", media_type: mediaType, url, title_ar: file.name, title_en: file.name, alt_ar: file.name, alt_en: file.name, sort_order: getMedia(editing.id).length, visible: true }, { onConflict: "section_id,role,url" });
+                   await load();
+                 }} />
+               </div>

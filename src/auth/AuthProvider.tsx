@@ -58,32 +58,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
+    let isMounted = true;
+    let initialCheckDone = false;
+
+    // 1. Get initial session
+    supabase.auth.getSession().then(({ data: { session: initSession } }) => {
+      if (!isMounted) return;
+      
+      if (initSession?.user) {
+        setSession(initSession);
+        setUser(initSession.user);
+        loadExtras(initSession.user.id).finally(() => {
+          if (isMounted) {
+            initialCheckDone = true;
+          }
+        });
+      } else {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setIsAdmin(false);
+        setIsStaff(false);
+        setRoles([]);
+        initialCheckDone = true;
+        setLoading(false);
+      }
+    });
+
+    // 2. Listen to subsequent auth state changes
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!isMounted) return;
+
+      // Skip the initial callback of onAuthStateChange if getSession hasn't finished yet
+      // to prevent setting loading to false with a brief null state.
+      if (!initialCheckDone && !newSession?.user) {
+        return;
+      }
+
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
         setLoading(true);
-        setTimeout(() => {
-          loadExtras(s.user.id);
-        }, 0);
+        loadExtras(newSession.user.id).finally(() => {
+          if (isMounted) {
+            initialCheckDone = true;
+          }
+        });
       } else {
         setProfile(null);
         setIsAdmin(false);
         setIsStaff(false);
         setRoles([]);
-        setLoading(false);
+        // Only set loading to false if we're not waiting for an initial getSession check
+        if (initialCheckDone) {
+          setLoading(false);
+        }
       }
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadExtras(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      isMounted = false;
+      sub.subscription.unsubscribe();
+    };
     // eslint-disable-next-line
   }, []);
 

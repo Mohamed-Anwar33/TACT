@@ -21,6 +21,40 @@ export default function TestimonialsSection({ section }: { section?: any }) {
   const [submitting, setSubmitting] = useState(false);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
 
+  // Dynamic values
+  const hasCustomTitle = lang === "ar" ? !!section?.titleAr : !!section?.titleEn;
+  const defaultTitleAr = <>ثقة تُبنى <span className="text-[#C18556] font-serif italic">مع كل تسليم</span></>;
+  const defaultTitleEn = <>Trust Built <span className="text-[#C18556] font-serif italic">With Every Unit</span></>;
+
+  const renderTitle = () => {
+    if (!hasCustomTitle) {
+      return lang === "ar" ? defaultTitleAr : defaultTitleEn;
+    }
+    const titleText = lang === "ar" ? section?.titleAr || "" : section?.titleEn || "";
+    const separator = titleText.includes("|") ? "|" : titleText.includes(" - ") ? " - " : titleText.includes("\n") ? "\n" : null;
+    if (separator) {
+      const parts = titleText.split(separator);
+      const main = parts[0].trim();
+      const sub = parts.slice(1).join(separator).trim();
+      return (
+        <>
+          {main} <span className="text-[#C18556] font-serif italic">{sub}</span>
+        </>
+      );
+    }
+    return titleText;
+  };
+
+  const bodyText = lang === "ar" ? section?.bodyAr : section?.bodyEn;
+  const renderBody = () => {
+    if (!bodyText) {
+      return lang === "ar" 
+        ? "نوثق آراء عملائنا بكل مصداقية عبر تغطيات مرئية وتفاصيل حية على أرض الواقع تجسد التزامنا التام بالجودة والدقة."
+        : "We document our clients' experiences with absolute credibility through video coverage and live updates on the ground.";
+    }
+    return bodyText;
+  };
+
   // Load reviews from Supabase
   useEffect(() => {
     async function loadReviews() {
@@ -101,7 +135,7 @@ export default function TestimonialsSection({ section }: { section?: any }) {
             <div className="flex items-center justify-center gap-4 mb-4">
               <div className="w-10 h-px bg-[#C18556]/40" />
               <span className="text-[#C18556] text-[12px] md:text-[13px] uppercase tracking-[0.3em] font-bold">
-                {lang === "ar" ? "آراء وثقة عملائنا" : "CLIENT REVIEWS & TRUST"}
+                {lang === "ar" ? section?.sectionNameAr || "آراء وثقة عملائنا" : section?.sectionNameEn || "CLIENT REVIEWS & TRUST"}
               </span>
               <div className="w-10 h-px bg-[#C18556]/40" />
             </div>
@@ -109,20 +143,14 @@ export default function TestimonialsSection({ section }: { section?: any }) {
 
           <Reveal delay={150}>
             <h2 className="text-3xl md:text-5xl font-bold text-[#0C363A] leading-[1.25] mb-6">
-              {lang === "ar" ? (
-                <>ثقة تُبنى <span className="text-[#C18556] font-serif italic">مع كل تسليم</span></>
-              ) : (
-                <>Trust Built <span className="text-[#C18556] font-serif italic">With Every Unit</span></>
-              )}
+              {renderTitle()}
             </h2>
           </Reveal>
 
           <Reveal delay={300}>
-            <p className="text-[14px] md:text-[16px] text-[#0C363A]/70 leading-relaxed max-w-[650px] mx-auto mb-8">
-              {lang === "ar" 
-                ? "نوثق آراء عملائنا بكل مصداقية عبر تغطيات مرئية وتفاصيل حية على أرض الواقع تجسد التزامنا التام بالجودة والدقة."
-                : "We document our clients' experiences with absolute credibility through video coverage and live updates on the ground."}
-            </p>
+            <div className="text-[14px] md:text-[16px] text-[#0C363A]/70 leading-relaxed max-w-[650px] mx-auto mb-8">
+              {renderBody()}
+            </div>
           </Reveal>
 
           {/* Quick Review submission trigger CTA */}
