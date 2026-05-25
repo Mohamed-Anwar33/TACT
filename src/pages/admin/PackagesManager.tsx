@@ -1030,9 +1030,9 @@ export default function PackagesManager() {
                                                   display: "grid",
                                                   placeItems: "center"
                                                 }}
-                                                title="نقل لليمين"
+                                                title="تحريك للأعلى"
                                               >
-                                                ◀
+                                                <ChevronUp size={14} />
                                               </button>
                                               <button
                                                 type="button"
@@ -1051,9 +1051,9 @@ export default function PackagesManager() {
                                                   display: "grid",
                                                   placeItems: "center"
                                                 }}
-                                                title="نقل لليسار"
-                                              >
-                                                ▶
+                                                title="تحريك للأسفل"
+                                               >
+                                                 <ChevronDown size={14} />
                                               </button>
                                             </div>
                                           </div>
