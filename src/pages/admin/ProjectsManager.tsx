@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { parseAreaNumber, CmsAreaRange, defaultAreaRanges } from "@/lib/publicCms";
+import { resolveMediaUrl } from "@/lib/realContent";
 
 const db = supabase as any;
 
@@ -21,6 +22,33 @@ const blank = {
   video_url: "", pdf_url: "", tour360_url: "", external_url: "", sort_order: 0, visible: true,
   project_kind: "design",
 };
+
+function normalizeProjectMediaUrl(url?: string | null) {
+  return resolveMediaUrl(url) || url || "";
+}
+
+function normalizeProjectRow(row: any) {
+  return {
+    ...row,
+    cover_url: normalizeProjectMediaUrl(row.cover_url),
+    video_url: normalizeProjectMediaUrl(row.video_url),
+    pdf_url: normalizeProjectMediaUrl(row.pdf_url),
+  };
+}
+
+function normalizeProjectMediaRow(row: any) {
+  return {
+    ...row,
+    url: normalizeProjectMediaUrl(row.url),
+  };
+}
+
+function normalizeAreaRange(range: CmsAreaRange): CmsAreaRange {
+  return {
+    ...range,
+    imageUrl: normalizeProjectMediaUrl(range.imageUrl),
+  };
+}
 
 export default function ProjectsManager() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -78,12 +106,12 @@ export default function ProjectsManager() {
       db.from("cms_sections").select("*").eq("page_slug", "home").eq("section_key", "works-preview").maybeSingle(),
       db.from("cms_sections").select("*").eq("page_slug", "portfolio").eq("section_key", "area-ranges").maybeSingle(),
     ]);
-    setProjects(pRes.data || []);
-    setProjectMedia(mRes.data || []);
+    setProjects((pRes.data || []).map(normalizeProjectRow));
+    setProjectMedia((mRes.data || []).map(normalizeProjectMediaRow));
     setSection(sRes.data || null);
 
     if (rRes.data && rRes.data.metadata && Array.isArray(rRes.data.metadata.ranges)) {
-      setAreaRanges(rRes.data.metadata.ranges);
+      setAreaRanges(rRes.data.metadata.ranges.map(normalizeAreaRange));
     } else {
       setAreaRanges(defaultAreaRanges);
     }

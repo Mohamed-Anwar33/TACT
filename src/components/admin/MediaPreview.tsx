@@ -1,4 +1,5 @@
 import { Play, FileText, ImageIcon } from "lucide-react";
+import { resolveMediaUrl } from "@/lib/realContent";
 
 type Props = {
   url?: string;
@@ -16,7 +17,8 @@ export default function MediaPreview({ url, type, alt, height = 160, className =
     </div>
   );
 
-  const guessType = type || (url.match(/\.(mp4|webm|mov)$/i) ? "video" : url.match(/\.pdf$/i) ? "pdf" : "image");
+  const src = resolveMediaUrl(url) || url;
+  const guessType = type || (src.match(/\.(mp4|webm|mov)$/i) ? "video" : src.match(/\.pdf$/i) ? "pdf" : "image");
 
   if (guessType === "video") {
     return (
@@ -28,7 +30,7 @@ export default function MediaPreview({ url, type, alt, height = 160, className =
         overflow: "hidden",
         flexShrink: 0
       }} className={className}>
-        <video src={url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} muted preload="metadata" />
+        <video src={src} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} muted preload="metadata" />
         <button
           className="play-btn"
           onClick={onPlay}
@@ -45,7 +47,7 @@ export default function MediaPreview({ url, type, alt, height = 160, className =
 
   if (guessType === "pdf") {
     return (
-      <a href={url} target="_blank" rel="noreferrer" className={className}
+      <a href={src} target="_blank" rel="noreferrer" className={className}
         style={{ height, background: "#0C363A", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "#C18556", textDecoration: "none" }}
       >
         <FileText size={32} />
@@ -56,7 +58,7 @@ export default function MediaPreview({ url, type, alt, height = 160, className =
 
   return (
     <img
-      src={url}
+      src={src}
       alt={alt || ""}
       className={className}
       style={{ width: "100%", height, objectFit: "cover", background: "#f0ece4", display: "block" }}

@@ -37,6 +37,13 @@ export function resolveMediaUrl(url?: string | null) {
     if (parsed.pathname.startsWith("/real-content/")) {
       return realContentUrl(parsed.pathname);
     }
+
+    const realContentMarker = "/storage/v1/object/public/real-content/";
+    const markerIndex = parsed.pathname.indexOf(realContentMarker);
+    if (markerIndex >= 0) {
+      const realContentPath = parsed.pathname.slice(markerIndex + realContentMarker.length);
+      return realContentUrl(realContentPath);
+    }
   } catch {
     return url;
   }
