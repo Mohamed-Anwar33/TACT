@@ -23,6 +23,7 @@ import {
 import { resolveMediaUrl } from "@/lib/realContent";
 
 const db = supabase as any;
+const MAX_EXECUTION_VIDEO_MB = 80;
 
 const blank = {
   id: "", title_en: "", title_ar: "", category_en: "", category_ar: "",
@@ -271,11 +272,17 @@ export default function ProjectsManager() {
       
       const pinOnHome = !!editing.pinOnHome;
       const projectKind = editing.project_kind || (editing.video_url ? "execution" : "design");
+      if (projectKind === "execution" && !editing.video_url) {
+        throw new Error("مشروع التنفيذ لازم يكون له فيديو تنفيذ.");
+      }
+      if (projectKind === "design" && !finalCoverUrl && tempGallery.length === 0 && (!editing.id || imgCount(editing.id) === 0)) {
+        throw new Error("مشروع التصميم لازم يكون له صورة واحدة على الأقل.");
+      }
       const payload = { 
         ...editing, 
         id: projectId,
         video_url: projectKind === "design" ? "" : editing.video_url,
-        cover_url: finalCoverUrl, 
+        cover_url: projectKind === "execution" ? "" : finalCoverUrl, 
         sort_order: Number(editing.sort_order) || 0 
       };
       delete (payload as any).pinOnHome;
@@ -284,6 +291,10 @@ export default function ProjectsManager() {
       
       const { error } = await db.from("cms_projects").upsert(payload, { onConflict: "id" });
       if (error) throw error;
+
+      if (projectKind === "execution") {
+        await db.from("cms_project_media").delete().eq("project_id", projectId).eq("media_type", "image");
+      }
 
       if (isNew && tempGallery.length > 0) {
         const mediaRows = tempGallery.map((url, idx) => ({
@@ -469,6 +480,14 @@ export default function ProjectsManager() {
   async function addMediaToProject(url: string, file: File) {
     if (!editing?.id) return;
     const mediaType = file.type.startsWith("video/") ? "video" : "image";
+    if (currentKind === "design" && mediaType !== "image") {
+      toast.error("التصميم يقبل صور فقط.");
+      return;
+    }
+    if (currentKind === "execution" && mediaType !== "video") {
+      toast.error("التنفيذ يقبل فيديو فقط.");
+      return;
+    }
     const currentMedia = getMedia(editing.id);
     const maxOrder = currentMedia.length > 0 ? Math.max(...currentMedia.map(m => m.sort_order)) : 0;
     
@@ -1085,11 +1104,17 @@ export default function ProjectsManager() {
               <label>نوع العنصر في سابقة الأعمال</label>
               <select
                 value={editing.project_kind || (editing.video_url ? "execution" : "design")}
-                onChange={e => setEditing({
-                  ...editing,
-                  project_kind: e.target.value,
-                  video_url: e.target.value === "design" ? "" : editing.video_url,
-                })}
+                onChange={e => {
+                  const nextKind = e.target.value as "design" | "execution";
+                  if (nextKind === "execution") setTempGallery([]);
+                  setEditing({
+                    ...editing,
+                    project_kind: nextKind,
+                    video_url: nextKind === "design" ? "" : editing.video_url,
+                    cover_url: nextKind === "execution" ? "" : editing.cover_url,
+                    area: nextKind === "execution" ? "" : editing.area,
+                  });
+                }}
                 style={{ width: "100%", padding: "0.6rem", borderRadius: 6, border: "1px solid #e5e0d5", fontSize: "0.85rem", background: "#fff" }}
               >
                 <option value="design">تصميمات</option>
@@ -1157,7 +1182,8 @@ export default function ProjectsManager() {
             <div className="form-group"><label>الوصف (عربي)</label><Textarea value={editing.description_ar || ""} onChange={e => setEditing({ ...editing, description_ar: e.target.value })} rows={3} /></div>
             <div className="form-group"><label>Description (EN)</label><Textarea value={editing.description_en || ""} onChange={e => setEditing({ ...editing, description_en: e.target.value })} rows={3} dir="ltr" /></div>
 
-            {/* Unified Project Images & Gallery Section */}
+            {/* Design projects use images only. Execution projects use a single video below. */}
+            {currentKind === "design" && (
             <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem", marginTop: "1rem" }}>
               {(() => {
                 const isExisting = editing.id && projects.some(p => p.id === editing.id);
@@ -1276,8 +1302,9 @@ export default function ProjectsManager() {
                 );
               })()}
             </div>
+            )}
 
-            {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "execution" && (
+            {currentKind === "execution" && (
               <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1.25rem", marginTop: "0.5rem" }}>
                 <div style={{ 
                   border: "1px dashed #c18556", 
@@ -1315,9 +1342,13 @@ export default function ProjectsManager() {
                       <MediaUploader
                         folder="projects"
                         label="رفع فيديو التنفيذ (اسحب ملف MP4)"
-                        accept="video/*"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        maxSizeMB={MAX_EXECUTION_VIDEO_MB}
                         onUploaded={(url) => setEditing({ ...editing, video_url: url })}
                       />
+                      <p style={{ fontSize: "0.65rem", color: "#D84728", fontWeight: 700, margin: 0 }}>
+                        الحد الأقصى للفيديو {MAX_EXECUTION_VIDEO_MB} MB. ارفع MP4 مضغوط H.264 للحفاظ على الجودة وسرعة التحميل.
+                      </p>
                       
                       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0" }}>
                         <span style={{ flex: 1, height: 1, background: "#eae5dc" }} />

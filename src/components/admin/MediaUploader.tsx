@@ -10,6 +10,8 @@ type Props = {
   label?: string;
   accept?: string;
   multiple?: boolean;
+  maxSizeMB?: number;
+  helperText?: string;
   onUploaded: (url: string, file: File) => void;
 };
 
@@ -83,11 +85,23 @@ const compressImage = (file: File): Promise<File> => {
   });
 };
 
+function fileMatchesAccept(file: File, accept: string) {
+  if (!accept) return true;
+  const rules = accept.split(",").map((rule) => rule.trim()).filter(Boolean);
+  return rules.some((rule) => {
+    if (rule.endsWith("/*")) return file.type.startsWith(rule.slice(0, -1));
+    if (rule.startsWith(".")) return file.name.toLowerCase().endsWith(rule.toLowerCase());
+    return file.type === rule;
+  });
+}
+
 export default function MediaUploader({
   folder,
   label = "رفع ملف",
   accept = "image/*,video/*,.pdf",
   multiple = false,
+  maxSizeMB,
+  helperText,
   onUploaded,
 }: Props) {
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -162,7 +176,17 @@ export default function MediaUploader({
   }
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
-    const fileArr = Array.from(files);
+    const fileArr = Array.from(files).filter((file) => {
+      if (!fileMatchesAccept(file, accept)) {
+        toast.error(`نوع الملف غير مسموح: ${file.name}`);
+        return false;
+      }
+      if (maxSizeMB && file.size > maxSizeMB * 1024 * 1024) {
+        toast.error(`حجم ${file.name} أكبر من الحد المسموح (${maxSizeMB} MB)`);
+        return false;
+      }
+      return true;
+    });
     if (!fileArr.length) return;
 
     const startIdx = items.length;
@@ -183,7 +207,7 @@ export default function MediaUploader({
     setTimeout(() => {
       setItems(prev => prev.filter(it => it.status !== "done"));
     }, 2000);
-  }, [items.length, folder]);
+  }, [items.length, folder, maxSizeMB, accept]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files?.length) {
