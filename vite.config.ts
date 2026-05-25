@@ -6,7 +6,13 @@ import fs from "fs";
 const DEFAULT_REAL_CONTENT_BASE_URL =
   "https://lnzxissivnzpjvvxulvc.supabase.co/storage/v1/object/public/real-content";
 
-function realContentCdnPlugin(realContentBaseUrl?: string) {
+function realContentCdnPlugin(realContentBaseUrl?: string, isDev?: boolean) {
+  if (isDev) {
+    return {
+      name: "real-content-cdn-url",
+      // Do nothing in development mode
+    };
+  }
   const base = (realContentBaseUrl || DEFAULT_REAL_CONTENT_BASE_URL).replace(/\/+$/, "");
   const safeSegment = (segment: string) => {
     if (/^[A-Za-z0-9._-]+$/.test(segment)) return segment;
@@ -54,7 +60,7 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
     },
-    plugins: [realContentCdnPlugin(env.VITE_REAL_CONTENT_BASE_URL), react(), omitLocalRealContentFromDistPlugin()],
+    plugins: [realContentCdnPlugin(env.VITE_REAL_CONTENT_BASE_URL, mode === "development"), react(), omitLocalRealContentFromDistPlugin()],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

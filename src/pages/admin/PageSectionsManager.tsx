@@ -2468,17 +2468,6 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                  <div className="form-group">
-                    <label>{"\u0627\u0633\u0645 \u0627\u0644\u0642\u0633\u0645 (\u0639\u0631\u0628\u064a)"}</label>
-                    <Input value={editing.section_name_ar || ""} onChange={e => setEditing({ ...editing, section_name_ar: e.target.value })} required />
-                  </div>
-                  <div className="form-group">
-                    <label>Section Name (EN)</label>
-                    <Input value={editing.section_name_en || ""} onChange={e => setEditing({ ...editing, section_name_en: e.target.value })} required dir="ltr" />
-                  </div>
-                </div>
-
                 {/* Specialized Sub-Editors */}
                 {editing.section_key === "testimonials" && (
                   <ClientReviewsEditor clientReviews={clientReviews} onRefresh={load} editing={editing} setEditing={setEditing} />
@@ -2683,6 +2672,8 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
                 try {
                   const payload = {
                     ...newSection,
+                    section_name_ar: newSection.section_name_ar || newSection.title_ar || newSection.section_key,
+                    section_name_en: newSection.section_name_en || newSection.title_en || newSection.section_key,
                     page_slug: slug,
                     sort_order: sections.length * 10
                   };
@@ -2712,25 +2703,7 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
                     />
                   </div>
                   
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                    <div className="form-group">
-                      <label>{"\u0627\u0633\u0645 \u0627\u0644\u0642\u0633\u0645 (\u0639\u0631\u0628\u064a)"}</label>
-                      <Input
-                        value={newSection.section_name_ar || ""}
-                        onChange={e => setNewSection({ ...newSection, section_name_ar: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Section Name (EN)</label>
-                      <Input
-                        value={newSection.section_name_en || ""}
-                        onChange={e => setNewSection({ ...newSection, section_name_en: e.target.value })}
-                        required
-                        dir="ltr"
-                      />
-                    </div>
-                  </div>
+
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                     <div className="form-group">

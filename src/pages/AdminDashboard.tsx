@@ -175,10 +175,15 @@ export default function AdminDashboard() {
   async function saveSection(e: React.FormEvent) {
     e.preventDefault();
     await run(async () => {
-      const payload = { ...sectionForm, id: sectionForm.id || undefined, sort_order: Number(sectionForm.sort_order) || 0 };
-      if (!payload.section_key) {
-        payload.section_key = `section-${Date.now()}`;
-      }
+      const key = sectionForm.section_key || `section-${Date.now()}`;
+      const payload = { 
+        ...sectionForm, 
+        id: sectionForm.id || undefined, 
+        sort_order: Number(sectionForm.sort_order) || 0,
+        section_key: key,
+        section_name_ar: sectionForm.section_name_ar || sectionForm.title_ar || key,
+        section_name_en: sectionForm.section_name_en || sectionForm.title_en || key
+      };
       const { error } = await db.from("cms_sections").upsert(payload, { onConflict: "page_slug,section_key" });
       if (error) throw error;
       toast.success(label("تم حفظ القسم", "Section saved"));
@@ -351,8 +356,8 @@ export default function AdminDashboard() {
               <Panel title={label("أقسام الصفحة", "Page sections")}>
                 <form onSubmit={saveSection} className="grid gap-3">
                   <input type="hidden" value={sectionForm.section_key} />
-                  <Input placeholder={label("اسم القسم عربي", "Section name AR")} value={sectionForm.section_name_ar} onChange={(e) => setSectionForm({ ...sectionForm, section_name_ar: e.target.value })} required disabled={!!sectionForm.id} />
-                  <Input placeholder="Section name EN" value={sectionForm.section_name_en} onChange={(e) => setSectionForm({ ...sectionForm, section_name_en: e.target.value })} required disabled={!!sectionForm.id} />
+                  <input type="hidden" value={sectionForm.section_name_ar || ""} />
+                  <input type="hidden" value={sectionForm.section_name_en || ""} />
                   <Input placeholder={label("العنوان عربي", "Title AR")} value={sectionForm.title_ar || ""} onChange={(e) => setSectionForm({ ...sectionForm, title_ar: e.target.value })} />
                   <Input placeholder="Title EN" value={sectionForm.title_en || ""} onChange={(e) => setSectionForm({ ...sectionForm, title_en: e.target.value })} />
                   <Textarea placeholder={label("الوصف عربي", "Body AR")} value={sectionForm.body_ar || ""} onChange={(e) => setSectionForm({ ...sectionForm, body_ar: e.target.value })} />
