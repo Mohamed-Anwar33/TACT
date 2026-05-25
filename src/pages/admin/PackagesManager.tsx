@@ -13,6 +13,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveMediaUrl } from "@/lib/realContent";
 
 const db = supabase as any;
 
@@ -85,12 +86,23 @@ export default function PackagesManager() {
       db.from("package_option_media").select("*").order("sort_order"),
     ]);
 
-    const pkgs = a.data || [];
+    const pkgs = (a.data || []).map((pkg: any) => ({
+      ...pkg,
+      cover_url: resolveMediaUrl(pkg.cover_url) || pkg.cover_url
+    }));
     setPackages(pkgs);
     setStyles(b.data || []);
     setCategories(c.data || []);
-    setOptions(d.data || []);
-    setOptionMedia(e.data || []);
+    const opts = (d.data || []).map((opt: any) => ({
+      ...opt,
+      image_url: resolveMediaUrl(opt.image_url) || opt.image_url
+    }));
+    setOptions(opts);
+    const media = (e.data || []).map((m: any) => ({
+      ...m,
+      url: resolveMediaUrl(m.url) || m.url
+    }));
+    setOptionMedia(media);
 
     // Set default active selections if none chosen
     if (pkgs.length > 0 && !activePkgId) {
@@ -507,7 +519,7 @@ export default function PackagesManager() {
                 <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
                   {activePackage.cover_url && (
                     <img 
-                      src={activePackage.cover_url} 
+                      src={resolveMediaUrl(activePackage.cover_url) || ""} 
                       alt="" 
                       style={{ width: "80px", height: "60px", objectFit: "cover", borderRadius: "8px", border: "1px solid #e5e0d5" }} 
                     />
@@ -964,7 +976,7 @@ export default function PackagesManager() {
                                         <div style={{ height: "150px", background: "#faf8f4", position: "relative", borderBottom: "1px solid #eae5dc" }}>
                                           {opt.image_url ? (
                                             <img 
-                                              src={opt.image_url} 
+                                              src={resolveMediaUrl(opt.image_url) || ""} 
                                               alt="" 
                                               style={{ width: "100%", height: "100%", objectFit: "cover" }} 
                                             />
@@ -1537,7 +1549,7 @@ export default function PackagesManager() {
                     {editOpt.image_url && (
                       <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#fffdf9", border: "1px solid #c9964c40", borderRadius: "10px", padding: "10px 14px" }}>
                         <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #c9964c40", flexShrink: 0 }}>
-                          <img src={editOpt.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#fcfbfa" }} />
+                          <img src={resolveMediaUrl(editOpt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#fcfbfa" }} />
                         </div>
                         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
                           <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "#073b35" }}>الصورة الرئيسية للبند (غلاف الكارت)</span>
@@ -1584,7 +1596,7 @@ export default function PackagesManager() {
                           {/* Image preview and actions row */}
                           <div style={{ display: "flex", alignItems: "center", gap: "12px", borderBottom: "1px dashed #eae5dc", paddingBottom: "8px" }}>
                             <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", flexShrink: 0 }}>
-                              <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
+                              <img src={resolveMediaUrl(m.url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
                             </div>
                             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
                               <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35" }}>

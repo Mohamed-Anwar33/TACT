@@ -11,6 +11,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveMediaUrl } from "@/lib/realContent";
 
 const db = supabase as any;
 const blank = { id: "", slug: "", name_en: "", name_ar: "", role_en: "", role_ar: "", department: "team", bio_en: "", bio_ar: "", image_url: "", sort_order: 0, visible: true };
@@ -23,7 +24,14 @@ export default function TeamManager() {
   const [filter, setFilter] = useState("all");
 
   useEffect(() => { load(); }, []);
-  async function load() { const { data } = await db.from("cms_team_members").select("*").order("sort_order"); setItems(data || []); }
+  async function load() {
+    const { data } = await db.from("cms_team_members").select("*").order("sort_order");
+    const normalized = (data || []).map((m: any) => ({
+      ...m,
+      image_url: resolveMediaUrl(m.image_url) || m.image_url
+    }));
+    setItems(normalized);
+  }
 
   const filtered = filter === "all" ? items : items.filter(m => m.department === filter);
 
@@ -73,7 +81,7 @@ export default function TeamManager() {
           {filtered.map(m => (
             <div key={m.id} className="admin-card" style={{ textAlign: "center", padding: "1.5rem 1rem" }}>
               <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 0.75rem", overflow: "hidden", background: "#0C363A", display: "grid", placeItems: "center", border: "2px solid rgba(193, 133, 86,0.3)" }}>
-                {m.image_url ? <img src={m.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={28} color="#C18556" />}
+                {m.image_url ? <img src={resolveMediaUrl(m.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={28} color="#C18556" />}
               </div>
               <div style={{ fontWeight: 700, color: "#0C363A", fontSize: "0.9rem" }}>{m.name_ar || m.name_en}</div>
               <div style={{ fontSize: "0.75rem", color: "#C18556", marginTop: 2 }}>{m.role_ar || m.role_en}</div>
