@@ -129,6 +129,9 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
   // Video modal player
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showArrows, setShowArrows] = useState(false);
+
   useEffect(() => {
     let alive = true;
     getCmsProjects().then((rows) => {
@@ -138,6 +141,51 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
       alive = false;
     };
   }, []);
+
+  // Reset scroll position when tab changes
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) {
+      container.scrollTo({ left: 0 });
+    }
+  }, [activeMainTab]);
+
+  // Check overflow dynamically
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const checkOverflow = () => {
+      setShowArrows(container.scrollWidth > container.clientWidth);
+    };
+
+    checkOverflow();
+    window.addEventListener("resize", checkOverflow);
+    const timer = setTimeout(checkOverflow, 100);
+
+    return () => {
+      window.removeEventListener("resize", checkOverflow);
+      clearTimeout(timer);
+    };
+  }, [cmsProjects, activeMainTab]);
+
+  const handleScroll = (direction: "prev" | "next") => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const card = container.querySelector(".project-card-wrapper");
+    const cardWidth = card ? card.clientWidth : 360;
+    const gap = 24;
+    const amount = cardWidth + gap;
+
+    const isRtl = lang === "ar";
+    let scrollDelta = direction === "next" ? amount : -amount;
+    if (isRtl) {
+      scrollDelta = -scrollDelta; // Invert for RTL scroll direction
+    }
+
+    container.scrollBy({ left: scrollDelta, behavior: "smooth" });
+  };
 
   // Dynamic Filtering Logic
   let displayItems: any[] = [];
@@ -149,10 +197,10 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
 
   if (activeMainTab === "designs") {
     const designs = projectSource.filter((project: any) => (project.portfolioKind || (project.videoUrl ? "execution" : "design")) === "design");
-    displayItems = designs.slice(0, 4);
+    displayItems = designs.slice(0, 12);
   } else {
     const videos = projectSource.filter((project: any) => (project.portfolioKind || (project.videoUrl ? "execution" : "design")) === "execution");
-    displayItems = videos.slice(0, 4);
+    displayItems = videos.slice(0, 12);
   }
 
   // Dynamic values
@@ -267,12 +315,48 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
         </div>
 
         {displayItems.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-4xl mx-auto mt-6 transition-all duration-500">
-            {displayItems.map((p, i) => (
-              <div key={p.id} className="snap-start flex w-full">
-                <ProjectCard p={p} index={i} lang={lang} onPlayVideo={setActiveVideo} />
-              </div>
-            ))}
+          <div className="relative w-full mt-10">
+            {/* Scrollable track */}
+            <div 
+              ref={scrollRef}
+              className="flex gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory [&::-webkit-scrollbar]:hidden pb-6"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {displayItems.map((p, i) => (
+                <div key={p.id} className="project-card-wrapper flex-shrink-0 w-[88%] sm:w-[47%] md:w-[31.5%] snap-start">
+                  <ProjectCard p={p} index={i} lang={lang} onPlayVideo={setActiveVideo} />
+                </div>
+              ))}
+            </div>
+
+            {/* Custom Navigation Arrows */}
+            {showArrows && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleScroll("prev")}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 z-40 bg-[#C18556] text-[#061F22] w-12 h-12 rounded-full hidden md:flex items-center justify-center shadow-lg hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 focus:outline-none",
+                    lang === "ar" ? "-right-6" : "-left-6"
+                  )}
+                  aria-label="Previous"
+                >
+                  {lang === "ar" ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => handleScroll("next")}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 z-40 bg-[#C18556] text-[#061F22] w-12 h-12 rounded-full hidden md:flex items-center justify-center shadow-lg hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 focus:outline-none",
+                    lang === "ar" ? "-left-6" : "-right-6"
+                  )}
+                  aria-label="Next"
+                >
+                  {lang === "ar" ? <ArrowLeft size={20} /> : <ArrowRight size={20} />}
+                </button>
+              </>
+            )}
           </div>
         )}
 
