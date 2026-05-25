@@ -2359,15 +2359,17 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
     <>
       <AdminHeader title={page.ar} subtitle={`\u0628\u0646\u0627\u0621 \u0648\u062a\u0646\u0638\u064a\u0645 \u0635\u0641\u062d\u0629 ${page.ar}`} previewUrl={slug === "home" ? "/" : `/${slug}`}
         actions={
-          <button onClick={openNew} style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "0.55rem 1.15rem", borderRadius: 8,
-            background: "linear-gradient(135deg, #0C363A, #0F6E66)", color: "#fff",
-            border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
-            boxShadow: "0 2px 8px rgba(12, 54, 58,0.3)",
-          }}>
-            <Plus size={16} /> {"+ \u0625\u0636\u0627\u0641\u0629 \u0642\u0633\u0645 \u062c\u062f\u064a\u062f"}
-          </button>
+          slug !== "home" && (
+            <button onClick={openNew} style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "0.55rem 1.15rem", borderRadius: 8,
+              background: "linear-gradient(135deg, #0C363A, #0F6E66)", color: "#fff",
+              border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
+              boxShadow: "0 2px 8px rgba(12, 54, 58,0.3)",
+            }}>
+              <Plus size={16} /> {"+ \u0625\u0636\u0627\u0641\u0629 \u0642\u0633\u0645 \u062c\u062f\u064a\u062f"}
+            </button>
+          )
         }
       />
 

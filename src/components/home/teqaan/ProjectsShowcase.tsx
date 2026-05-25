@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { ArrowRight, ArrowLeft, Play, X, Compass, Palette, Sparkles } from "lucide-react";
 import Reveal from "@/components/ui-luxe/Reveal";
@@ -256,11 +257,11 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
       </div>
 
       {/* FULL SCREEN LIGHTBOX MODAL FOR VIDEOS */}
-      {activeVideo && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-12 animate-fade-in">
+      {activeVideo && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-12 animate-fade-in">
           <div className="absolute inset-0 bg-black/96 backdrop-blur-md" onClick={() => setActiveVideo(null)} />
           
-          <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden border border-[#C18556]/40 shadow-2xl z-10 animate-scale-up">
+          <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden border border-[#C18556]/40 shadow-2xl z-10 animate-scale-in">
             <button 
               onClick={() => setActiveVideo(null)}
               className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-black/60 hover:bg-[#C18556] text-white flex items-center justify-center transition-all shadow-md"
@@ -269,7 +270,8 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
             </button>
             <video src={activeVideo} controls autoPlay className="w-full h-full object-contain" />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );

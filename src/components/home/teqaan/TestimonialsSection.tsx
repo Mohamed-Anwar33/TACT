@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Quote, Play, Star, Plus, X, Image as ImageIcon, MessageSquare, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import Reveal from "@/components/ui-luxe/Reveal";
 import { REVIEW_VIDEOS } from "@/data/site";
@@ -404,11 +405,11 @@ export default function TestimonialsSection({ section }: { section?: any }) {
       </div>
 
       {/* FULL SCREEN VIDEO MODAL / LIGHTBOX */}
-      {activeVideo && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-12 animate-fade-in">
+      {activeVideo && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-12 animate-fade-in">
           <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setActiveVideo(null)} />
           
-          <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden border border-[#C18556]/30 shadow-2xl z-10 animate-scale-up">
+          <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden border border-[#C18556]/30 shadow-2xl z-10 animate-scale-in">
             <button 
               onClick={() => setActiveVideo(null)}
               className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-black/50 hover:bg-[#C18556] text-white flex items-center justify-center transition-all shadow-md"
@@ -422,15 +423,16 @@ export default function TestimonialsSection({ section }: { section?: any }) {
               className="w-full h-full object-contain"
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* PHOTO LIGHTBOX MODAL */}
-      {activeImage && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-8 animate-fade-in">
+      {activeImage && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 animate-fade-in">
           <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setActiveImage(null)} />
           
-          <div className="relative max-w-full max-h-[90vh] bg-[#061F22]/80 p-2 rounded-lg border border-[#C18556]/30 shadow-2xl z-10 animate-scale-up overflow-hidden">
+          <div className="relative max-w-full max-h-[90vh] bg-[#061F22]/80 p-2 rounded-lg border border-[#C18556]/30 shadow-2xl z-10 animate-scale-in overflow-hidden">
             <button 
               onClick={() => setActiveImage(null)}
               className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-black/50 hover:bg-[#C18556] text-white flex items-center justify-center transition-all shadow-md"
@@ -443,16 +445,17 @@ export default function TestimonialsSection({ section }: { section?: any }) {
               className="max-w-full max-h-[85vh] object-contain rounded"
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* STAR RATING SUBMISSION GLASS MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 animate-fade-in">
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-6 animate-fade-in">
           {/* Glass Overlay backdrop */}
           <div className="absolute inset-0 bg-[#061F22]/92 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
           
-          <div className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl rounded-[12px] border border-[#C18556]/40 shadow-[0_30px_70px_rgba(0,0,0,0.5)] p-5 md:p-7 z-10 text-right animate-scale-up overflow-y-auto max-h-[90vh]" dir={lang === "ar" ? "rtl" : "ltr"}>
+          <div className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl rounded-[12px] border border-[#C18556]/40 shadow-[0_30px_70px_rgba(0,0,0,0.5)] p-5 md:p-7 z-10 text-right animate-scale-in overflow-y-auto max-h-[90vh]" dir={lang === "ar" ? "rtl" : "ltr"}>
             
             {/* Close button */}
             <button 
@@ -573,7 +576,8 @@ export default function TestimonialsSection({ section }: { section?: any }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );
