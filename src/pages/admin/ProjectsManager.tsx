@@ -11,7 +11,15 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { parseAreaNumber, CmsAreaRange, defaultAreaRanges } from "@/lib/publicCms";
+import {
+  parseAreaNumber,
+  CmsAreaRange,
+  defaultAreaRanges,
+  countProjectsByRange,
+  formatAreaValue,
+  getAreaRangeForValue,
+  getDefaultAreaForRange,
+} from "@/lib/publicCms";
 import { resolveMediaUrl } from "@/lib/realContent";
 
 const db = supabase as any;
@@ -71,6 +79,9 @@ export default function ProjectsManager() {
 
   const designCount = projects.filter(p => (p.project_kind || (p.video_url ? "execution" : "design")) === "design").length;
   const executionCount = projects.filter(p => (p.project_kind || (p.video_url ? "execution" : "design")) === "execution").length;
+  const areaCounts = countProjectsByRange(projects, areaRanges);
+  const tempAreaCounts = countProjectsByRange(projects, tempRanges);
+
   const filteredProjects = projects.filter(p => {
     const kind = p.project_kind || (p.video_url ? "execution" : "design");
     return kind === projectKindTab;
@@ -80,14 +91,42 @@ export default function ProjectsManager() {
     if (projectKindTab !== "design" || selectedAreaRangeId === "all") return true;
     const range = areaRanges.find(r => r.id === selectedAreaRangeId);
     if (!range) return true;
-    const areaNum = parseAreaNumber(p.area);
-    if (areaNum === null || Number.isNaN(areaNum)) return false;
-    const minMatch = range.min === null || range.min === undefined || areaNum >= range.min;
-    const maxMatch = range.max === null || range.max === undefined || areaNum <= range.max;
-    return minMatch && maxMatch;
+    return getAreaRangeForValue(p.area, [range])?.id === range.id;
   });
 
   const currentKind = editing?.project_kind || (editing?.video_url ? "execution" : "design");
+  const currentEditingRange = currentKind === "design" ? getAreaRangeForValue(editing?.area, areaRanges) : null;
+  const currentEditingAreaNumber = parseAreaNumber(editing?.area);
+
+  function describeAreaRange(range?: CmsAreaRange | null) {
+    if (!range) return "";
+    const min = range.min ?? 0;
+    const max = range.max;
+    return max === null || max === undefined ? `${min} م² فأكثر` : `${min} إلى ${max} م²`;
+  }
+
+  function getProjectAreaRange(project: any) {
+    return getAreaRangeForValue(project.area, areaRanges);
+  }
+
+  function openNewProject() {
+    const selectedRange =
+      projectKindTab === "design" && selectedAreaRangeId !== "all"
+        ? areaRanges.find((range) => range.id === selectedAreaRangeId)
+        : null;
+
+    setEditing({
+      ...blank,
+      project_kind: projectKindTab,
+      area: selectedRange ? getDefaultAreaForRange(selectedRange) : "",
+      sort_order: projects.length,
+      areaRangeHintId: selectedRange?.id || "",
+    });
+  }
+
+  function updateEditingArea(value: string) {
+    setEditing({ ...editing, area: value === "" ? "" : formatAreaValue(value) });
+  }
 
   useEffect(() => { load(); }, []);
 
@@ -220,6 +259,7 @@ export default function ProjectsManager() {
       };
       delete (payload as any).pinOnHome;
       delete (payload as any).project_kind;
+      delete (payload as any).areaRangeHintId;
       
       const { error } = await db.from("cms_projects").upsert(payload, { onConflict: "id" });
       if (error) throw error;
@@ -455,7 +495,7 @@ export default function ProjectsManager() {
     <>
       <AdminHeader title="أعمالنا" subtitle="إدارة المشاريع" previewUrl="/portfolio"
         actions={
-          <button onClick={() => setEditing({ ...blank, project_kind: projectKindTab, sort_order: projects.length })}
+          <button onClick={openNewProject}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0.5rem 1rem", borderRadius: 8, background: "#0C363A", color: "#fff", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
             <Plus size={16} /> إضافة مشروع
           </button>
@@ -553,16 +593,7 @@ export default function ProjectsManager() {
               }}
             >
               {areaRanges.map((range) => {
-                const count = projects.filter((p) => {
-                  const kind = p.project_kind || (p.video_url ? "execution" : "design");
-                  if (kind !== "design") return false;
-                  const areaNum = parseAreaNumber(p.area);
-                  if (areaNum === null || Number.isNaN(areaNum)) return false;
-                  const minMatch = range.min === null || range.min === undefined || areaNum >= range.min;
-                  const maxMatch = range.max === null || range.max === undefined || areaNum <= range.max;
-                  return minMatch && maxMatch;
-                }).length;
-
+                const count = areaCounts[range.id] || 0;
                 const isSelected = selectedAreaRangeId === range.id;
 
                 return (
@@ -675,16 +706,7 @@ export default function ProjectsManager() {
             </button>
 
             {areaRanges.map((range) => {
-              const count = projects.filter((p) => {
-                const kind = p.project_kind || (p.video_url ? "execution" : "design");
-                if (kind !== "design") return false;
-                const areaNum = parseAreaNumber(p.area);
-                if (areaNum === null || Number.isNaN(areaNum)) return false;
-                const minMatch = range.min === null || range.min === undefined || areaNum >= range.min;
-                const maxMatch = range.max === null || range.max === undefined || areaNum <= range.max;
-                return minMatch && maxMatch;
-              }).length;
-
+              const count = areaCounts[range.id] || 0;
               const isSelected = selectedAreaRangeId === range.id;
 
               return (
@@ -740,7 +762,7 @@ export default function ProjectsManager() {
                 <Film size={48} style={{ margin: "0 auto 1rem", opacity: 0.3 }} />
               )}
               <p>{projectKindTab === "design" ? "لا توجد مشاريع تصميم بعد" : "لا توجد مشاريع تنفيذ بعد"}</p>
-              <button onClick={() => setEditing({ ...blank, project_kind: projectKindTab })} style={{ marginTop: "1rem", padding: "0.5rem 1.5rem", borderRadius: 8, background: "#0C363A", color: "#fff", border: "none", cursor: "pointer" }}>
+              <button onClick={openNewProject} style={{ marginTop: "1rem", padding: "0.5rem 1.5rem", borderRadius: 8, background: "#0C363A", color: "#fff", border: "none", cursor: "pointer" }}>
                 إضافة أول مشروع
               </button>
             </div>
@@ -771,7 +793,7 @@ export default function ProjectsManager() {
                   عرض جميع المشاريع
                 </button>
                 <button 
-                  onClick={() => setEditing({ ...blank, project_kind: projectKindTab, sort_order: projects.length })} 
+                  onClick={openNewProject} 
                   style={{ 
                     padding: "0.5rem 1.5rem", 
                     borderRadius: 8, 
@@ -826,7 +848,25 @@ export default function ProjectsManager() {
                     })()}
                   </div>
                   <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0C363A", marginTop: 4 }}>{p.title_ar || p.title_en}</h3>
-                  {p.area && <span style={{ fontSize: "0.7rem", color: "#999" }}>{p.area}</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                    {p.area && <span style={{ fontSize: "0.7rem", color: "#999" }}>{p.area}</span>}
+                    {projectKindTab === "design" && (() => {
+                      const projectRange = getProjectAreaRange(p);
+                      return (
+                        <span style={{
+                          fontSize: "0.62rem",
+                          fontWeight: 700,
+                          padding: "2px 7px",
+                          borderRadius: 999,
+                          background: projectRange ? "rgba(12, 54, 58, 0.08)" : "rgba(216, 71, 40, 0.08)",
+                          color: projectRange ? "#0C363A" : "#D84728",
+                          border: `1px solid ${projectRange ? "rgba(12, 54, 58, 0.12)" : "rgba(216, 71, 40, 0.18)"}`
+                        }}>
+                          {projectRange ? projectRange.titleAr : "غير مصنف"}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                     <StatusBadge visible={p.visible} />
                     <span style={{ fontSize: "0.65rem", color: "#888", background: "#f5f5f4", padding: "2px 8px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
@@ -940,7 +980,26 @@ export default function ProjectsManager() {
                           </button>
                         </div>
                       </td>
-                      <td>{p.area || "-"}</td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                          <span>{p.area || "-"}</span>
+                          {projectKindTab === "design" && (() => {
+                            const projectRange = getProjectAreaRange(p);
+                            return (
+                              <span style={{
+                                fontSize: "0.62rem",
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: 999,
+                                background: projectRange ? "rgba(12, 54, 58, 0.08)" : "rgba(216, 71, 40, 0.08)",
+                                color: projectRange ? "#0C363A" : "#D84728",
+                              }}>
+                                {projectRange ? projectRange.titleAr : "غير مصنف"}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
                       <td>{imgCount(p.id)}</td>
                       <td>{vidCount(p.id)}</td>
                       <td><StatusBadge visible={p.visible} /></td>
@@ -1030,11 +1089,34 @@ export default function ProjectsManager() {
             </div>
             <div className="form-group">
               <label>المساحة</label>
-              <Input value={editing.area || ""} onChange={e => setEditing({ ...editing, area: e.target.value })} placeholder="250 m²" dir="ltr" />
-              {(editing.project_kind || (editing.video_url ? "execution" : "design")) === "design" && parseAreaNumber(editing.area) === null && (
-                <p style={{ fontSize: "0.68rem", color: "#D84728", marginTop: 6, fontWeight: 700 }}>
-                  يجب إدخال رقم مساحة واضح مثل 120 م² حتى يظهر التصميم داخل تصنيف المساحات الصحيح.
-                </p>
+              <div style={{ position: "relative" }}>
+                <Input
+                  type="number"
+                  value={currentEditingAreaNumber ?? ""}
+                  onChange={e => updateEditingArea(e.target.value)}
+                  placeholder="250"
+                  dir="ltr"
+                  style={{ paddingInlineEnd: 48 }}
+                />
+                <span style={{ position: "absolute", insetInlineEnd: 12, top: "50%", transform: "translateY(-50%)", fontSize: "0.75rem", color: "#8a8578", fontWeight: 700 }}>
+                  m²
+                </span>
+              </div>
+              {currentKind === "design" && (
+                <div style={{
+                  marginTop: 8,
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  background: currentEditingRange ? "rgba(12, 54, 58, 0.06)" : "rgba(216, 71, 40, 0.08)",
+                  color: currentEditingRange ? "#0C363A" : "#D84728",
+                  border: `1px solid ${currentEditingRange ? "rgba(12, 54, 58, 0.12)" : "rgba(216, 71, 40, 0.18)"}`
+                }}>
+                  {currentEditingRange
+                    ? `سيظهر هذا المشروع في: ${currentEditingRange.titleAr} (${describeAreaRange(currentEditingRange)})`
+                    : "أدخل رقم مساحة واضح حتى يتم تصنيف المشروع تلقائيًا داخل تقسيمات المساحات."}
+                </div>
               )}
             </div>
             <div className="form-group"><label>الوصف (عربي)</label><Textarea value={editing.description_ar || ""} onChange={e => setEditing({ ...editing, description_ar: e.target.value })} rows={3} /></div>
@@ -1360,6 +1442,27 @@ export default function ProjectsManager() {
             </button>
           </div>
 
+          <div style={{ border: "1px solid #e5e0d5", borderRadius: 10, padding: "12px", background: "#fff" }}>
+            <div style={{ fontSize: "0.76rem", fontWeight: 800, color: "#0C363A", marginBottom: 10 }}>
+              معاينة تأثير التقسيمات على المشاريع الحالية
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+              {tempRanges.map((range) => (
+                <div key={range.id} style={{ border: "1px solid #f0ece4", borderRadius: 8, padding: "8px 10px", background: "#fbfbfa" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#0C363A", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {range.titleAr || "تقسيم مساحة"}
+                  </div>
+                  <div style={{ fontSize: "0.64rem", color: "#C18556", marginTop: 2, fontWeight: 700 }}>
+                    {describeAreaRange(range)}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "#666", marginTop: 4 }}>
+                    {(tempAreaCounts[range.id] || 0)} مشروع
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginTop: "0.5rem" }}>
             {tempRanges.map((range, index) => {
               const isFirst = index === 0;
@@ -1467,6 +1570,10 @@ export default function ProjectsManager() {
                         placeholder="مثال: 200" 
                       />
                     </div>
+                  </div>
+
+                  <div style={{ marginBottom: "1rem", padding: "8px 10px", borderRadius: 8, background: "rgba(12, 54, 58, 0.05)", color: "#0C363A", fontSize: "0.72rem", fontWeight: 700 }}>
+                    بعد الحفظ سيظهر داخل هذا التقسيم {(tempAreaCounts[range.id] || 0)} مشروع.
                   </div>
 
                   {/* Background Cover Image Uploader */}

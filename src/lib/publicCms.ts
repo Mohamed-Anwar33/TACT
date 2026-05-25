@@ -94,6 +94,44 @@ export const defaultAreaRanges: CmsAreaRange[] = [
   { id: "more-than-300", titleAr: "أكثر من 300 م²", titleEn: "More than 300 m²", min: 301, max: null, imageUrl: "" },
 ];
 
+export function formatAreaValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+  const parsed = typeof value === "number" ? value : parseAreaNumber(String(value));
+  if (parsed === null || Number.isNaN(parsed)) return "";
+  return `${parsed} m²`;
+}
+
+export function getAreaRangeForValue(area: number | string | null | undefined, ranges: CmsAreaRange[]) {
+  const areaNumber = typeof area === "number" ? area : parseAreaNumber(area);
+  if (areaNumber === null || Number.isNaN(areaNumber)) return null;
+
+  return (
+    ranges.find((range) => {
+      const minMatch = range.min === null || range.min === undefined || areaNumber >= range.min;
+      const maxMatch = range.max === null || range.max === undefined || areaNumber <= range.max;
+      return minMatch && maxMatch;
+    }) || null
+  );
+}
+
+export function getDefaultAreaForRange(range?: CmsAreaRange | null) {
+  if (!range) return "";
+  return formatAreaValue(range.min ?? 0);
+}
+
+export function countProjectsByRange<T extends { area?: string | null; project_kind?: string | null; video_url?: string | null }>(
+  projects: T[],
+  ranges: CmsAreaRange[]
+) {
+  return ranges.reduce<Record<string, number>>((acc, range) => {
+    acc[range.id] = projects.filter((project) => {
+      const kind = project.project_kind || (project.video_url ? "execution" : "design");
+      return kind === "design" && getAreaRangeForValue(project.area, [range])?.id === range.id;
+    }).length;
+    return acc;
+  }, {});
+}
+
 export async function getCmsAreaRanges(): Promise<CmsAreaRange[]> {
   const { data, error } = await db
     .from("cms_sections")
@@ -109,12 +147,7 @@ export async function getCmsAreaRanges(): Promise<CmsAreaRange[]> {
 }
 
 export function getAreaRangeId(area?: string | null) {
-  const areaNumber = parseAreaNumber(area);
-  if (areaNumber === null || Number.isNaN(areaNumber)) return null;
-  if (areaNumber < 150) return "less-than-150";
-  if (areaNumber <= 200) return "150-to-200";
-  if (areaNumber <= 300) return "200-to-300";
-  return "more-than-300";
+  return getAreaRangeForValue(area, defaultAreaRanges)?.id || null;
 }
 
 function getVideoSourceType(url?: string | null): CmsProject["videoSourceType"] {
