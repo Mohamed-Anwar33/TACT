@@ -125,7 +125,8 @@ export default function ProjectsManager() {
   }
 
   function updateEditingArea(value: string) {
-    setEditing({ ...editing, area: value === "" ? "" : formatAreaValue(value) });
+    const numericValue = value.replace(/[^\d.,]/g, "");
+    setEditing({ ...editing, area: numericValue === "" ? "" : formatAreaValue(numericValue) });
   }
 
   function makeProjectId(project: any) {
@@ -869,7 +870,7 @@ export default function ProjectsManager() {
                   </div>
                   <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0C363A", marginTop: 4 }}>{p.title_ar || p.title_en}</h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                    {p.area && <span style={{ fontSize: "0.7rem", color: "#999" }}>{p.area}</span>}
+                    {p.area && <span dir="ltr" style={{ fontSize: "0.7rem", color: "#999" }}>{formatAreaValue(p.area) || p.area}</span>}
                     {projectKindTab === "design" && (() => {
                       const projectRange = getProjectAreaRange(p);
                       return (
@@ -1002,7 +1003,7 @@ export default function ProjectsManager() {
                       </td>
                       <td>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                          <span>{p.area || "-"}</span>
+                          <span dir="ltr">{formatAreaValue(p.area) || p.area || "-"}</span>
                           {projectKindTab === "design" && (() => {
                             const projectRange = getProjectAreaRange(p);
                             return (
@@ -1104,17 +1105,36 @@ export default function ProjectsManager() {
             </div>
             <div className="form-group">
               <label>المساحة</label>
-              <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 0, direction: "ltr" }}>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={currentEditingAreaNumber ?? ""}
                   onChange={e => updateEditingArea(e.target.value)}
                   placeholder="250"
                   dir="ltr"
-                  style={{ paddingInlineEnd: 48 }}
+                  style={{
+                    borderTopRightRadius: 0,
+                    borderBottomRightRadius: 0,
+                    textAlign: "left",
+                    fontVariantNumeric: "tabular-nums"
+                  }}
                 />
-                <span style={{ position: "absolute", insetInlineEnd: 12, top: "50%", transform: "translateY(-50%)", fontSize: "0.75rem", color: "#8a8578", fontWeight: 700 }}>
-                  m²
+                <span style={{
+                  minWidth: 52,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "1px solid #e5e0d5",
+                  borderLeft: "none",
+                  borderTopRightRadius: 6,
+                  borderBottomRightRadius: 6,
+                  background: "#fbfbfa",
+                  color: "#0C363A",
+                  fontSize: "0.78rem",
+                  fontWeight: 800
+                }}>
+                  م²
                 </span>
               </div>
               {currentKind === "design" && (

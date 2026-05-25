@@ -98,7 +98,7 @@ export function formatAreaValue(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return "";
   const parsed = typeof value === "number" ? value : parseAreaNumber(String(value));
   if (parsed === null || Number.isNaN(parsed)) return "";
-  return `${parsed} m²`;
+  return `${parsed} م²`;
 }
 
 export function getAreaRangeForValue(area: number | string | null | undefined, ranges: CmsAreaRange[]) {

@@ -46,8 +46,8 @@ describe("portfolio area ranges", () => {
   });
 
   it("formats and defaults new project area values from the chosen range", () => {
-    expect(formatAreaValue("150")).toBe("150 m²");
-    expect(getDefaultAreaForRange(ranges[1])).toBe("150 m²");
-    expect(getDefaultAreaForRange(ranges[2])).toBe("301 m²");
+    expect(formatAreaValue("150")).toBe("150 م²");
+    expect(getDefaultAreaForRange(ranges[1])).toBe("150 م²");
+    expect(getDefaultAreaForRange(ranges[2])).toBe("301 م²");
   });
 });
