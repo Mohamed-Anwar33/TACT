@@ -27,10 +27,29 @@ export default function TeamManager() {
 
   const filtered = filter === "all" ? items : items.filter(m => m.department === filter);
 
+  function makeMemberSlug(member: any) {
+    const source = String(member.name_en || member.name_ar || "team-member").trim();
+    const base = source
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || `member-${Date.now()}`;
+
+    let candidate = base;
+    let suffix = 2;
+    while (items.some((item) => item.slug === candidate && item.id !== member.id)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault(); setBusy(true);
     try {
-      const payload = { ...editing, id: editing.id || undefined, sort_order: Number(editing.sort_order) || 0 };
+      const payload = { ...editing, id: editing.id || undefined, slug: editing.slug || makeMemberSlug(editing), sort_order: Number(editing.sort_order) || 0 };
       const { error } = await db.from("cms_team_members").upsert(payload, { onConflict: "slug" });
       if (error) throw error;
       toast.success("تم حفظ العضو"); setEditing(null); await load();
@@ -74,7 +93,6 @@ export default function TeamManager() {
         footer={<SaveButton loading={busy} label="حفظ العضو" onClick={() => (document.getElementById("team-form") as HTMLFormElement | null)?.requestSubmit()} />}>
         {editing && (
           <form id="team-form" onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div className="form-group"><label>Slug</label><Input value={editing.slug} onChange={e => setEditing({ ...editing, slug: e.target.value })} required dir="ltr" /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div className="form-group"><label>الاسم (عربي)</label><Input value={editing.name_ar} onChange={e => setEditing({ ...editing, name_ar: e.target.value })} required /></div>
               <div className="form-group"><label>Name (EN)</label><Input value={editing.name_en} onChange={e => setEditing({ ...editing, name_en: e.target.value })} required dir="ltr" /></div>

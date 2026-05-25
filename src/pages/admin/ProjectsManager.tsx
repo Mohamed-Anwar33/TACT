@@ -128,6 +128,25 @@ export default function ProjectsManager() {
     setEditing({ ...editing, area: value === "" ? "" : formatAreaValue(value) });
   }
 
+  function makeProjectId(project: any) {
+    const source = String(project.title_en || project.title_ar || "project").trim();
+    const base = source
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || `project-${Date.now()}`;
+
+    let candidate = base;
+    let suffix = 2;
+    while (projects.some((projectRow) => projectRow.id === candidate && projectRow.id !== project.id)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
+  }
+
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
@@ -241,9 +260,9 @@ export default function ProjectsManager() {
     if (!editing) return;
     setBusy(true);
     try {
-      if (!editing.id) { toast.error("يجب إدخال Project ID"); setBusy(false); return; }
+      const projectId = editing.id || makeProjectId(editing);
       
-      const isNew = !projects.some(p => p.id === editing.id);
+      const isNew = !projects.some(p => p.id === projectId);
       let finalCoverUrl = editing.cover_url;
       if (!finalCoverUrl && tempGallery.length > 0) {
         finalCoverUrl = tempGallery[0];
@@ -253,6 +272,7 @@ export default function ProjectsManager() {
       const projectKind = editing.project_kind || (editing.video_url ? "execution" : "design");
       const payload = { 
         ...editing, 
+        id: projectId,
         video_url: projectKind === "design" ? "" : editing.video_url,
         cover_url: finalCoverUrl, 
         sort_order: Number(editing.sort_order) || 0 
@@ -266,7 +286,7 @@ export default function ProjectsManager() {
 
       if (isNew && tempGallery.length > 0) {
         const mediaRows = tempGallery.map((url, idx) => ({
-          project_id: editing.id,
+          project_id: projectId,
           media_type: "image",
           role: "gallery",
           url,
@@ -281,7 +301,7 @@ export default function ProjectsManager() {
         if (mediaErr) console.error("Error inserting temp gallery:", mediaErr);
       }
 
-      const savedId = editing.id;
+      const savedId = projectId;
       if (savedId && section) {
         const selectedIds: string[] = section.metadata?.selectedIds || [];
         let newIds = [...selectedIds];
@@ -1056,11 +1076,6 @@ export default function ProjectsManager() {
       >
         {editing && (
           <form id="project-form" onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div className="form-group">
-              <label>Project ID / Slug</label>
-              <Input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value })} placeholder="project-slug" required dir="ltr"
-                disabled={!!projects.find(p => p.id === editing.id)} />
-            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div className="form-group"><label>العنوان (عربي)</label><Input value={editing.title_ar} onChange={e => setEditing({ ...editing, title_ar: e.target.value })} required /></div>
               <div className="form-group"><label>Title (EN)</label><Input value={editing.title_en} onChange={e => setEditing({ ...editing, title_en: e.target.value })} required dir="ltr" /></div>

@@ -38,6 +38,40 @@ export default function PackagesManager() {
   const [busy, setBusy] = useState(false);
   const [deleteAction, setDeleteAction] = useState<{ table: string; id: string } | null>(null);
 
+  function makeSlug(value: string, fallback: string) {
+    return (
+      String(value || fallback)
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48) || `${fallback}-${Date.now()}`
+    );
+  }
+
+  function makeUniquePackageId(pkg: any) {
+    const base = makeSlug(pkg.name_en || pkg.name_ar, "package");
+    let candidate = base;
+    let suffix = 2;
+    while (packages.some((item) => item.id === candidate && item.id !== pkg.id)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
+  }
+
+  function makeUniqueCategorySlug(category: any) {
+    const base = makeSlug(category.name_en || category.name_ar, "category");
+    let candidate = base;
+    let suffix = 2;
+    while (categories.some((item) => item.style_id === category.style_id && item.slug === candidate && item.id !== category.id)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -104,6 +138,7 @@ export default function PackagesManager() {
     try {
       const p = { 
         ...editPkg, 
+        id: editPkg.id || makeUniquePackageId(editPkg),
         sort_order: Number(editPkg.sort_order) || 0,
         features_en: Array.isArray(editPkg.features_en) ? editPkg.features_en : [],
         features_ar: Array.isArray(editPkg.features_ar) ? editPkg.features_ar : []
@@ -206,7 +241,8 @@ export default function PackagesManager() {
     if (!editCat) return;
     setBusy(true);
     try {
-      const { error } = await db.from("package_categories").upsert(editCat);
+      const payload = { ...editCat, slug: editCat.slug || makeUniqueCategorySlug(editCat) };
+      const { error } = await db.from("package_categories").upsert(payload);
       if (error) throw error;
       toast.success("تم حفظ التصنيف بنجاح");
       setEditCat(null);
@@ -764,7 +800,7 @@ export default function PackagesManager() {
                                       </span>
                                     </h3>
                                     <p style={{ fontSize: "0.72rem", color: "#8a8578", margin: "4px 0 0 0" }}>
-                                      الرمز الفريد للربط: <code style={{ background: "#faf8f4", padding: "2px 6px", borderRadius: "4px", fontSize: "0.68rem" }}>{activeCategory.slug}</code> • {catOpts.length} خيار تشطيب متاح
+                                      {catOpts.length} خيار تشطيب متاح
                                     </p>
                                   </div>
                                 </div>
@@ -1109,18 +1145,6 @@ export default function PackagesManager() {
       >
         {editPkg && (
           <form id="pkg-form" onSubmit={savePkg} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div className="form-group">
-              <label>رمز الباقة الفريد (ID) *</label>
-              <Input 
-                value={editPkg.id} 
-                onChange={e => setEditPkg({ ...editPkg, id: e.target.value.toLowerCase().replace(/\s+/g, "-") })} 
-                required 
-                dir="ltr" 
-                placeholder="مثال: economy, gold, luxury"
-                disabled={!!packages.find(p => p.id === editPkg.id)} 
-              />
-            </div>
-            
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div className="form-group">
                 <label>الاسم بالكامل (عربي) *</label>
@@ -1411,10 +1435,6 @@ export default function PackagesManager() {
       >
         {editCat && (
           <form id="cat-form" onSubmit={saveCat} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div className="form-group">
-              <label>الرمز التعريفي للبند (Slug / Unique Key) *</label>
-              <Input value={editCat.slug} onChange={e => setEditCat({ ...editCat, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") })} required dir="ltr" placeholder="مثال: flooring, wall-paint, ceiling" />
-            </div>
             <div className="form-group">
               <label>اسم البند (عربي) *</label>
               <Input value={editCat.name_ar} onChange={e => setEditCat({ ...editCat, name_ar: e.target.value })} required placeholder="مثال: الأرضيات، دهان الحوائط، الأسقف المعلقة" />

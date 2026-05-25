@@ -113,6 +113,18 @@ function getAccent(key: string) {
   return KEY_COLORS[key] || "#C18556";
 }
 
+function makeInternalSlug(value: string, fallback: string) {
+  return (
+    String(value || fallback)
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || `${fallback}-${Date.now()}`
+  );
+}
+
 export default function PageSectionsManager() {
   const { slug = "home" } = useParams();
   const page = PAGE_NAMES[slug] || PAGE_NAMES.home;
@@ -659,14 +671,18 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
   async function saveProject(e: React.FormEvent) {
     e.preventDefault();
     if (!editingProject) return;
-    if (!editingProject.id) {
-      toast.error("يجب إدخال Slug / المعرف الفريد");
-      return;
-    }
     setBusy(true);
     try {
+      const baseId = makeInternalSlug(editingProject.title_en || editingProject.title_ar, "project");
+      let projectId = editingProject.id || baseId;
+      let suffix = 2;
+      while (dbProjects.some((project) => project.id === projectId && project.id !== editingProject.id)) {
+        projectId = `${baseId}-${suffix}`;
+        suffix += 1;
+      }
       const payload = {
         ...editingProject,
+        id: projectId,
         sort_order: Number(editingProject.sort_order) || 0
       };
       const pinOnHome = !!editingProject.pinOnHome;
@@ -676,7 +692,7 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
       if (error) throw error;
       toast.success("تم حفظ المشروع بنجاح");
 
-      const savedId = editingProject.id;
+      const savedId = projectId;
       if (savedId) {
         let newIds = [...selectedIds];
         if (pinOnHome) {
@@ -777,12 +793,6 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: "0.65rem" }}>المعرف الفريد (Slug)</label>
-              <Input value={editingProject.id} onChange={e => setEditingProject({ ...editingProject, id: e.target.value })}
-                disabled={dbProjects.some(p => p.id === editingProject.id)} placeholder="villas-concept-design" required dir="ltr" />
-            </div>
-
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: "0.65rem" }}>اسم المشروع (عربي)</label>
@@ -995,7 +1005,12 @@ function ServicesSectionEditor({ dbServices, onRefresh, editing, setEditing }: {
     if (!editingService) return;
     setBusy(true);
     try {
-      const payload = { ...editingService, id: editingService.id || undefined, sort_order: Number(editingService.sort_order) || 0 };
+      const payload = {
+        ...editingService,
+        id: editingService.id || undefined,
+        slug: editingService.slug || makeInternalSlug(editingService.title_en || editingService.title_ar, "service"),
+        sort_order: Number(editingService.sort_order) || 0
+      };
       const { error } = await db.from("cms_services").upsert(payload, { onConflict: "slug" });
       if (error) throw error;
       toast.success("تم حفظ الخدمة بنجاح!");
@@ -1089,10 +1104,6 @@ function ServicesSectionEditor({ dbServices, onRefresh, editing, setEditing }: {
                     <option key={num} value={num}>{num} - {label}</option>
                   ))}
                 </select>
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: "0.65rem" }}>الرابط الفريد (Slug)</label>
-                <Input value={editingService.slug} onChange={e => setEditingService({ ...editingService, slug: e.target.value })} required dir="ltr" />
               </div>
             </div>
 
@@ -1250,15 +1261,12 @@ function TeamSectionEditor({ dbTeam, onRefresh, editing, setEditing }: { dbTeam:
   async function saveMember(e: React.FormEvent) {
     e.preventDefault();
     if (!editingMember) return;
-    if (!editingMember.slug) {
-      toast.error("يجب إدخال Slug / المعرف الفريد");
-      return;
-    }
     setBusy(true);
     try {
       const payload = {
         ...editingMember,
         id: editingMember.id || undefined,
+        slug: editingMember.slug || makeInternalSlug(editingMember.name_en || editingMember.name_ar, "member"),
         sort_order: Number(editingMember.sort_order) || 0
       };
       const pinOnHome = !!editingMember.pinOnHome;
@@ -1369,12 +1377,6 @@ function TeamSectionEditor({ dbTeam, onRefresh, editing, setEditing }: { dbTeam:
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: "0.65rem" }}>الاسم المعرف الفريد (Slug)</label>
-              <Input value={editingMember.slug} onChange={e => setEditingMember({ ...editingMember, slug: e.target.value })}
-                placeholder="ahmed-ali" required dir="ltr" />
-            </div>
-
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: "0.65rem" }}>الاسم بالكامل (عربي)</label>
