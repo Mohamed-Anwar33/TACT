@@ -5,10 +5,14 @@ import { ArrowRight, ArrowLeft, Play, X, Compass, Palette, Sparkles } from "luci
 import Reveal from "@/components/ui-luxe/Reveal";
 import { useLang } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-import { PROJECTS, VIDEO_PROJECTS } from "@/data/site";
+import { getCmsProjects, getProjectPreviewMedia, type CmsProject } from "@/lib/publicCms";
 
 function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; lang: string; onPlayVideo?: (url: string) => void }) {
-  const isVideo = p.videoUrl ? true : false;
+  const previewMedia = getProjectPreviewMedia(p);
+  const videoUrl = p.videoUrl || p.video_url || previewMedia?.videoUrl;
+  const isVideo = !!videoUrl || previewMedia?.type === "video";
+  const title = lang === "ar" ? p.nameAr || p.title_ar : p.name || p.title_en;
+  const imageUrl = previewMedia?.type === "image" ? previewMedia.url : "";
 
   return (
     <Reveal delay={index * 120} className="w-full">
@@ -17,25 +21,41 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
         {isVideo ? (
           <button 
             type="button"
-            onClick={() => onPlayVideo?.(p.videoUrl)}
+            onClick={() => videoUrl && onPlayVideo?.(videoUrl)}
             className="absolute inset-0 z-30 w-full h-full text-start cursor-pointer focus:outline-none"
           >
-            <span className="sr-only">Watch {p.name}</span>
+            <span className="sr-only">Watch {title}</span>
           </button>
         ) : (
           <Link to={`/portfolio/${p.id}`} className="absolute inset-0 z-30">
-            <span className="sr-only">View {p.name}</span>
+            <span className="sr-only">View {title}</span>
           </Link>
         )}
 
         {/* Project Cover Image */}
-        <img 
-          src={p.img || p.cover || "/placeholder-project.jpg"} 
-          alt={lang === "ar" ? p.nameAr : p.name} 
-          loading="lazy"
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95"
-        />
+        {imageUrl ? (
+          <img 
+            src={imageUrl} 
+            alt={title} 
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95"
+          />
+        ) : previewMedia?.type === "video" ? (
+          <video
+            src={previewMedia.url}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95"
+          />
+        ) : (
+          <div className="absolute inset-0 z-0 grid place-items-center bg-[#061F22] text-[#C18556]/70">
+            <Palette size={34} />
+          </div>
+        )}
         
         {/* Cinematic Premium Overlay Gradients */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#061F22] via-[#061F22]/35 to-transparent z-10 transition-opacity duration-500" />
@@ -69,13 +89,13 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
           )}>
             {/* Title */}
             <h3 className="text-lg md:text-[21px] font-bold text-white mb-2 leading-[1.3] drop-shadow-md">
-              {lang === "ar" ? p.nameAr : p.name}
+              {title}
             </h3>
             
             {/* Description snippet */}
             {isVideo && (
               <p className="text-[12px] md:text-[13px] text-white/80 line-clamp-2 mb-3 leading-relaxed drop-shadow-sm font-light">
-                {lang === "ar" ? p.descAr : p.desc}
+                {lang === "ar" ? p.descAr || p.description_ar : p.desc || p.description_en}
               </p>
             )}
 
@@ -104,19 +124,35 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
 export default function ProjectsShowcase({ section }: { section?: any }) {
   const { lang } = useLang();
   const [activeMainTab, setActiveMainTab] = useState<"designs" | "finishing">("designs");
+  const [cmsProjects, setCmsProjects] = useState<CmsProject[]>([]);
   
   // Video modal player
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
+  useEffect(() => {
+    let alive = true;
+    getCmsProjects().then((rows) => {
+      if (alive) setCmsProjects(rows);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Dynamic Filtering Logic
   let displayItems: any[] = [];
+  const selectedIds: string[] = Array.isArray(section?.metadata?.selectedIds) ? section.metadata.selectedIds : [];
+  const selectedProjects = selectedIds.length
+    ? selectedIds.map((id) => cmsProjects.find((project) => project.id === id)).filter(Boolean)
+    : [];
+  const projectSource = selectedProjects;
 
   if (activeMainTab === "designs") {
-    // Filter Designs (PROJECTS) -> Display exactly top 2 premier designs
-    displayItems = PROJECTS.slice(0, 2);
+    const designs = projectSource.filter((project: any) => (project.portfolioKind || (project.videoUrl ? "execution" : "design")) === "design");
+    displayItems = designs.slice(0, 4);
   } else {
-    // Filter Finishing Videos (VIDEO_PROJECTS) -> Display exactly top 2 premier videos
-    displayItems = VIDEO_PROJECTS.slice(0, 2);
+    const videos = projectSource.filter((project: any) => (project.portfolioKind || (project.videoUrl ? "execution" : "design")) === "execution");
+    displayItems = videos.slice(0, 4);
   }
 
   // Dynamic values
@@ -230,14 +266,15 @@ export default function ProjectsShowcase({ section }: { section?: any }) {
           </Reveal>
         </div>
 
-        {/* PROJECTS GRID / CAROUSEL */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-4xl mx-auto mt-6 transition-all duration-500">
-          {displayItems.map((p, i) => (
-            <div key={p.id} className="snap-start flex w-full">
-              <ProjectCard p={p} index={i} lang={lang} onPlayVideo={setActiveVideo} />
-            </div>
-          ))}
-        </div>
+        {displayItems.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-4xl mx-auto mt-6 transition-all duration-500">
+            {displayItems.map((p, i) => (
+              <div key={p.id} className="snap-start flex w-full">
+                <ProjectCard p={p} index={i} lang={lang} onPlayVideo={setActiveVideo} />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* BROWSE ALL PROJECTS BUTTON */}
         <div className="text-center mt-16">

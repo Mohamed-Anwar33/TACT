@@ -11,6 +11,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { getProjectPreviewMedia } from "@/lib/publicCms";
 
 const db = supabase as any;
 
@@ -874,11 +875,19 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
 
       {/* Projects list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflowY: "auto", paddingInlineEnd: 4 }}>
-        {dbProjects.map((p: any) => (
+        {dbProjects.map((p: any) => {
+          const previewMedia = getProjectPreviewMedia(p);
+          return (
           <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#ffffff", border: "1px solid #eae5dc", borderRadius: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 40, height: 30, borderRadius: 4, overflow: "hidden", background: "#f0ece4", flexShrink: 0 }}>
-                {p.cover_url && <img src={p.cover_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              <div style={{ width: 40, height: 30, borderRadius: 4, overflow: "hidden", background: "#f0ece4", flexShrink: 0, display: "grid", placeItems: "center" }}>
+                {previewMedia?.type === "image" ? (
+                  <img src={previewMedia.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : previewMedia?.type === "video" ? (
+                  <video src={previewMedia.url} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <ImageIcon size={14} color="#C18556" />
+                )}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -922,7 +931,8 @@ function WorksSectionEditor({ dbProjects, onRefresh, editing, setEditing }: { db
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {dbProjects.length === 0 && (
           <div style={{ textAlign: "center", color: "#999", fontSize: "0.75rem", padding: "1rem" }}>
@@ -1778,12 +1788,13 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
             .map(id => activeProjects.find(p => p.id === id))
             .filter(Boolean);
         } else {
-          activeProjects = activeProjects.slice(0, 3);
+          activeProjects = [];
         }
-        const displayProjects = activeProjects.length > 0 ? activeProjects : [
+        const fallbackProjects = [
           { title_ar: "فيلا مدينتي", title_en: "Madinaty Villa", cover_url: "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp" },
           { title_ar: "مكتب التجمع", title_en: "Tagamoa Office", cover_url: "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.webp" },
         ];
+        const displayProjects = activeProjects;
 
         return (
           <div style={{
@@ -1809,8 +1820,11 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
             </p>
 
             {/* Grid of project cards */}
+            {displayProjects.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {displayProjects.map((p: any, i: number) => (
+              {displayProjects.map((p: any, i: number) => {
+                const previewMedia = getProjectPreviewMedia(p);
+                return (
                 <div key={i} style={{
                   position: "relative",
                   borderRadius: 6,
@@ -1819,8 +1833,10 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
                   background: "#0C363A",
                   borderBottom: "2.5px solid #C18556"
                 }}>
-                  {p.cover_url ? (
-                    <img src={p.cover_url} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }} />
+                  {previewMedia?.type === "image" ? (
+                    <img src={previewMedia.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }} />
+                  ) : previewMedia?.type === "video" ? (
+                    <video src={previewMedia.url} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }} />
                   ) : (
                     <div style={{ height: "100%", display: "grid", placeItems: "center", color: "rgba(193, 133, 86, 0.4)" }}>
                       <ImageIcon size={18} />
@@ -1840,8 +1856,26 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
                     {isAr ? p.title_ar || p.title_en : p.title_en || p.title_ar}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
+            ) : (
+              <div style={{
+                minHeight: 110,
+                borderRadius: 8,
+                border: "1px dashed #DDB57C",
+                background: "#faf8f4",
+                display: "grid",
+                placeItems: "center",
+                color: "#8a6d4f",
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                textAlign: "center",
+                padding: "1rem"
+              }}>
+                {isAr ? "لا توجد مشاريع مثبتة للعرض في الصفحة الرئيسية." : "No pinned projects for the home page."}
+              </div>
+            )}
           </div>
         );
 
@@ -2244,11 +2278,12 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
   }, [sections, activeIdx]);
 
   async function load() {
-    const [secRes, mediaRes, reviewsRes, projectsRes, teamRes, servicesRes] = await Promise.all([
+    const [secRes, mediaRes, reviewsRes, projectsRes, projectMediaRes, teamRes, servicesRes] = await Promise.all([
       db.from("cms_sections").select("*").eq("page_slug", slug).order("sort_order"),
       db.from("cms_section_media").select("*").order("sort_order"),
       db.from("cms_client_testimonials").select("*").order("sort_order"),
       db.from("cms_projects").select("*").order("sort_order"),
+      db.from("cms_project_media").select("*").order("sort_order"),
       db.from("cms_team_members").select("*").order("sort_order"),
       db.from("cms_services").select("*").order("sort_order"),
     ]);
@@ -2256,7 +2291,11 @@ function SectionLivePreview({ editing, sectionMedia, clientReviews = [], dbProje
     setSections(secList);
     setSectionMedia(mediaRes.data || []);
     setClientReviews(reviewsRes.data || []);
-    setDbProjects(projectsRes.data || []);
+    const projectMediaRows = projectMediaRes.data || [];
+    setDbProjects((projectsRes.data || []).map((project: any) => ({
+      ...project,
+      mediaItems: projectMediaRows.filter((item: any) => item.project_id === project.id),
+    })));
     setDbTeam(teamRes.data || []);
     setDbServices(servicesRes.data || []);
 

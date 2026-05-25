@@ -4,6 +4,7 @@ import {
   formatAreaValue,
   getAreaRangeForValue,
   getDefaultAreaForRange,
+  getProjectPreviewMedia,
   type CmsAreaRange,
 } from "./publicCms";
 
@@ -49,5 +50,21 @@ describe("portfolio area ranges", () => {
     expect(formatAreaValue("150")).toBe("150 م²");
     expect(getDefaultAreaForRange(ranges[1])).toBe("150 م²");
     expect(getDefaultAreaForRange(ranges[2])).toBe("301 م²");
+  });
+});
+
+describe("project preview media", () => {
+  it("uses gallery images or videos when a project has no cover", () => {
+    expect(
+      getProjectPreviewMedia({
+        mediaItems: [{ media_type: "image", role: "gallery", url: "/real-content/projects/gallery.webp" }],
+      })
+    ).toMatchObject({ type: "image", url: expect.stringContaining("gallery.webp") });
+
+    expect(
+      getProjectPreviewMedia({
+        video_url: "/real-content/projects/walkthrough.mp4",
+      })
+    ).toMatchObject({ type: "video", url: expect.stringContaining("walkthrough.mp4") });
   });
 });
