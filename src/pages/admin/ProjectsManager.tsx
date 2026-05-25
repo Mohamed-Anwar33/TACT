@@ -116,6 +116,7 @@ export default function ProjectsManager() {
         ? areaRanges.find((range) => range.id === selectedAreaRangeId)
         : null;
 
+    setTempGallery([]);
     setEditing({
       ...blank,
       project_kind: projectKindTab,
@@ -155,9 +156,10 @@ export default function ProjectsManager() {
     setSelectedAreaRangeId("all");
   }, [projectKindTab]);
 
-  useEffect(() => {
+  function closeEditor() {
+    setEditing(null);
     setTempGallery([]);
-  }, [editing]);
+  }
 
   async function load() {
     const [pRes, mRes, sRes, rRes] = await Promise.all([
@@ -335,8 +337,7 @@ export default function ProjectsManager() {
       }
 
       toast.success("تم حفظ المشروع ومرفقاته بنجاح");
-      setEditing(null);
-      setTempGallery([]);
+      closeEditor();
       await load();
     } catch (err: any) { toast.error(err.message); } finally { setBusy(false); }
   }
@@ -941,6 +942,7 @@ export default function ProjectsManager() {
                     </div>
                     <button onClick={() => {
                       const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                      setTempGallery([]);
                       setEditing({ ...p, project_kind: projectKindTab, pinOnHome: selectedIds.includes(String(p.id)) });
                     }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
                       <Edit2 size={12} /> تعديل
@@ -1076,6 +1078,7 @@ export default function ProjectsManager() {
                         <div style={{ display: "flex", gap: 4 }}>
                           <button onClick={() => {
                             const selectedIds: string[] = section?.metadata?.selectedIds || [];
+                            setTempGallery([]);
                             setEditing({ ...p, project_kind: projectKindTab, pinOnHome: selectedIds.includes(String(p.id)) });
                           }} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer" }}><Edit2 size={12} /></button>
                           <button onClick={() => setDeleteId(p.id)} style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #F1C5BA", background: "#fff", cursor: "pointer", color: "#D84728" }}><Trash2 size={12} /></button>
@@ -1091,7 +1094,7 @@ export default function ProjectsManager() {
       </div>
 
       {/* Edit Drawer */}
-      <EditDrawer open={!!editing} title={editing?.id && projects.find(p => p.id === editing.id) ? "تعديل المشروع" : "إضافة مشروع جديد"} onClose={() => setEditing(null)} width={620}
+      <EditDrawer open={!!editing} title={editing?.id && projects.find(p => p.id === editing.id) ? "تعديل المشروع" : "إضافة مشروع جديد"} onClose={closeEditor} width={620}
         footer={<SaveButton loading={busy} label="حفظ المشروع" onClick={() => (document.getElementById("project-form") as HTMLFormElement | null)?.requestSubmit()} />}
       >
         {editing && (

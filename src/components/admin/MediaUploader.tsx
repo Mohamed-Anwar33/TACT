@@ -207,7 +207,7 @@ export default function MediaUploader({
     setTimeout(() => {
       setItems(prev => prev.filter(it => it.status !== "done"));
     }, 2000);
-  }, [items.length, folder, maxSizeMB, accept]);
+  }, [items.length, folder, maxSizeMB, accept, onUploaded]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files?.length) {
