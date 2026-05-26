@@ -6,14 +6,16 @@ import { supabase } from "@/integrations/supabase/client";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { CatalogPackage, getPackages, getUnlockedPackageIds } from "@/lib/catalog";
 import { isInternalPhoneEmail, phoneToDisplay } from "@/lib/phoneAuth";
+import { BriefcaseBusiness, FileText, LogOut, Plus, ShieldCheck } from "lucide-react";
 
 export default function CustomerArea() {
   const { lang } = useLang();
-  const { user, profile, isAdmin, loading, signOut } = useAuth();
+  const { user, profile, isAdmin, isOfficeConsultant, loading, signOut } = useAuth();
   const nav = useNavigate();
   const [payments, setPayments] = useState<any[]>([]);
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  const [officeReports, setOfficeReports] = useState<any[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -29,12 +31,16 @@ export default function CustomerArea() {
       (supabase as any).from("payment_submissions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       getPackages(),
       getUnlockedPackageIds(user.id, !!profile?.packages_unlocked),
-    ]).then(([paymentRes, packageList, unlocked]) => {
+      isOfficeConsultant
+        ? (supabase as any).from("configurator_selections").select("id,created_at,package_id,client_name,client_phone").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5)
+        : Promise.resolve({ data: [] }),
+    ]).then(([paymentRes, packageList, unlocked, reportsRes]) => {
       setPayments(paymentRes.data ?? []);
       setPackages(packageList);
       setUnlockedIds(unlocked);
+      setOfficeReports(reportsRes.data ?? []);
     });
-  }, [user, profile?.packages_unlocked]);
+  }, [user, profile?.packages_unlocked, isOfficeConsultant]);
 
   if (loading || !user) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">...</div>;
 
@@ -45,6 +51,102 @@ export default function CustomerArea() {
   const rawEmail = user?.email || "";
   const isDummyEmail = isInternalPhoneEmail(rawEmail);
   const userEmail = isDummyEmail ? (lang === "ar" ? "مسجل برقم الهاتف" : "Registered via Phone") : rawEmail;
+
+  if (isOfficeConsultant) {
+    return (
+      <section className="min-h-screen bg-[#f6f1e8] pt-32 pb-20" dir={lang === "ar" ? "rtl" : "ltr"}>
+        <div className="container-luxe max-w-6xl">
+          <div className="rounded-2xl border border-[#d9c9b7] bg-[#0C363A] p-7 text-ivory shadow-2xl md:p-10">
+            <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold/35 bg-gold/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.25em] text-gold">
+                  <BriefcaseBusiness size={15} />
+                  <span>{lang === "ar" ? "حساب المكتب" : "Office account"}</span>
+                </div>
+                <h1 className="font-serif text-4xl font-bold leading-tight md:text-6xl">{userName}</h1>
+                <p className="mt-4 max-w-xl text-sm leading-relaxed text-ivory/70">
+                  {lang === "ar"
+                    ? "ابدأ جلسة عميل جديدة من التابلت، سجل الاستبيان، اختر الباقة، ثم اطبع تقرير PDF مباشرة بدون إنشاء حساب جديد لكل عميل."
+                    : "Start an in-office client session, capture the questionnaire, choose a package, then print the PDF report without creating a new account for every client."}
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
+                <Link to="/office-session" className="rounded-xl bg-gold px-5 py-4 text-center text-sm font-extrabold text-[#0C363A] shadow-lg transition hover:bg-white">
+                  <Plus className="mx-auto mb-2" size={24} />
+                  {lang === "ar" ? "جلسة عميل جديدة" : "New client session"}
+                </Link>
+                <button onClick={async () => { await signOut(); nav("/"); }} className="rounded-xl border border-white/15 bg-white/5 px-5 py-4 text-center text-sm font-bold text-white transition hover:bg-white/10">
+                  <LogOut className="mx-auto mb-2" size={24} />
+                  {lang === "ar" ? "تسجيل الخروج" : "Sign out"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            <div className="rounded-xl border border-[#e3d8c9] bg-white p-6 shadow-sm">
+              <ShieldCheck className="mb-4 text-gold" size={28} />
+              <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-gold">{lang === "ar" ? "الصلاحية" : "Access"}</div>
+              <div className="mt-2 font-serif text-2xl font-bold text-[#0C363A]">{lang === "ar" ? "جلسات مكتب فقط" : "Office sessions only"}</div>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                {lang === "ar" ? "هذا الحساب لا يفتح لوحة الإدارة، لكنه يفتح مسار جلسات العملاء والباقات." : "This account does not open admin tools; it only runs office sessions and packages."}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[#e3d8c9] bg-white p-6 shadow-sm">
+              <FileText className="mb-4 text-gold" size={28} />
+              <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-gold">{lang === "ar" ? "التقارير الأخيرة" : "Recent reports"}</div>
+              <div className="mt-2 font-serif text-3xl font-bold text-[#0C363A]">{officeReports.length}</div>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                {lang === "ar" ? "آخر التقارير المحفوظة من هذا التابلت." : "Latest reports saved from this tablet."}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[#e3d8c9] bg-white p-6 shadow-sm">
+              <BriefcaseBusiness className="mb-4 text-gold" size={28} />
+              <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-gold">{lang === "ar" ? "بيانات الدخول" : "Login details"}</div>
+              <div className="mt-3 space-y-2 text-xs text-[#0C363A]">
+                <div className="flex justify-between gap-3 border-b border-black/5 pb-2"><span className="text-muted-foreground">{lang === "ar" ? "الإيميل" : "Email"}</span><strong dir="ltr">{userEmail}</strong></div>
+                <div className="flex justify-between gap-3"><span className="text-muted-foreground">{lang === "ar" ? "الهاتف" : "Phone"}</span><strong dir="ltr">{userPhone}</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-xl border border-[#e3d8c9] bg-white p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <SectionEyebrow label={lang === "ar" ? "آخر جلسات المكتب" : "Recent office sessions"} />
+                <h2 className="mt-2 font-serif text-2xl font-bold text-[#0C363A]">{lang === "ar" ? "تقارير العملاء" : "Client reports"}</h2>
+              </div>
+              <Link to="/office-session" className="btn-gold flex items-center gap-2">
+                <Plus size={16} />
+                <span>{lang === "ar" ? "جديد" : "New"}</span>
+              </Link>
+            </div>
+
+            {officeReports.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[#d9c9b7] p-8 text-center text-sm text-muted-foreground">
+                {lang === "ar" ? "لسه مفيش تقارير محفوظة من حساب المكتب." : "No office reports have been saved yet."}
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {officeReports.map((report) => (
+                  <Link key={report.id} to={`/office-session/report/${report.id}`} className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm transition hover:text-gold">
+                    <div>
+                      <div className="font-bold text-[#0C363A]">{report.client_name || (lang === "ar" ? "عميل مكتب" : "Office client")}</div>
+                      <div className="mt-1 text-xs text-muted-foreground" dir="ltr">{report.client_phone || "-"}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{new Date(report.created_at).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}</div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="pt-40 pb-32 min-h-screen">

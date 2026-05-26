@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, Check, Sparkles, User, Home, Layers, Users, Heart, Lightbulb, Upload, X, FileImage } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 const STEPS_META = [
@@ -27,10 +27,14 @@ type PlanImage = {
 
 export default function Questionnaire() {
   const { lang } = useLang();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const nextPath = searchParams.get("next");
+  const safeNextPath = nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "";
 
   // Form structured state matching exact columns
   const [data, setData] = useState({
@@ -57,6 +61,16 @@ export default function Questionnaire() {
     new_ambitions: "",
     notes: "",
   });
+
+  useEffect(() => {
+    if (!user && !profile) return;
+    setData((prev) => ({
+      ...prev,
+      name: prev.name || profile?.full_name || "",
+      phone: prev.phone || profile?.phone || "",
+      email: prev.email || profile?.email || user?.email || "",
+    }));
+  }, [user, profile]);
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
 
@@ -162,6 +176,12 @@ export default function Questionnaire() {
 
     if (error) {
       toast.error(error.message);
+      return;
+    }
+
+    if (safeNextPath) {
+      toast.success(lang === "ar" ? "تم حفظ الاستبيان. هنرجعك للباقة الآن." : "Questionnaire saved. Returning to your package.");
+      nav(safeNextPath, { replace: true });
       return;
     }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
@@ -48,6 +48,13 @@ type ImageTile = {
   label: string;
 };
 
+type QuestionnaireSnapshot = {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+};
+
 const emptySectionSelection = (style: CatalogStyle, category: CatalogStyle["categories"][number], categoryName: string): SectionSelection => ({
   style_id: style.id,
   style: style.name_ar,
@@ -64,8 +71,9 @@ export default function Configurator() {
   const { id } = useParams();
   const packageId = id ?? "economy";
   const { lang } = useLang();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, isAdmin, isOfficeConsultant, loading } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const [pkg, setPkg] = useState<CatalogPackage | null>(null);
   const [styles, setStyles] = useState<CatalogStyle[]>([]);
   const [allowed, setAllowed] = useState(false);
@@ -77,6 +85,7 @@ export default function Configurator() {
   const [busy, setBusy] = useState(false);
   const [customUploads, setCustomUploads] = useState<SelectionItem[]>([]);
   const [uploadingCustom, setUploadingCustom] = useState(false);
+  const [linkedQuestionnaire, setLinkedQuestionnaire] = useState<QuestionnaireSnapshot | null>(null);
 
   const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -142,6 +151,8 @@ export default function Configurator() {
 
   // Zoom Lightbox States
   const [searchParams, setSearchParams] = useSearchParams();
+  const questionnaireId = searchParams.get("questionnaireId");
+  const isOfficeSession = isOfficeConsultant && !!questionnaireId;
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -308,6 +319,65 @@ export default function Configurator() {
     async function load() {
       if (!user) return;
       setChecking(true);
+
+      if (isOfficeConsultant && !questionnaireId) {
+        toast.info(lang === "ar" ? "ابدأ جلسة مكتب جديدة أولاً" : "Start a new office session first");
+        nav("/office-session");
+        return;
+      }
+
+      if (isOfficeConsultant && questionnaireId) {
+        const { data: questionnaireData, error: questionnaireError } = await supabase
+          .from("questionnaires")
+          .select("id,name,phone,email")
+          .eq("id", questionnaireId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!alive) return;
+
+        if (questionnaireError || !questionnaireData) {
+          toast.error(lang === "ar" ? "تعذر فتح استبيان جلسة المكتب" : "Could not open the office session questionnaire");
+          nav("/office-session");
+          return;
+        }
+
+        setLinkedQuestionnaire(questionnaireData as QuestionnaireSnapshot);
+      } else {
+        setLinkedQuestionnaire(null);
+      }
+
+      // Normal clients use their latest saved questionnaire. If none exists, collect it once before configuring.
+      let questionnaireFilled = true;
+      if (!isAdmin && !isOfficeConsultant) {
+        const { data: questionnaireData, error: questionnaireError } = await supabase
+          .from("questionnaires")
+          .select("id,name,phone,email")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (questionnaireError || !questionnaireData) {
+          questionnaireFilled = false;
+        } else {
+          setLinkedQuestionnaire(questionnaireData as QuestionnaireSnapshot);
+        }
+      }
+
+      if (!alive) return;
+
+      if (!questionnaireFilled) {
+        toast.info(
+          lang === "ar"
+            ? "يرجى ملء استبيان متطلبات العميل أولاً قبل البدء في تخصيص الباقة"
+            : "Please fill out the client questionnaire first before customizing the package"
+        );
+        const next = `${location.pathname}${location.search}`;
+        nav(`/questionnaire?next=${encodeURIComponent(next)}`);
+        return;
+      }
+
       const [packageData, styleData, unlocked] = await Promise.all([
         getPackage(packageId),
         getPackageStyles(packageId),
@@ -316,14 +386,14 @@ export default function Configurator() {
       if (!alive) return;
       setPkg(packageData);
       setStyles(styleData);
-      setAllowed(unlocked);
+      setAllowed(isAdmin || isOfficeConsultant || unlocked);
       setChecking(false);
     }
     if (!loading && user) load();
     return () => {
       alive = false;
     };
-  }, [packageId, user, loading, profile?.packages_unlocked]);
+  }, [packageId, user, loading, profile?.packages_unlocked, isAdmin, isOfficeConsultant, questionnaireId, lang, nav, location.pathname, location.search]);
 
   // Reset scroll to top when lightbox opens
   useEffect(() => {
@@ -515,24 +585,42 @@ export default function Configurator() {
       };
     }
 
-    const { error } = await supabase.from("configurator_selections").insert({
+    const clientSnapshot = linkedQuestionnaire
+      ? {
+          client_name: linkedQuestionnaire.name,
+          client_phone: linkedQuestionnaire.phone,
+          client_email: linkedQuestionnaire.email,
+        }
+      : {};
+
+    const { data: savedSelection, error } = await supabase.from("configurator_selections").insert({
       user_id: user.id,
       package_id: packageId,
+      questionnaire_id: linkedQuestionnaire?.id ?? null,
+      ...clientSnapshot,
       selections: {
         version: 2,
         package_id: packageId,
         package_name: lang === "ar" ? pkg?.name_ar : pkg?.name_en,
+        questionnaire_id: linkedQuestionnaire?.id ?? null,
+        ...clientSnapshot,
         sections_order: finalSectionsOrder,
         sections: finalSections,
       },
-    });
+    }).select("id").single();
     setBusy(false);
     if (error) {
       toast.error(error.message);
       return;
     }
     toast.success(lang === "ar" ? "تم حفظ اختياراتك وملاحظاتك بنجاح" : "Selections saved successfully");
-    setTimeout(() => nav("/customer"), 1400);
+    setTimeout(() => {
+      if (isOfficeSession && savedSelection?.id) {
+        nav(`/office-session/report/${savedSelection.id}`);
+      } else {
+        nav("/customer");
+      }
+    }, 900);
   };
 
   if (loading || checking) {
@@ -1255,36 +1343,16 @@ export default function Configurator() {
                   {/* Subtle background golden aura */}
                   <div className="absolute -right-16 -bottom-16 w-36 h-36 rounded-full bg-gold/5 blur-2xl pointer-events-none" />
                   
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-                    <div>
-                      <h3 className="text-sm font-serif-ar text-white font-bold">
-                        {lang === "ar" ? "حالة الاختيار لهذا البند" : "Selection state for this item"}
-                      </h3>
-                      <p className="text-[11px] text-white/50 mt-1">
-                        {lang === "ar" 
-                          ? "يمكنك تضمين هذا البند في تقرير التشطيبات الخاص بك وكتابة ملاحظات تفصيلية للمهندسين."
-                          : "Include this item in your finishes report and write specific notes for the engineers."
-                        }
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => toggleTile(zoomTile)}
-                      className={cn(
-                        "px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5 border shadow-lg cursor-pointer self-start sm:self-auto",
-                        zoomSelection
-                          ? "bg-gold border-gold text-[#0C363A] hover:bg-white hover:border-white"
-                          : "bg-white/10 border-white/20 text-white hover:bg-white/20"
-                      )}
-                    >
-                      <Check size={14} className="stroke-[3]" />
-                      <span>
-                        {zoomSelection
-                          ? (lang === "ar" ? "محدد ومختار" : "SELECTED CHOICE")
-                          : (lang === "ar" ? "تحديد هذا الخيار" : "SELECT OPTION")
-                        }
-                      </span>
-                    </button>
+                  <div className="border-b border-white/10 pb-4">
+                    <h3 className="text-sm font-serif-ar text-white font-bold">
+                      {lang === "ar" ? "حالة الاختيار لهذا البند" : "Selection state for this item"}
+                    </h3>
+                    <p className="text-[11px] text-white/50 mt-1">
+                      {lang === "ar" 
+                        ? "يمكنك تضمين هذا البند في تقرير التشطيبات الخاص بك وكتابة ملاحظات تفصيلية للمهندسين."
+                        : "Include this item in your finishes report and write specific notes for the engineers."
+                      }
+                    </p>
                   </div>
 
                   {/* Notes Textarea (Only visible if item is selected) */}

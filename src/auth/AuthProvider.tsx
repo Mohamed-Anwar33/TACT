@@ -11,6 +11,7 @@ type Ctx = {
   profile: Profile | null;
   isAdmin: boolean;
   isStaff: boolean;
+  isOfficeConsultant: boolean;
   roles: string[];
   canManageContent: boolean;
   canManageClients: boolean;
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
+  const [isOfficeConsultant, setIsOfficeConsultant] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles(roleList);
       setIsAdmin(roleList.includes("admin"));
       setIsStaff(hasStaffRole(roleList));
+      setIsOfficeConsultant(roleList.includes("office_consultant"));
     } catch (e) {
       console.error("Error loading profile or roles:", e);
     } finally {
@@ -79,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setIsAdmin(false);
         setIsStaff(false);
+        setIsOfficeConsultant(false);
         setRoles([]);
         initialCheckDone = true;
         setLoading(false);
@@ -109,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setIsAdmin(false);
         setIsStaff(false);
+        setIsOfficeConsultant(false);
         setRoles([]);
         // Only set loading to false if we're not waiting for an initial getSession check
         if (initialCheckDone) {
@@ -132,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const canManageSettings = permissions.includes("settings");
 
   return (
-    <AuthCtx.Provider value={{ user, session, profile, isAdmin, isStaff, roles, canManageContent, canManageClients, canManageRoles, canManageSettings, loading, refresh, signOut }}>
+    <AuthCtx.Provider value={{ user, session, profile, isAdmin, isStaff, isOfficeConsultant, roles, canManageContent, canManageClients, canManageRoles, canManageSettings, loading, refresh, signOut }}>
       {children}
     </AuthCtx.Provider>
   );

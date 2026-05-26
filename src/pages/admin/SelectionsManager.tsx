@@ -40,6 +40,7 @@ export default function SelectionsManager() {
   const [packages, setPackages] = useState<any[]>([]);
   const [stylesList, setStylesList] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
+  const [questionnaires, setQuestionnaires] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [activeSelection, setActiveSelection] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,12 +52,13 @@ export default function SelectionsManager() {
   }, []);
 
   async function load() {
-    const [selRes, profRes, pkgRes, styleRes, catRes] = await Promise.all([
+    const [selRes, profRes, pkgRes, styleRes, catRes, questRes] = await Promise.all([
       db.from("configurator_selections").select("*").order("created_at", { ascending: false }),
       db.from("profiles").select("*"),
       db.from("packages").select("*"),
       db.from("package_styles").select("*").order("sort_order", { ascending: true }),
-      db.from("package_categories").select("*").order("sort_order", { ascending: true })
+      db.from("package_categories").select("*").order("sort_order", { ascending: true }),
+      db.from("questionnaires").select("*").order("created_at", { ascending: false })
     ]);
 
     setSelectionsList(selRes.data || []);
@@ -64,18 +66,38 @@ export default function SelectionsManager() {
     setPackages(pkgRes.data || []);
     setStylesList(styleRes?.data || []);
     setCategoriesList(catRes?.data || []);
+    setQuestionnaires(questRes?.data || []);
   }
 
   const getProfile = (uid: string) => profiles.find(p => p.id === uid);
   const getPkgName = (id: string) => packages.find(p => p.id === id)?.name_ar || PKG_LABELS[id] || id;
+  const getQuestionnaireForSelection = (selection: any) => {
+    if (!selection) return null;
+    if (selection.questionnaire_id) {
+      const linked = questionnaires.find(q => q.id === selection.questionnaire_id);
+      if (linked) return linked;
+    }
+    return questionnaires.find(q => q.user_id === selection.user_id) || null;
+  };
+  const getSelectionClient = (selection: any) => {
+    const questionnaire = getQuestionnaireForSelection(selection);
+    const profile = getProfile(selection.user_id);
+    const raw = selection.selections || {};
+    return {
+      full_name: selection.client_name || raw.client_name || questionnaire?.name || profile?.full_name || "",
+      phone: selection.client_phone || raw.client_phone || questionnaire?.phone || profile?.phone || "",
+      email: selection.client_email || raw.client_email || questionnaire?.email || profile?.email || "",
+    };
+  };
 
   const filtered = search
     ? selectionsList.filter(s => {
-        const pr = getProfile(s.user_id);
+        const pr = getSelectionClient(s);
         const pkgName = getPkgName(s.package_id);
         return (
           (pr?.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
           (pr?.phone || "").includes(search) ||
+          (pr?.email || "").toLowerCase().includes(search.toLowerCase()) ||
           (pkgName || "").toLowerCase().includes(search.toLowerCase())
         );
       })
@@ -530,7 +552,8 @@ export default function SelectionsManager() {
     setExportingPdf(false);
   };
 
-  const activeProfile = activeSelection ? getProfile(activeSelection.user_id) : null;
+  const activeProfile = activeSelection ? getSelectionClient(activeSelection) : null;
+  const activeQuestionnaire = activeSelection ? getQuestionnaireForSelection(activeSelection) : null;
   const activeParsed = activeSelection ? parseSelectionsForReport(activeSelection.selections) : {};
 
   return (
@@ -571,7 +594,7 @@ export default function SelectionsManager() {
               </thead>
               <tbody>
                 {filtered.map(s => {
-                  const pr = getProfile(s.user_id);
+                  const pr = getSelectionClient(s);
                   const selectionCount = countSelectionItems(s.selections);
                   return (
                     <tr key={s.id}>
@@ -692,6 +715,99 @@ export default function SelectionsManager() {
                 </span>
               </div>
             </div>
+
+            {/* Questionnaire / Client Case Card */}
+            {activeQuestionnaire ? (
+              <div style={{ 
+                padding: "1.25rem", 
+                borderRadius: 12, 
+                background: "#f0f7f6", 
+                border: "1.5px solid #073b35", 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "1rem" 
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid rgba(7,59,53,0.15)", paddingBottom: "8px" }}>
+                  <span style={{ fontSize: "1.2rem" }}>📋</span>
+                  <h4 style={{ fontWeight: 800, color: "#073b35", fontSize: "1rem", margin: 0 }}>
+                    حالة العميل والمتطلبات المعمارية (من الاستبيان)
+                  </h4>
+                </div>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", fontSize: "0.8rem", color: "#333" }}>
+                  <div>
+                    <span style={{ color: "#666", display: "block", fontSize: "0.72rem" }}>نوع المشروع/العقار:</span>
+                    <strong style={{ color: "#073b35" }}>{activeQuestionnaire.project_type || "—"}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#666", display: "block", fontSize: "0.72rem" }}>أفراد العائلة / المستخدمين:</span>
+                    <strong style={{ color: "#073b35" }}>{activeQuestionnaire.family || "—"}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#666", display: "block", fontSize: "0.72rem" }}>حالة العقار الإنشائية:</span>
+                    <strong style={{ color: "#073b35" }}>{activeQuestionnaire.stage || "—"}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#666", display: "block", fontSize: "0.72rem" }}>الخدمات المطلوبة:</span>
+                    <strong style={{ color: "#073b35" }}>{activeQuestionnaire.service || "—"}</strong>
+                  </div>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <span style={{ color: "#666", display: "block", fontSize: "0.72rem" }}>العنوان / الموقع:</span>
+                    <strong style={{ color: "#073b35" }}>{activeQuestionnaire.address || "—"}</strong>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px dashed rgba(7,59,53,0.15)", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.8rem" }}>
+                  {activeQuestionnaire.goals && (
+                    <div>
+                      <strong style={{ color: "#073b35", display: "block", fontSize: "0.75rem", marginBottom: "2px" }}>المشكلات السابقة والطموحات:</strong>
+                      <div style={{ background: "#fff", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(7,59,53,0.1)", whiteSpace: "pre-line", lineHeight: 1.5, color: "#444" }}>
+                        {activeQuestionnaire.goals}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeQuestionnaire.history && (
+                    <div>
+                      <strong style={{ color: "#073b35", display: "block", fontSize: "0.75rem", marginBottom: "2px" }}>التعاملات السابقة والتحديات:</strong>
+                      <div style={{ background: "#fff", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(7,59,53,0.1)", whiteSpace: "pre-line", lineHeight: 1.5, color: "#444" }}>
+                        {activeQuestionnaire.history}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeQuestionnaire.expectations && (
+                    <div>
+                      <strong style={{ color: "#073b35", display: "block", fontSize: "0.75rem", marginBottom: "2px" }}>توقعات العميل وأهم عوامل النجاح:</strong>
+                      <div style={{ background: "#fff", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(7,59,53,0.1)", whiteSpace: "pre-line", lineHeight: 1.5, color: "#444" }}>
+                        {activeQuestionnaire.expectations}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeQuestionnaire.notes && (
+                    <div>
+                      <strong style={{ color: "#073b35", display: "block", fontSize: "0.75rem", marginBottom: "2px" }}>ملاحظات عامة إضافية للعميل:</strong>
+                      <div style={{ background: "#fff", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(7,59,53,0.1)", whiteSpace: "pre-line", lineHeight: 1.5, color: "#444" }}>
+                        {activeQuestionnaire.notes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ 
+                padding: "1rem", 
+                borderRadius: 12, 
+                background: "#fafafa", 
+                border: "1px dashed #ddd", 
+                textAlign: "center", 
+                fontSize: "0.8rem", 
+                color: "#666" 
+              }}>
+                ℹ️ لا يوجد استبيان متطلبات مسجل لهذا العميل حالياً.
+              </div>
+            )}
 
             {/* List of Selections grouped by Style */}
             {Object.keys(activeParsed).length === 0 ? (
@@ -1083,6 +1199,73 @@ export default function SelectionsManager() {
                 padding-top: 10px;
                 font-size: 0.85rem;
               }
+              .print-questionnaire-section {
+                border: 1.5px solid #073b35;
+                border-radius: 8px;
+                background: #fbfbfb !important;
+                padding: 15px;
+                margin-bottom: 25px;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .print-q-title {
+                font-size: 0.95rem;
+                font-weight: 800;
+                color: #073b35;
+                border-bottom: 1.5px solid rgba(7,59,53,0.2);
+                padding-bottom: 6px;
+                margin-bottom: 10px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+              }
+              .print-q-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px 15px;
+                font-size: 0.78rem;
+                margin-bottom: 8px;
+              }
+              .print-q-item {
+                display: flex;
+                justify-content: space-between;
+                border-bottom: 1px dashed #eee;
+                padding-bottom: 4px;
+              }
+              .print-q-label {
+                color: #666;
+              }
+              .print-q-value {
+                color: #073b35;
+                font-weight: 800;
+              }
+              .print-q-notes-block {
+                border-top: 1px dashed rgba(7,59,53,0.15);
+                padding-top: 8px;
+                margin-top: 8px;
+                font-size: 0.78rem;
+                line-height: 1.5;
+              }
+              .print-q-notes-title {
+                font-weight: 800;
+                color: #073b35;
+                display: block;
+                margin-top: 6px;
+                margin-bottom: 2px;
+              }
+              .print-q-notes-text {
+                background: #fdfdfd !important;
+                border: 1px solid #eae5dc;
+                padding: 6px 10px;
+                border-radius: 6px;
+                white-space: pre-line;
+                color: #333;
+                margin-bottom: 4px;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
             }
           `}</style>
 
@@ -1119,6 +1302,68 @@ export default function SelectionsManager() {
               <div><span style={{ color: "#666" }}>تاريخ الاعتماد والطباعة:</span> <strong>{new Date().toLocaleDateString("ar-EG")}</strong></div>
             </div>
           </div>
+
+          {/* Printable Questionnaire / Client Case Details */}
+          {activeQuestionnaire && (
+            <div className="print-questionnaire-section">
+              <div className="print-q-title">
+                <span>📋</span>
+                <span>بيانات العميل والمتطلبات المعمارية (من واقع الاستبيان)</span>
+              </div>
+              <div className="print-q-grid">
+                <div className="print-q-item">
+                  <span className="print-q-label">نوع العقار/المشروع:</span>
+                  <span className="print-q-value">{activeQuestionnaire.project_type || "—"}</span>
+                </div>
+                <div className="print-q-item">
+                  <span className="print-q-label">عدد الأفراد المستخدمين:</span>
+                  <span className="print-q-value">{activeQuestionnaire.family || "—"}</span>
+                </div>
+                <div className="print-q-item">
+                  <span className="print-q-label">حالة العقار الإنشائية:</span>
+                  <span className="print-q-value">{activeQuestionnaire.stage || "—"}</span>
+                </div>
+                <div className="print-q-item">
+                  <span className="print-q-label">الخدمات المطلوبة للتعاقد:</span>
+                  <span className="print-q-value">{activeQuestionnaire.service || "—"}</span>
+                </div>
+                <div className="print-q-item" style={{ gridColumn: "span 2" }}>
+                  <span className="print-q-label">العنوان والموقع التفصيلي:</span>
+                  <span className="print-q-value">{activeQuestionnaire.address || "—"}</span>
+                </div>
+              </div>
+
+              <div className="print-q-notes-block">
+                {activeQuestionnaire.goals && (
+                  <div>
+                    <span className="print-q-notes-title">المشكلات السابقة والحلول/الطموحات المطلوبة:</span>
+                    <div className="print-q-notes-text">{activeQuestionnaire.goals}</div>
+                  </div>
+                )}
+                
+                {activeQuestionnaire.history && (
+                  <div>
+                    <span className="print-q-notes-title">التحديات السابقة مع شركات التشطيب الأخرى:</span>
+                    <div className="print-q-notes-text">{activeQuestionnaire.history}</div>
+                  </div>
+                )}
+
+                {activeQuestionnaire.expectations && (
+                  <div>
+                    <span className="print-q-notes-title">توقعات العميل وأهم عوامل النجاح:</span>
+                    <div className="print-q-notes-text">{activeQuestionnaire.expectations}</div>
+                  </div>
+                )}
+
+                {activeQuestionnaire.notes && (
+                  <div>
+                    <span className="print-q-notes-title">ملاحظات العميل العامة الإضافية:</span>
+                    <div className="print-q-notes-text">{activeQuestionnaire.notes}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Grouped Visual visualizer */}
           {Object.entries(activeParsed).map(([styleName, items]: [string, any[]]) => { const isCustomPrintGroup = items[0]?.styleId === "custom_uploads"; return (

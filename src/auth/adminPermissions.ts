@@ -1,4 +1,5 @@
 export type StaffRole = "admin" | "manager" | "client_followup" | "technical_office";
+export type AppRole = StaffRole | "customer" | "office_consultant";
 
 export type AdminPermission = "dashboard" | "content" | "clients" | "roles" | "settings";
 

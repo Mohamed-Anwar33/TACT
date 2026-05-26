@@ -255,7 +255,21 @@ export default function Auth() {
         toast.success(isRtl ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully");
         handleModeChange("signin");
       } else {
-        const emailToUse = looksLikePhoneLogin(form.email) ? phoneToAuthEmail(form.email) : form.email.trim();
+        let emailToUse = form.email.trim();
+
+        if (looksLikePhoneLogin(form.email)) {
+          // Lookup email associated with phone number (supports logging in via phone for accounts created with either email or phone)
+          const { data: dbEmail, error: lookupError } = await (supabase as any).rpc(
+            "get_auth_email_by_phone", 
+            { phone_input: form.email }
+          );
+          
+          if (!lookupError && dbEmail) {
+            emailToUse = dbEmail;
+          } else {
+            emailToUse = phoneToAuthEmail(form.email);
+          }
+        }
 
         const { error } = await supabase.auth.signInWithPassword({ 
           email: emailToUse, 

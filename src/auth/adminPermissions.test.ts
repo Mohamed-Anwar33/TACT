@@ -60,4 +60,13 @@ describe("adminPermissions", () => {
     expect(canAccessAdminPath(roles, "/admin")).toBe(false);
     expect(canAccessAdminPath(roles, "/admin/questionnaires")).toBe(false);
   });
+
+  it("keeps office_consultant out of admin routes", () => {
+    const roles = ["office_consultant"];
+
+    expect(isStaff(roles)).toBe(false);
+    expect(getAdminPermissions(roles)).toEqual([]);
+    expect(canAccessAdminPath(roles, "/admin")).toBe(false);
+    expect(canAccessAdminPath(roles, "/admin/selections")).toBe(false);
+  });
 });

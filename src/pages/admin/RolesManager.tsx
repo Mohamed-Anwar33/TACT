@@ -18,7 +18,9 @@ const ROLE_LABELS: Record<string, { ar: string; color: string }> = {
   customer: { ar: "عميل", color: "#78716c" },
 };
 
-const STAFF_ROLES = ["admin", "manager", "client_followup", "technical_office"];
+ROLE_LABELS.office_consultant = { ar: "Tablet office sessions", color: "#7c3aed" };
+
+const MANAGED_ROLES = ["admin", "manager", "client_followup", "technical_office", "office_consultant"];
 
 export default function RolesManager() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -46,7 +48,7 @@ export default function RolesManager() {
   }
 
   function getStaffUsers() {
-    const staffIds = new Set(roles.filter(r => STAFF_ROLES.includes(r.role)).map(r => r.user_id));
+    const staffIds = new Set(roles.filter(r => MANAGED_ROLES.includes(r.role)).map(r => r.user_id));
     return profiles.filter(p => staffIds.has(p.id));
   }
 
@@ -106,7 +108,7 @@ export default function RolesManager() {
               <tbody>
                 {filtered.map(p => {
                   const uRoles = getUserRoles(p.id);
-                  const staffRoles = uRoles.filter(r => STAFF_ROLES.includes(r));
+                  const staffRoles = uRoles.filter(r => MANAGED_ROLES.includes(r));
                   return (
                     <tr key={p.id}>
                       <td style={{ fontWeight: 600 }}>{p.full_name || "—"}</td>
@@ -162,6 +164,7 @@ export default function RolesManager() {
               <option value="client_followup">متابعة عملاء</option>
               <option value="technical_office">مدير المكتب الفني</option>
               <option value="admin">مدير عام (Admin)</option>
+              <option value="office_consultant">Tablet office sessions</option>
             </select>
           </div>
           <div style={{ padding: "0.75rem", borderRadius: 8, background: "#faf8f4", border: "1px solid #eae5dc", fontSize: "0.78rem", color: "#666" }}>

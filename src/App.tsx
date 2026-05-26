@@ -23,6 +23,8 @@ import AdminLogin from "./pages/AdminLogin";
 import CustomerArea from "./pages/CustomerArea";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import OfficeSession from "./pages/OfficeSession";
+import OfficeSessionReport from "./pages/OfficeSessionReport";
 
 // New Admin Dashboard (modular)
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -69,6 +71,8 @@ const App = () => (
                 <Route path="/packages/:id/configurator" element={<Configurator />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/customer" element={<CustomerArea />} />
+                <Route path="/office-session" element={<OfficeSession />} />
+                <Route path="/office-session/report/:id" element={<OfficeSessionReport />} />
               </Route>
 
               {/* Auth */}

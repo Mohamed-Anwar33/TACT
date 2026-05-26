@@ -17,22 +17,34 @@ export type Database = {
       configurator_selections: {
         Row: {
           created_at: string
+          client_email: string | null
+          client_name: string | null
+          client_phone: string | null
           id: string
           package_id: string
+          questionnaire_id: string | null
           selections: Json
           user_id: string
         }
         Insert: {
           created_at?: string
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
           id?: string
           package_id: string
+          questionnaire_id?: string | null
           selections?: Json
           user_id: string
         }
         Update: {
           created_at?: string
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
           id?: string
           package_id?: string
+          questionnaire_id?: string | null
           selections?: Json
           user_id?: string
         }
@@ -399,9 +411,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_package_access: {
+        Args: {
+          _package_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_office_consultant: {
+        Args: {
           _user_id: string
         }
         Returns: boolean
@@ -414,7 +439,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "customer" | "manager" | "client_followup" | "technical_office"
+      app_role: "admin" | "customer" | "manager" | "client_followup" | "technical_office" | "office_consultant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -542,7 +567,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "customer", "manager", "client_followup", "technical_office"],
+      app_role: ["admin", "customer", "manager", "client_followup", "technical_office", "office_consultant"],
     },
   },
 } as const
