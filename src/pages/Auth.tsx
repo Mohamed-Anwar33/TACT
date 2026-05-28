@@ -17,11 +17,12 @@ import {
   KeyRound
 } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
+import { useAuth } from "@/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { looksLikePhoneLogin, phoneToAuthEmail, phoneToProfileValue } from "@/lib/phoneAuth";
 
-type AuthMode = "signin" | "signup" | "reset";
+type AuthMode = "signin" | "signup" | "forgot" | "reset";
 
 type SignupQuestionnaire = {
   address: string;
@@ -110,9 +111,11 @@ export default function Auth() {
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isRtl = lang === "ar";
+  const { user, loading } = useAuth();
   
   // Detect if user has a reset-password flow or query parameter
   const [mode, setMode] = useState<AuthMode>("signin");
+  const [mailSent, setMailSent] = useState(false);
   
   useEffect(() => {
     const queryMode = searchParams.get("mode");
@@ -120,10 +123,19 @@ export default function Auth() {
       setMode("reset");
     } else if (queryMode === "signup") {
       setMode("signup");
+    } else if (queryMode === "forgot") {
+      setMode("forgot");
     } else {
       setMode("signin");
     }
   }, [searchParams]);
+
+  // Redirect if user is already logged in (unless they are doing a password reset)
+  useEffect(() => {
+    if (!loading && user && mode !== "reset") {
+      nav("/customer");
+    }
+  }, [user, loading, mode, nav]);
 
   const [form, setForm] = useState({ 
     email: "", 
@@ -141,6 +153,7 @@ export default function Auth() {
 
   const handleModeChange = (newMode: AuthMode) => {
     setMode(newMode);
+    setMailSent(false); // Reset mail sent state when toggling modes
     setSearchParams(newMode === "signin" ? {} : { mode: newMode });
     // Reset passwords for safety
     setForm(prev => ({ ...prev, password: "", confirmPassword: "" }));
@@ -252,8 +265,25 @@ export default function Auth() {
         }
         const { error } = await supabase.auth.updateUser({ password: form.password });
         if (error) throw error;
-        toast.success(isRtl ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully");
+        toast.success(isRtl ? "تم تحديث كلمة المرور بنجاح. يرجى تسجيل الدخول مجدداً." : "Password updated successfully. Please sign in again.");
+        // Sign out to terminate recovery session and let user verify their new password
+        await supabase.auth.signOut();
         handleModeChange("signin");
+      } else if (mode === "forgot") {
+        if (!form.email) {
+          toast.error(isRtl ? "يرجى إدخال بريدك الإلكتروني" : "Please enter your email");
+          setBusy(false);
+          return;
+        }
+        const { error } = await supabase.auth.resetPasswordForEmail(form.email.trim(), {
+          redirectTo: `${window.location.origin}/auth?mode=reset`,
+        });
+        if (error) throw error;
+        setMailSent(true);
+        toast.success(isRtl 
+          ? "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني" 
+          : "Password reset link sent to your email"
+        );
       } else {
         let emailToUse = form.email.trim();
 
@@ -286,27 +316,7 @@ export default function Auth() {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!form.email) {
-      toast.error(isRtl ? "يرجى إدخال بريدك الإلكتروني في الحقل أولاً" : "Please enter your email in the field first");
-      return;
-    }
-    setBusy(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
-        redirectTo: `${window.location.origin}/auth?mode=reset`,
-      });
-      if (error) throw error;
-      toast.success(isRtl 
-        ? "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني" 
-        : "Password reset link sent to your email"
-      );
-    } catch (err: any) {
-      toast.error(err.message ?? (isRtl ? "حدث خطأ ما" : "An error occurred"));
-    } finally {
-      setBusy(false);
-    }
-  };
+
 
   return (
     <main 
@@ -355,51 +365,104 @@ export default function Auth() {
         {/* Elegant Glassmorphic Card Panel */}
         <div className={`bg-brand-dark/70 backdrop-blur-xl border border-brand-gold/15 rounded-2xl p-7 sm:p-9 lg:p-10 shadow-luxe w-full ${mode === "signup" ? "max-w-3xl" : "max-w-md"} mx-auto space-y-7 animate-scale-in`}>
           
-          {/* Top of Card: Logo and elegant localized subtitle */}
-          <div className="text-center space-y-4">
-            <Link to="/" className="inline-block transform hover:scale-105 transition duration-300">
-              <img 
-                src="/logo.png" 
-                alt="Tact Logo" 
-                className="h-20 w-20 mx-auto object-contain drop-shadow-[0_0_18px_rgba(193,133,86,0.25)]" 
-              />
-            </Link>
-            
-            {/* Fine line divider with label */}
-            <div className="flex items-center justify-center gap-4 py-1">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent to-brand-gold/30" />
-              <span className="text-[11px] font-bold text-brand-gold uppercase tracking-[0.2em] whitespace-nowrap">
-                {mode === "signup" 
-                  ? (isRtl ? "إنشاء حساب" : "CREATE ACCOUNT") 
-                  : mode === "reset"
-                  ? (isRtl ? "إعادة تعيين" : "RESET PASSWORD")
-                  : (isRtl ? "تسجيل الدخول" : "SIGN IN")}
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent to-brand-gold/30" />
-            </div>
+          {mailSent && mode === "forgot" ? (
+            <div className="text-center space-y-6 py-4 animate-scale-in">
+              <div className="mx-auto w-16 h-16 rounded-full bg-brand-gold/10 border border-brand-gold/30 flex items-center justify-center text-brand-gold animate-pulse">
+                <Sparkles size={32} />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-serif font-bold text-ivory">
+                  {isRtl ? "تفقد بريدك الإلكتروني" : "Check Your Email"}
+                </h3>
+                <p className="text-xs text-ivory/70 leading-relaxed max-w-[280px] mx-auto">
+                  {isRtl 
+                    ? `لقد أرسلنا رابطًا لإعادة تعيين كلمة المرور إلى البريد الإلكتروني ${form.email}.`
+                    : `We have sent a password reset link to ${form.email}.`
+                  }
+                </p>
+                <p className="text-[11px] text-brand-gold/80 italic text-center">
+                  {isRtl
+                    ? "يرجى التحقق من مجلد الرسائل غير المرغوب فيها (Spam) إذا لم تجده في صندوق الوارد."
+                    : "Please check your spam folder if you cannot find it in your inbox."}
+                </p>
+              </div>
 
-            {/* Main Title & Description */}
-            <div className="space-y-1">
-              <h2 className="text-2xl font-serif text-ivory font-bold leading-snug">
-                {mode === "signup" 
-                  ? (isRtl ? "ابدأ رحلتك معنا" : "Start your journey") 
-                  : mode === "reset"
-                  ? (isRtl ? "كلمة مرور جديدة" : "New password")
-                  : (isRtl ? "أهلاً بعودتك" : "Welcome back")}
-              </h2>
-              <p className="text-xs text-ivory/60 leading-relaxed max-w-[280px] mx-auto">
-                {mode === "signup" 
-                  ? (isRtl ? "أنشئ حسابك للوصول إلى بوابة العميل الخاصة بك" : "Create your account to access your premium client portal") 
-                  : mode === "reset"
-                  ? (isRtl ? "أدخل كلمة المرور الجديدة وتأكيدها لحفظها" : "Enter your new password below to reset and save it")
-                  : (isRtl ? "سجّل دخولك للوصول إلى بوابة العميل الخاصة بك" : "Sign in to access your custom client dashboard")
-                }
-              </p>
-            </div>
-          </div>
+              <div className="pt-4 border-t border-brand-gold/10 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMailSent(false)}
+                  className="w-full h-11 rounded-lg border border-brand-gold/30 text-brand-gold font-bold text-xs tracking-wider hover:bg-brand-gold/10 transition-all duration-300 flex items-center justify-center gap-2"
+                >
+                  {isRtl ? "إعادة الإرسال أو تجربة بريد آخر" : "Resend or try another email"}
+                </button>
 
-          {/* Form Content */}
-          <form onSubmit={submit} className="space-y-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMailSent(false);
+                    handleModeChange("signin");
+                  }}
+                  className="w-full h-11 rounded-lg bg-brand-dark/40 hover:bg-brand-dark/60 text-ivory/80 font-bold text-xs tracking-wider transition-all duration-300 flex items-center justify-center gap-2 border border-brand-gold/10"
+                >
+                  <ArrowRight size={14} className={isRtl ? "rotate-180" : ""} />
+                  <span>{isRtl ? "العودة لتسجيل الدخول" : "Return to Sign In"}</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Top of Card: Logo and elegant localized subtitle */}
+              <div className="text-center space-y-4">
+                <Link to="/" className="inline-block transform hover:scale-105 transition duration-300">
+                  <img 
+                    src="/logo.png" 
+                    alt="Tact Logo" 
+                    className="h-20 w-20 mx-auto object-contain drop-shadow-[0_0_18px_rgba(193,133,86,0.25)]" 
+                  />
+                </Link>
+                
+                {/* Fine line divider with label */}
+                <div className="flex items-center justify-center gap-4 py-1">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent to-brand-gold/30" />
+                  <span className="text-[11px] font-bold text-brand-gold uppercase tracking-[0.2em] whitespace-nowrap">
+                    {mode === "signup" 
+                      ? (isRtl ? "إنشاء حساب" : "CREATE ACCOUNT") 
+                      : mode === "reset"
+                      ? (isRtl ? "إعادة تعيين" : "RESET PASSWORD")
+                      : mode === "forgot"
+                      ? (isRtl ? "استعادة الحساب" : "RECOVER ACCOUNT")
+                      : (isRtl ? "تسجيل الدخول" : "SIGN IN")}
+                  </span>
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent to-brand-gold/30" />
+                </div>
+
+                {/* Main Title & Description */}
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-serif text-ivory font-bold leading-snug">
+                    {mode === "signup" 
+                      ? (isRtl ? "ابدأ رحلتك معنا" : "Start your journey") 
+                      : mode === "reset"
+                      ? (isRtl ? "كلمة مرور جديدة" : "New password")
+                      : mode === "forgot"
+                      ? (isRtl ? "نسيت كلمة المرور؟" : "Forgot Password?")
+                      : (isRtl ? "أهلاً بعودتك" : "Welcome back")}
+                  </h2>
+                  <p className="text-xs text-ivory/60 leading-relaxed max-w-[280px] mx-auto">
+                    {mode === "signup" 
+                      ? (isRtl ? "أنشئ حسابك للوصول إلى بوابة العميل الخاصة بك" : "Create your account to access your premium client portal") 
+                      : mode === "reset"
+                      ? (isRtl ? "أدخل كلمة المرور الجديدة وتأكيدها لحفظها" : "Enter your new password below to reset and save it")
+                      : mode === "forgot"
+                      ? (isRtl ? "أدخل بريدك الإلكتروني وسنرسل لك رابطاً لاستعادة حسابك" : "Enter your email address and we'll send you a link to recover your account")
+                      : (isRtl ? "سجّل دخولك للوصول إلى بوابة العميل الخاصة بك" : "Sign in to access your custom client dashboard")
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Form Content */}
+              <form onSubmit={submit} className="space-y-5">
             
             {/* Field: Full name (Sign Up only) */}
             {mode === "signup" && (
@@ -451,12 +514,14 @@ export default function Auth() {
               </div>
             )}
 
-            {/* Field: Email / Phone (Sign In / Sign Up only) */}
+            {/* Field: Email / Phone (Sign In / Sign Up / Forgot modes) */}
             {mode !== "reset" && (
               <div className="space-y-1.5 text-right">
                 <label className="text-xs font-semibold text-ivory/80 block">
                   {mode === "signin"
                     ? (isRtl ? "البريد الإلكتروني أو رقم الهاتف" : "Email or Phone Number")
+                    : mode === "forgot"
+                    ? (isRtl ? "البريد الإلكتروني" : "Email Address")
                     : (isRtl ? "البريد الإلكتروني (اختياري)" : "Email Address (Optional)")}
                 </label>
                 <div className="relative">
@@ -465,9 +530,11 @@ export default function Auth() {
                   </div>
                   <input 
                     type={mode === "signin" ? "text" : "email"} 
-                    required={mode === "signin"}
+                    required={mode === "signin" || mode === "forgot"}
                     placeholder={mode === "signin"
                       ? (isRtl ? "أدخل البريد الإلكتروني أو رقم الهاتف" : "Email or Phone Number")
+                      : mode === "forgot"
+                      ? (isRtl ? "أدخل بريدك الإلكتروني" : "Enter your email address")
                       : (isRtl ? "البريد الإلكتروني (اختياري)" : "Email (Optional)")}
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -599,51 +666,53 @@ export default function Auth() {
               </div>
             )}
 
-            {/* Field: Password (All modes) */}
-            <div className="space-y-1.5 text-right">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-ivory/80 block">
-                  {mode === "reset" 
-                    ? (isRtl ? "كلمة المرور الجديدة" : "New Password") 
-                    : (isRtl ? "كلمة المرور" : "Password")}
-                </label>
-                
-                {/* Forgot password link (Sign In only) */}
-                {mode === "signin" && (
+            {/* Field: Password (All modes except forgot) */}
+            {mode !== "forgot" && (
+              <div className="space-y-1.5 text-right">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-ivory/80 block">
+                    {mode === "reset" 
+                      ? (isRtl ? "كلمة المرور الجديدة" : "New Password") 
+                      : (isRtl ? "كلمة المرور" : "Password")}
+                  </label>
+                  
+                  {/* Forgot password link (Sign In only) */}
+                  {mode === "signin" && (
+                    <button 
+                      type="button"
+                      onClick={() => handleModeChange("forgot")}
+                      className="text-[11px] text-brand-gold hover:text-brand-sand transition-colors duration-200"
+                    >
+                      {isRtl ? "نسيت كلمة المرور؟" : "Forgot Password?"}
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-brand-gold/60">
+                    <Lock size={17} strokeWidth={1.5} />
+                  </div>
+                  
+                  {/* Toggle Eye on Left side */}
                   <button 
                     type="button"
-                    onClick={handleForgotPassword}
-                    className="text-[11px] text-brand-gold hover:text-brand-sand transition-colors duration-200"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute inset-y-0 left-3.5 flex items-center text-ivory/40 hover:text-brand-gold transition-colors"
                   >
-                    {isRtl ? "نسيت كلمة المرور؟" : "Forgot Password?"}
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                )}
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-brand-gold/60">
-                  <Lock size={17} strokeWidth={1.5} />
+                  
+                  <input 
+                    type={showPass ? "text" : "password"} 
+                    required
+                    minLength={8}
+                    placeholder="Password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    className="w-full h-12 pr-11 pl-10 bg-brand-dark/40 border border-brand-gold/20 rounded-lg text-ivory placeholder-ivory/30 text-sm focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold/30 transition-all duration-300"
+                  />
                 </div>
-                
-                {/* Toggle Eye on Left side */}
-                <button 
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute inset-y-0 left-3.5 flex items-center text-ivory/40 hover:text-brand-gold transition-colors"
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                
-                <input 
-                  type={showPass ? "text" : "password"} 
-                  required
-                  minLength={8}
-                  placeholder="Password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full h-12 pr-11 pl-10 bg-brand-dark/40 border border-brand-gold/20 rounded-lg text-ivory placeholder-ivory/30 text-sm focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold/30 transition-all duration-300"
-                />
               </div>
-            </div>
+            )}
 
             {/* Field: Confirm Password (Sign Up & Reset modes) */}
             {(mode === "signup" || mode === "reset") && (
@@ -697,6 +766,8 @@ export default function Auth() {
                   (isRtl ? "إنشاء الحساب" : "Create Account")
                 ) : mode === "reset" ? (
                   (isRtl ? "حفظ كلمة المرور" : "Save Password")
+                ) : mode === "forgot" ? (
+                  (isRtl ? "إرسال رابط استعادة كلمة المرور" : "Send Recovery Link")
                 ) : (
                   (isRtl ? "دخول" : "Sign In")
                 )}
@@ -762,7 +833,7 @@ export default function Auth() {
               </div>
             )}
 
-            {mode === "reset" && (
+            {(mode === "reset" || mode === "forgot") && (
               <div className="flex justify-center text-xs pt-1">
                 <button 
                   type="button"
@@ -775,6 +846,8 @@ export default function Auth() {
               </div>
             )}
           </div>
+        </>
+      )}
         </div>
       </div>
 
