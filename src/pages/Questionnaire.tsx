@@ -62,6 +62,28 @@ export default function Questionnaire() {
     notes: "",
   });
 
+  // Load initial state from localStorage
+  useEffect(() => {
+    const savedData = localStorage.getItem("tact_questionnaire_data");
+    const savedStep = localStorage.getItem("tact_questionnaire_step");
+    
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        setData((prev) => ({ ...prev, ...parsed }));
+      } catch (e) {
+        console.error("Failed to parse saved questionnaire data", e);
+      }
+    }
+    if (savedStep) {
+      const parsedStep = parseInt(savedStep, 10);
+      if (!isNaN(parsedStep) && parsedStep >= 0 && parsedStep < STEPS_META.length) {
+        setStep(parsedStep);
+      }
+    }
+  }, []);
+
+  // Update with auth defaults if those fields are still empty
   useEffect(() => {
     if (!user && !profile) return;
     setData((prev) => ({
@@ -71,6 +93,12 @@ export default function Questionnaire() {
       email: prev.email || profile?.email || user?.email || "",
     }));
   }, [user, profile]);
+
+  // Save to localStorage when step or data changes
+  useEffect(() => {
+    localStorage.setItem("tact_questionnaire_data", JSON.stringify(data));
+    localStorage.setItem("tact_questionnaire_step", step.toString());
+  }, [data, step]);
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
 
@@ -178,6 +206,9 @@ export default function Questionnaire() {
       toast.error(error.message);
       return;
     }
+
+    localStorage.removeItem("tact_questionnaire_data");
+    localStorage.removeItem("tact_questionnaire_step");
 
     if (isOfficeConsultant && created) {
       toast.success(lang === "ar" ? "تم حفظ استبيان العميل. اختر الباقة الآن." : "Questionnaire saved. Choose a package now.");

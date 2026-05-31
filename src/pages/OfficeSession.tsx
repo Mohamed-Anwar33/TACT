@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, FileText, Lock, Plus, Upload, X, User, Home, Layers, Users, Heart, Lightbulb, FileImage, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, FileText, Lock, Plus, Upload, X, User, Home, Layers, Users, Heart, Lightbulb, FileImage, Sparkles, Layout, Star, Crown } from "lucide-react";
 import { toast } from "sonner";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { CatalogPackage, getPackages } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 type PlanImage = {
   url: string;
@@ -25,6 +26,19 @@ const STEPS_META = [
   { id: "expectations", labelAr: "التوقعات والتجربة", labelEn: "Expectations & History", icon: Heart },
   { id: "problems", labelAr: "المشكلات والطموحات", labelEn: "Goals & Notes", icon: Lightbulb },
 ];
+
+const packageCovers: Record<string, string> = {
+  economy: "/real-content/Packages/package-covers/economy.jpg",
+  medium: "/real-content/Packages/package-covers/medium.jpg",
+  luxury: "/real-content/Packages/package-covers/luxury.jpg",
+};
+
+const getPackageIcon = (id: string) => {
+  if (id === "economy") return Layout;
+  if (id === "medium") return Star;
+  if (id === "luxury") return Crown;
+  return Star;
+};
 
 export default function OfficeSession() {
   const { lang } = useLang();
@@ -64,6 +78,37 @@ export default function OfficeSession() {
     new_ambitions: "",
     notes: "",
   });
+
+  // On mount: load from localStorage if no urlQuestionnaireId is active
+  useEffect(() => {
+    if (urlQuestionnaireId) return;
+
+    const savedData = localStorage.getItem("tact_office_session_data");
+    const savedStep = localStorage.getItem("tact_office_session_step");
+    
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        setData((prev) => ({ ...prev, ...parsed }));
+      } catch (e) {
+        console.error("Failed to parse saved office session data", e);
+      }
+    }
+    if (savedStep) {
+      const parsedStep = parseInt(savedStep, 10);
+      if (!isNaN(parsedStep) && parsedStep >= 0 && parsedStep < STEPS_META.length) {
+        setStep(parsedStep);
+      }
+    }
+  }, [urlQuestionnaireId]);
+
+  // Save to localStorage when step or data changes (if no questionnaireId is active)
+  useEffect(() => {
+    if (questionnaireId || urlQuestionnaireId) return;
+
+    localStorage.setItem("tact_office_session_data", JSON.stringify(data));
+    localStorage.setItem("tact_office_session_step", step.toString());
+  }, [data, step, questionnaireId, urlQuestionnaireId]);
 
   useEffect(() => {
     if (!loading && !user) nav("/auth");
@@ -205,11 +250,16 @@ export default function OfficeSession() {
     }
 
     setQuestionnaireId(created.id);
+    localStorage.removeItem("tact_office_session_data");
+    localStorage.removeItem("tact_office_session_step");
+    nav(`/office-session?questionnaireId=${created.id}`, { replace: true });
     toast.success(lang === "ar" ? "تم حفظ استبيان العميل. اختر الباقة الآن." : "Questionnaire saved. Choose a package now.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const startNewSession = () => {
+    localStorage.removeItem("tact_office_session_data");
+    localStorage.removeItem("tact_office_session_step");
     setData({
       name: "",
       phone: "",
@@ -236,6 +286,7 @@ export default function OfficeSession() {
     });
     setStep(0);
     setQuestionnaireId(null);
+    nav("/office-session", { replace: true });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -272,22 +323,134 @@ export default function OfficeSession() {
             </button>
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {packages.map((pkg) => (
-              <Link
-                key={pkg.id}
-                to={`/packages/${pkg.id}/configurator?questionnaireId=${questionnaireId}`}
-                className="group rounded-xl border border-border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-gold hover:shadow-xl"
-              >
-                <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-gold">{pkg.id}</div>
-                <h2 className="mt-3 font-serif text-2xl font-bold text-teal-deep">{lang === "ar" ? pkg.name_ar : pkg.name_en}</h2>
-                <p className="mt-3 min-h-12 text-xs leading-relaxed text-muted-foreground">{lang === "ar" ? pkg.description_ar : pkg.description_en}</p>
-                <div className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-teal-deep group-hover:text-gold">
-                  <span>{lang === "ar" ? "فتح الاختيارات" : "Open configurator"}</span>
-                  {lang === "ar" ? <ArrowLeft size={15} /> : <ArrowRight size={15} />}
-                </div>
-              </Link>
-            ))}
+          <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+            {packages.map((pkg, i) => {
+              const isFeatured = pkg.featured;
+              const Icon = getPackageIcon(pkg.id);
+              const cardNum = String(i + 1).padStart(2, "0");
+              const coverImg = pkg.cover_url || packageCovers[pkg.id];
+
+              return (
+                <Link
+                  key={pkg.id}
+                  to={`/packages/${pkg.id}/configurator?questionnaireId=${questionnaireId}`}
+                  className={cn(
+                    "relative flex flex-col rounded-2xl transition-all duration-500 luxury-motion group overflow-hidden border hover-shine-effect text-ivory",
+                    isFeatured
+                      ? "featured-gradient-border shadow-[0_25px_60px_rgba(0,0,0,0.45)] hover:shadow-[0_28px_70px_rgba(193,133,86,0.22)]"
+                      : "bg-[#06201D]/90 border-white/[0.06] hover:border-[#C18556]/40 shadow-xl hover:shadow-[0_25px_50px_rgba(0,0,0,0.3)]",
+                    "hover:-translate-y-2"
+                  )}
+                >
+                  {/* Featured Ribbon / Badge */}
+                  {isFeatured && (
+                    <div className={cn(
+                      "absolute top-4 z-30 bg-gradient-to-r from-[#C18556] to-[#DDB57C] text-[#0C363A] text-[9px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5",
+                      lang === "ar" ? "left-4" : "right-4"
+                    )}>
+                      <Star size={10} fill="currentColor" className="stroke-none" />
+                      <span>{lang === "ar" ? pkg.badge_ar || "الأكثر طلباً" : pkg.badge_en || "Most Popular"}</span>
+                    </div>
+                  )}
+
+                  {/* Perfectly scaled cover image container */}
+                  <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/25">
+                    {coverImg && (
+                      <>
+                        {/* Blurred backup background */}
+                        <div 
+                          className="absolute inset-0 bg-cover bg-center blur-md opacity-25 scale-110 pointer-events-none"
+                          style={{ backgroundImage: `url(${coverImg})` }}
+                        />
+                        
+                        {/* Raw main image containing full details */}
+                        <img
+                          src={coverImg}
+                          alt={lang === "ar" ? pkg.name_ar : pkg.name_en}
+                          loading="lazy"
+                          decoding="async"
+                          className="relative w-full h-full object-contain image-crisp package-cover-zoom"
+                        />
+                      </>
+                    )}
+
+                    {/* Numeric Badge Pill */}
+                    <div className={cn(
+                      "absolute top-4 rounded-full border px-3 py-0.5 text-[10px] font-mono font-bold tracking-widest text-white backdrop-blur-md bg-black/35",
+                      lang === "ar" ? "right-4" : "left-4",
+                      isFeatured ? "border-[#C18556]/40 text-[#C18556]" : "border-white/10 text-white/70"
+                    )}>
+                      {cardNum}
+                    </div>
+                  </div>
+
+                  {/* Card Content Body */}
+                  <div className="p-6 md:p-8 flex-1 flex flex-col justify-between">
+                    <div>
+                      {/* Premium Circle Icon */}
+                      <div className="flex justify-between items-center mb-4">
+                        <div className={cn(
+                          "w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-500 luxury-motion",
+                          isFeatured 
+                            ? "border-[#C18556] bg-[#C18556]/15 text-[#C18556] shadow-[0_0_15px_rgba(193,133,86,0.15)] group-hover:scale-110 group-hover:shadow-[0_0_26px_rgba(193,133,86,0.35)]" 
+                            : "border-white/10 bg-white/[0.02] text-white/70 group-hover:border-[#C18556]/50 group-hover:text-[#C18556] group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(193,133,86,0.18)]"
+                        )}>
+                          <Icon size={18} className="stroke-[1.5]" />
+                        </div>
+                      </div>
+
+                      {/* Package Name */}
+                      <h3 className="text-lg font-bold font-serif text-[#C18556] mb-2">
+                        {lang === "ar" ? pkg.name_ar : pkg.name_en}
+                      </h3>
+
+                      {/* Package Price */}
+                      <div className="mb-3 flex items-baseline gap-1.5">
+                        <span className="font-serif text-3xl font-medium tracking-tight text-white/95">
+                          {pkg.price_label}
+                        </span>
+                        <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">
+                          {lang === "ar" ? pkg.unit_label_ar || "جنيه / م²" : pkg.unit_label_en || "EGP / m²"}
+                        </span>
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-[11px] text-white/60 leading-relaxed mb-4 font-light min-h-[36px] line-clamp-2">
+                        {lang === "ar" ? pkg.description_ar : pkg.description_en}
+                      </p>
+
+                      {/* Divider */}
+                      <div className="h-[1px] w-full bg-white/[0.06] mb-4" />
+
+                      {/* Features Checklist */}
+                      <ul className="space-y-2.5 flex-1 mb-6 flex-grow">
+                        {(lang === "ar" ? pkg.features_ar : pkg.features_en).map((feat, idx) => (
+                          <li key={idx} className="flex items-center gap-2.5 text-[11px] text-white/80 group/item">
+                            <div className="w-3.5 h-3.5 rounded-full bg-[#C18556]/15 border border-[#C18556]/30 flex items-center justify-center text-[#C18556] flex-shrink-0 transition-all duration-500 luxury-motion group-hover/item:scale-125 group-hover/item:bg-[#C18556] group-hover/item:text-[#0C363A] group-hover/item:shadow-[0_0_14px_rgba(193,133,86,0.35)]">
+                              <Check size={8} className="stroke-[3]" />
+                            </div>
+                            <span className="font-light group-hover/item:text-white transition-colors">{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Action Button */}
+                    <div>
+                      <div 
+                        className="w-full py-3 rounded-sm font-bold text-[9px] uppercase tracking-[0.20em] flex items-center justify-center gap-2 transition-all duration-300 transform active:scale-95 bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-950/30"
+                      >
+                        <span>
+                          {lang === "ar" ? "ابدأ التخصيص" : "START CONFIGURING"}
+                        </span>
+                        {lang === "ar" ? <ArrowLeft size={12} /> : <ArrowRight size={12} />}
+                      </div>
+                    </div>
+
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
