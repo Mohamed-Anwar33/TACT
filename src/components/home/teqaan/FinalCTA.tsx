@@ -16,7 +16,7 @@ const packageCovers: Record<string, string> = {
 
 export default function FinalCTA({ section }: { section?: CmsSection }) {
   const { lang } = useLang();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, isOfficeConsultant, loading } = useAuth();
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [packages, setPackages] = useState<any[]>(() => [
     {
@@ -71,7 +71,11 @@ export default function FinalCTA({ section }: { section?: CmsSection }) {
         if (allPackages && allPackages.length > 0) {
           setPackages(allPackages);
         }
-        setUnlockedIds(unlocked);
+        if (isOfficeConsultant) {
+          setUnlockedIds(allPackages.map((pkg) => pkg.id));
+        } else {
+          setUnlockedIds(unlocked);
+        }
       } catch (err) {
         console.error("Failed to load packages in FinalCTA:", err);
       }
@@ -82,7 +86,7 @@ export default function FinalCTA({ section }: { section?: CmsSection }) {
     return () => {
       alive = false;
     };
-  }, [user?.id, profile?.packages_unlocked, loading]);
+  }, [user?.id, profile?.packages_unlocked, isOfficeConsultant, loading]);
 
   const getPackageIcon = (id: string) => {
     if (id === "economy") return Layout;

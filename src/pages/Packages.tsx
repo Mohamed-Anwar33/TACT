@@ -17,7 +17,7 @@ const packageCovers: Record<string, string> = {
 
 export default function Packages() {
   const { lang } = useLang();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, isOfficeConsultant, loading } = useAuth();
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(true);
@@ -32,14 +32,18 @@ export default function Packages() {
       ]);
       if (!alive) return;
       setPackages(allPackages);
-      setUnlockedIds(unlocked);
+      if (isOfficeConsultant) {
+        setUnlockedIds(allPackages.map((pkg) => pkg.id));
+      } else {
+        setUnlockedIds(unlocked);
+      }
       setBusy(false);
     }
     if (!loading) load();
     return () => {
       alive = false;
     };
-  }, [user?.id, profile?.packages_unlocked, loading]);
+  }, [user?.id, profile?.packages_unlocked, isOfficeConsultant, loading]);
 
   const getPackageIcon = (id: string) => {
     if (id === "economy") return Layout;

@@ -27,7 +27,7 @@ type PlanImage = {
 
 export default function Questionnaire() {
   const { lang } = useLang();
-  const { user, profile } = useAuth();
+  const { user, profile, isOfficeConsultant } = useAuth();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
@@ -154,7 +154,7 @@ export default function Questionnaire() {
     const combinedHistory = `هل سبق التعامل: ${data.history} | التحديات المتوقعة: ${data.history_challenges}`;
     const combinedGoals = `المشكلات السابقة: ${data.prev_problems} | الطموحات الجديدة: ${data.new_ambitions}`;
 
-    const { error } = await supabase.from("questionnaires").insert({
+    const { data: created, error } = await supabase.from("questionnaires").insert({
       user_id: user?.id ?? null,
       name: data.name,
       phone: data.phone,
@@ -170,12 +170,18 @@ export default function Questionnaire() {
       goals: combinedGoals,
       notes: data.notes,
       plan_images: data.plan_images,
-    });
+    }).select("id").single();
 
     setBusy(false);
 
     if (error) {
       toast.error(error.message);
+      return;
+    }
+
+    if (isOfficeConsultant && created) {
+      toast.success(lang === "ar" ? "تم حفظ استبيان العميل. اختر الباقة الآن." : "Questionnaire saved. Choose a package now.");
+      nav(`/office-session?questionnaireId=${created.id}`, { replace: true });
       return;
     }
 
