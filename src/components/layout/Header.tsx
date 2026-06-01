@@ -144,7 +144,7 @@ export default function Header() {
       </div>
 
       {/* Mobile Navigation Panel */}
-      <div className={cn("lg:hidden overflow-hidden bg-brand-dark transition-all", open ? "max-h-[520px] border-t border-white/10" : "max-h-0")}>
+      <div className={cn("lg:hidden overflow-hidden bg-brand-dark transition-all", open ? "max-h-[520px] border-t border-white/10 pointer-events-auto" : "max-h-0 pointer-events-none")}>
         <div className="container-luxe grid gap-1 py-5">
           {items.map((item) => (
             <NavLink

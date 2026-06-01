@@ -6,7 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { CatalogPackage, getPackages, getUnlockedPackageIds } from "@/lib/catalog";
 import { isInternalPhoneEmail, phoneToDisplay } from "@/lib/phoneAuth";
-import { BriefcaseBusiness, FileText, LogOut, Plus, ShieldCheck } from "lucide-react";
+import { BriefcaseBusiness, FileText, LogOut, Plus, ShieldCheck, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function CustomerArea() {
   const { lang } = useLang();
@@ -16,6 +18,77 @@ export default function CustomerArea() {
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [officeReports, setOfficeReports] = useState<any[]>([]);
+
+  // Search & Pagination states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  const filteredReports = officeReports.filter((report) => {
+    const term = searchQuery.toLowerCase();
+    return (
+      (report.client_name || "").toLowerCase().includes(term) ||
+      (report.client_phone || "").toLowerCase().includes(term) ||
+      (report.package_id || "").toLowerCase().includes(term)
+    );
+  });
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredReports.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedReports = filteredReports.slice(startIndex, startIndex + itemsPerPage);
+
+  const handleDeleteReport = (reportId: string, name: string) => {
+    toast(lang === "ar" ? `حذف تقرير العميل: ${name}` : `Delete report for: ${name}`, {
+      description: lang === "ar" ? "هل أنت متأكد من رغبتك في حذف هذا التقرير نهائياً؟ لا يمكن التراجع." : "Are you sure you want to delete this report permanently? This action is irreversible.",
+      action: {
+        label: lang === "ar" ? "حذف" : "Delete",
+        onClick: async () => {
+          try {
+            const { error } = await (supabase as any).from("configurator_selections").delete().eq("id", reportId);
+            if (error) throw error;
+            setOfficeReports((prev) => prev.filter((r) => r.id !== reportId));
+            toast.success(lang === "ar" ? "تم حذف التقرير بنجاح" : "Report deleted successfully");
+          } catch (e: any) {
+            toast.error(e.message || (lang === "ar" ? "فشل الحذف" : "Delete failed"));
+          }
+        }
+      },
+      cancel: {
+        label: lang === "ar" ? "إلغاء" : "Cancel",
+        onClick: () => {},
+      }
+    });
+  };
+
+  const handleDeleteAllReports = () => {
+    toast(lang === "ar" ? "حذف جميع التقارير" : "Delete All Reports", {
+      description: lang === "ar" ? "تنبيه! سيتم حذف كافة التقارير نهائياً من قاعدة البيانات. هل أنت متأكد؟" : "Warning! All reports will be permanently deleted from the database. Are you sure?",
+      action: {
+        label: lang === "ar" ? "حذف الكل" : "Delete All",
+        onClick: async () => {
+          try {
+            const reportIds = officeReports.map(r => r.id);
+            if (reportIds.length === 0) return;
+            const { error } = await (supabase as any).from("configurator_selections").delete().in("id", reportIds);
+            if (error) throw error;
+            setOfficeReports([]);
+            toast.success(lang === "ar" ? "تم حذف جميع التقارير بنجاح" : "All reports deleted successfully");
+          } catch (e: any) {
+            toast.error(e.message || (lang === "ar" ? "فشل الحذف" : "Delete failed"));
+          }
+        }
+      },
+      cancel: {
+        label: lang === "ar" ? "إلغاء" : "Cancel",
+        onClick: () => {},
+      }
+    });
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,7 +105,7 @@ export default function CustomerArea() {
       getPackages(),
       getUnlockedPackageIds(user.id, !!profile?.packages_unlocked),
       isOfficeConsultant
-        ? (supabase as any).from("configurator_selections").select("id,created_at,package_id,client_name,client_phone").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5)
+        ? (supabase as any).from("configurator_selections").select("id,created_at,package_id,client_name,client_phone").eq("user_id", user.id).order("created_at", { ascending: false })
         : Promise.resolve({ data: [] }),
     ]).then(([paymentRes, packageList, unlocked, reportsRes]) => {
       setPayments(paymentRes.data ?? []);
@@ -130,17 +203,92 @@ export default function CustomerArea() {
                 {lang === "ar" ? "لسه مفيش تقارير محفوظة من حساب المكتب." : "No office reports have been saved yet."}
               </div>
             ) : (
-              <div className="divide-y divide-border">
-                {officeReports.map((report) => (
-                  <Link key={report.id} to={`/office-session/report/${report.id}`} className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm transition hover:text-gold">
-                    <div>
-                      <div className="font-bold text-[#0C363A]">{report.client_name || (lang === "ar" ? "عميل مكتب" : "Office client")}</div>
-                      <div className="mt-1 text-xs text-muted-foreground" dir="ltr">{report.client_phone || "-"}</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{new Date(report.created_at).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}</div>
-                  </Link>
-                ))}
-              </div>
+              <>
+                {/* Search & Actions Row */}
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border/20 pb-4">
+                  <div className="relative flex-1 min-w-[240px]">
+                    <input
+                      type="text"
+                      placeholder={lang === "ar" ? "ابحث باسم العميل أو الهاتف..." : "Search by client name or phone..."}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full h-11 px-4 rounded-lg border border-border/80 text-xs focus:outline-none focus:border-gold bg-[#FBF7F0] pr-10"
+                      dir={lang === "ar" ? "rtl" : "ltr"}
+                    />
+                    <span className={cn("absolute top-3.5 text-muted-foreground", lang === "ar" ? "left-3.5" : "right-3.5")}>
+                      <Search size={14} />
+                    </span>
+                  </div>
+
+                  <button 
+                    onClick={handleDeleteAllReports}
+                    className="h-11 px-5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition text-xs font-bold flex items-center gap-2 border border-red-200"
+                  >
+                    <Trash2 size={14} />
+                    <span>{lang === "ar" ? "حذف الكل" : "Delete All"}</span>
+                  </button>
+                </div>
+
+                {filteredReports.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-[#d9c9b7] p-8 text-center text-sm text-muted-foreground">
+                    {lang === "ar" ? "لا توجد نتائج تطابق بحثك." : "No matching reports found."}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {paginatedReports.map((report) => (
+                      <div key={report.id} className="flex items-center justify-between gap-3 py-4 text-sm transition hover:bg-[#FBF7F0]/30 px-2 rounded-lg group">
+                        <Link to={`/office-session/report/${report.id}`} className="flex-1 flex flex-wrap items-center justify-between gap-3 hover:text-gold">
+                          <div>
+                            <div className="font-bold text-[#0C363A]">{report.client_name || (lang === "ar" ? "عميل مكتب" : "Office client")}</div>
+                            <div className="mt-1 text-xs text-muted-foreground font-mono" dir="ltr">{report.client_phone || "-"}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">{new Date(report.created_at).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US")}</div>
+                        </Link>
+
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleDeleteReport(report.id, report.client_name || (lang === "ar" ? "عميل مكتب" : "Office client"));
+                          }}
+                          className="p-2 rounded-lg text-muted-foreground/60 hover:text-red-600 hover:bg-red-50 transition-all shrink-0 ms-2"
+                          title={lang === "ar" ? "حذف التقرير" : "Delete report"}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="mt-6 flex items-center justify-center gap-2 select-none border-t border-border/40 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center border border-border bg-white text-teal-deep hover:bg-[#FBF7F0] disabled:opacity-40 transition"
+                    >
+                      {lang === "ar" ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                    </button>
+                    
+                    <span className="text-xs font-mono font-bold text-teal-deep">
+                      {currentPage} / {totalPages}
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center border border-border bg-white text-teal-deep hover:bg-[#FBF7F0] disabled:opacity-40 transition"
+                    >
+                      {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

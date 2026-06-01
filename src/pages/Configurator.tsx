@@ -83,6 +83,7 @@ export default function Configurator() {
   const [showStylePreview, setShowStylePreview] = useState(true);
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
   const [busy, setBusy] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const [customUploads, setCustomUploads] = useState<SelectionItem[]>([]);
   const [uploadingCustom, setUploadingCustom] = useState(false);
   const [linkedQuestionnaire, setLinkedQuestionnaire] = useState<QuestionnaireSnapshot | null>(null);
@@ -313,6 +314,30 @@ export default function Configurator() {
   useEffect(() => {
     if (!loading && !user) nav("/auth");
   }, [loading, user, nav]);
+
+  // Load draft selections from localStorage
+  useEffect(() => {
+    if (checking || !pkg) return;
+    const key = `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const { selections: savedSelections, customUploads: savedUploads } = JSON.parse(saved);
+        if (savedSelections) setSelections(savedSelections);
+        if (savedUploads) setCustomUploads(savedUploads);
+      } catch (e) {
+        console.error("Failed to parse draft configurator selections", e);
+      }
+    }
+    setDraftLoaded(true);
+  }, [checking, pkg, packageId, questionnaireId]);
+
+  // Save draft selections to localStorage
+  useEffect(() => {
+    if (!draftLoaded || checking || !pkg) return;
+    const key = `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
+    localStorage.setItem(key, JSON.stringify({ selections, customUploads }));
+  }, [selections, customUploads, packageId, questionnaireId, checking, pkg, draftLoaded]);
 
   useEffect(() => {
     let alive = true;
@@ -613,6 +638,8 @@ export default function Configurator() {
       toast.error(error.message);
       return;
     }
+    const draftKey = `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
+    localStorage.removeItem(draftKey);
     toast.success(lang === "ar" ? "تم حفظ اختياراتك وملاحظاتك بنجاح" : "Selections saved successfully");
     setTimeout(() => {
       if (isOfficeSession && savedSelection?.id) {
@@ -827,10 +854,26 @@ export default function Configurator() {
             </div>
 
             <div className="mt-6 pt-5 border-t border-border">
-              <button disabled={busy || !selectedCount} onClick={submit} className="btn-gold w-full flex items-center justify-center gap-2 disabled:opacity-50">
-                <Check size={16} />
-                <span>{busy ? "..." : lang === "ar" ? "حفظ وإرسال الاختيارات" : "Save Selections"}</span>
-              </button>
+              {activeSecIdx < sections.length - 1 ? (
+                <button
+                  onClick={() => {
+                    window.scrollTo({ top: 420, behavior: "smooth" });
+                    setActiveSecIdx((current) => current + 1);
+                  }}
+                  className="btn-gold w-full flex items-center justify-center gap-1.5"
+                >
+                  <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
+                  {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="btn-gold w-full flex items-center justify-center gap-1.5 opacity-50 cursor-not-allowed"
+                >
+                  <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
+                  {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                </button>
+              )}
             </div>
           </aside>
           )}
@@ -1151,15 +1194,10 @@ export default function Configurator() {
                   <span>{lang === "ar" ? "التالي: اختيارات البنود" : "Next: item choices"}</span>
                   {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
                 </button>
-              ) : activeSecIdx < sections.length - 1 ? (
-                <button onClick={() => { window.scrollTo({ top: 420, behavior: "smooth" }); setActiveSecIdx((current) => current + 1); }} className="btn-gold flex items-center gap-1.5 px-6">
-                  <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
-                  {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-                </button>
               ) : (
-                <button onClick={submit} disabled={busy || !selectedCount} className="btn-gold flex items-center gap-2 px-8 disabled:opacity-50">
+                <button disabled={busy || !selectedCount} onClick={submit} className="btn-gold flex items-center gap-2 px-8 disabled:opacity-50 font-bold">
                   <Check size={16} />
-                  <span>{lang === "ar" ? "إنهاء وحفظ التقرير" : "Finish & Save Report"}</span>
+                  <span>{busy ? "..." : lang === "ar" ? "حفظ وإرسال الاختيارات" : "Save Selections"}</span>
                 </button>
               )}
             </div>

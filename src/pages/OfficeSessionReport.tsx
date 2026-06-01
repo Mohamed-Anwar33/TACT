@@ -125,7 +125,7 @@ export default function OfficeSessionReport() {
   if (busy) return <div className="pt-40 pb-20 text-center text-muted-foreground">...</div>;
 
   return (
-    <section className="min-h-screen bg-[#f4efe7] pt-32 pb-8 print:py-0 print:bg-white" dir="rtl">
+    <section className="min-h-screen bg-[#f4efe7] pt-36 md:pt-40 lg:pt-32 pb-8 print:py-0 print:bg-white" dir="rtl">
       <style>{`
         @page { size: A4; margin: 12mm; }
         @media print {
@@ -136,7 +136,7 @@ export default function OfficeSessionReport() {
         }
       `}</style>
 
-      <div className="no-print mx-auto mb-5 flex max-w-[210mm] flex-wrap items-center justify-between gap-3 px-4">
+      <div className="no-print mx-auto mb-5 flex max-w-[210mm] flex-wrap items-center justify-between gap-3 px-4 relative z-10">
         <Link to="/office-session" className="inline-flex items-center gap-2 rounded-lg border border-teal-deep/20 bg-white px-4 py-2 text-xs font-bold text-teal-deep">
           <ArrowRight size={15} />
           <span>{lang === "ar" ? "جلسة جديدة" : "New session"}</span>

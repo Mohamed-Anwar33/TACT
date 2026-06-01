@@ -124,11 +124,98 @@ export default function OfficeSession() {
       setQuestionnaireId(urlQuestionnaireId);
       supabase
         .from("questionnaires")
-        .select("name")
+        .select("*")
         .eq("id", urlQuestionnaireId)
         .maybeSingle()
         .then(({ data: q }) => {
-          if (q) setData((prev) => ({ ...prev, name: q.name }));
+          if (q) {
+            // Parse combined fields back to form state
+            let expectationsFactor: string[] = [];
+            let expectationsFactorCustom = "";
+            if (q.expectations && q.expectations.startsWith("أهم عوامل: ")) {
+              const val = q.expectations.replace("أهم عوامل: ", "");
+              expectationsFactor = val.split(", ").map((s: string) => s.trim());
+              const standard = ["الجودة", "الالتزام بالوقت", "السعر المناسب", "خدمة العملاء", "Quality", "Time commitment", "Reasonable price", "Customer service"];
+              const customItems = expectationsFactor.filter(f => !standard.includes(f));
+              if (customItems.length > 0) {
+                expectationsFactorCustom = customItems.join(", ");
+                expectationsFactor = [...expectationsFactor.filter(f => standard.includes(f)), "أخرى"];
+              }
+            }
+
+            let historyVal = "";
+            let historyChallengesVal = "";
+            if (q.history) {
+              const parts = q.history.split(" | ");
+              const histPart = parts.find((p: string) => p.startsWith("هل سبق التعامل: "));
+              const chalPart = parts.find((p: string) => p.startsWith("التحديات المتوقعة: "));
+              if (histPart) historyVal = histPart.replace("هل سبق التعامل: ", "").trim();
+              if (chalPart) historyChallengesVal = chalPart.replace("التحديات المتوقعة: ", "").trim();
+            }
+
+            let prevProblemsVal = "";
+            let newAmbitionsVal = "";
+            if (q.goals) {
+              const parts = q.goals.split(" | ");
+              const prevPart = parts.find((p: string) => p.startsWith("المشكلات السابقة: "));
+              const newPart = parts.find((p: string) => p.startsWith("الطموحات الجديدة: "));
+              if (prevPart) prevProblemsVal = prevPart.replace("المشكلات السابقة: ", "").trim();
+              if (newPart) newAmbitionsVal = newPart.replace("الطموحات الجديدة: ", "").trim();
+            }
+
+            let serviceVal: string[] = [];
+            let serviceCustomVal = "";
+            if (q.service) {
+              serviceVal = q.service.split(", ").map((s: string) => s.trim());
+              const standard = ["تصميم داخلي", "تنفيذ وتشطيب كامل", "أثاث وديكور", "Interior Design", "Full Execution and Finishing", "Furniture & Decor"];
+              const customItems = serviceVal.filter(s => !standard.includes(s));
+              if (customItems.length > 0) {
+                serviceCustomVal = customItems.join(", ");
+                serviceVal = [...serviceVal.filter(s => standard.includes(s)), "أخرى"];
+              }
+            }
+
+            const stdTypes = ["شقة", "فيلا", "مكتب", "محل تجاري", "Apartment", "Villa", "Office", "Retail Shop"];
+            const projectTypeCustomVal = q.project_type && !stdTypes.includes(q.project_type) && q.project_type !== "أخرى" && q.project_type !== "Other" ? q.project_type : "";
+            const projectTypeVal = projectTypeCustomVal ? "أخرى" : q.project_type;
+
+            const stdStages = ["على الطوب الأحمر", "على المحارة", "متشطبه بالفعل", "Red Brick", "Plastered", "Already finished"];
+            const stageCustomVal = q.stage && !stdStages.includes(q.stage) && q.stage !== "أخرى" && q.stage !== "Other" ? q.stage : "";
+            const stageVal = stageCustomVal ? "أخرى" : q.stage;
+
+            const stdFamilies = ["زوج + زوجة", "زوج وزوجة + طفل", "Couple", "Family with Kid"];
+            const familyCustomVal = q.family && !stdFamilies.includes(q.family) && q.family !== "أخرى" && q.family !== "Other" ? q.family : "";
+            const familyVal = familyCustomVal ? "أخرى" : q.family;
+
+            const stdSources = ["توصية من صديق", "وسائل التواصل الاجتماعي", "إعلان", "Friend recommendation", "Social media", "Advertisement"];
+            const sourceCustomVal = q.source && !stdSources.includes(q.source) && q.source !== "أخرى" && q.source !== "Other" ? q.source : "";
+            const sourceVal = sourceCustomVal ? "أخرى" : q.source;
+
+            setData({
+              name: q.name || "",
+              phone: q.phone || "",
+              email: q.email || "",
+              address: q.address || "",
+              project_type: projectTypeVal || "",
+              project_type_custom: projectTypeCustomVal || "",
+              stage: stageVal || "",
+              stage_custom: stageCustomVal || "",
+              plan_images: (q.plan_images as any) || [],
+              family: familyVal || "",
+              family_custom: familyCustomVal || "",
+              service: serviceVal,
+              service_custom: serviceCustomVal || "",
+              expectations_factor: expectationsFactor,
+              expectations_factor_custom: expectationsFactorCustom || "",
+              source: sourceVal || "",
+              source_custom: sourceCustomVal || "",
+              history: historyVal || "",
+              history_challenges: historyChallengesVal || "",
+              prev_problems: prevProblemsVal || "",
+              new_ambitions: newAmbitionsVal || "",
+              notes: q.notes || "",
+            });
+          }
         });
     }
   }, [urlQuestionnaireId]);
