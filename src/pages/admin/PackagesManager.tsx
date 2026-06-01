@@ -191,51 +191,48 @@ export default function PackagesManager() {
       if (error) throw error;
       const styleId = savedStyle.id;
 
-      // 2. Handle cover image via style-preview category
-      if (editStyle.cover_url) {
-        let previewCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
-        if (!previewCat) {
-          const { data: newCat, error: catErr } = await db
-            .from("package_categories")
-            .insert({
-              style_id: styleId,
-              slug: "style-preview",
-              name_en: "Style Preview",
-              name_ar: "معاينة الاستايل",
-              sort_order: 0,
-              published: true
-            })
-            .select()
-            .single();
-          if (catErr) throw catErr;
-          previewCat = newCat;
-        }
+      // 2. Handle cover image via style-preview category (Always ensure category & option exist)
+      let previewCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
+      if (!previewCat) {
+        const { data: newCat, error: catErr } = await db
+          .from("package_categories")
+          .insert({
+            style_id: styleId,
+            slug: "style-preview",
+            name_en: "Style Preview",
+            name_ar: "معاينة الاستايل",
+            sort_order: 0,
+            published: true
+          })
+          .select()
+          .single();
+        if (catErr) throw catErr;
+        previewCat = newCat;
+      }
 
-        const previewOpt = options.find(o => o.category_id === previewCat.id);
-        if (previewOpt) {
-          const { error: optErr } = await db
-            .from("package_options")
-            .update({ image_url: editStyle.cover_url })
-            .eq("id", previewOpt.id);
-          if (optErr) throw optErr;
-        } else {
-          const { error: optErr } = await db
-            .from("package_options")
-            .insert({
-              category_id: previewCat.id,
-              name_en: "Style Preview Option",
-              name_ar: "خيار معاينة الاستايل",
-              image_url: editStyle.cover_url,
-              sort_order: 0,
-              published: true
-            });
-          if (optErr) throw optErr;
-        }
+      const previewOpt = options.find(o => o.category_id === previewCat.id);
+      if (previewOpt) {
+        const { error: optErr } = await db
+          .from("package_options")
+          .update({ 
+            image_url: editStyle.cover_url || null,
+            name_en: "Style Preview Option",
+            name_ar: "خيار معاينة الاستايل"
+          })
+          .eq("id", previewOpt.id);
+        if (optErr) throw optErr;
       } else {
-        const previewCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
-        if (previewCat) {
-          await db.from("package_categories").delete().eq("id", previewCat.id);
-        }
+        const { error: optErr } = await db
+          .from("package_options")
+          .insert({
+            category_id: previewCat.id,
+            name_en: "Style Preview Option",
+            name_ar: "خيار معاينة الاستايل",
+            image_url: editStyle.cover_url || null,
+            sort_order: 0,
+            published: true
+          });
+        if (optErr) throw optErr;
       }
 
       toast.success("تم حفظ الاستايل بنجاح");
@@ -447,10 +444,120 @@ export default function PackagesManager() {
     }
   }
 
+  async function ensurePreviewOpt(styleId: string) {
+    let pCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
+    if (!pCat) {
+      const { data: newCat, error: catErr } = await db
+        .from("package_categories")
+        .insert({
+          style_id: styleId,
+          slug: "style-preview",
+          name_en: "Style Preview",
+          name_ar: "معاينة الاستايل",
+          sort_order: 0,
+          published: true
+        })
+        .select()
+        .single();
+      if (catErr) throw catErr;
+      pCat = newCat;
+    }
+
+    let pOpt = options.find(o => o.category_id === pCat.id);
+    if (!pOpt) {
+      const { data: newOpt, error: optErr } = await db
+        .from("package_options")
+        .insert({
+          category_id: pCat.id,
+          name_en: "Style Preview Option",
+          name_ar: "خيار معاينة الاستايل",
+          image_url: null,
+          sort_order: 0,
+          published: true
+        })
+        .select()
+        .single();
+      if (optErr) throw optErr;
+      pOpt = newOpt;
+    }
+    return pOpt;
+  }
+
+  async function makeStyleMainImage(mediaItem: any) {
+    if (!editStyle || !editStyle.id) return;
+    setBusy(true);
+    try {
+      const opt = await ensurePreviewOpt(editStyle.id);
+      const oldMainUrl = opt.image_url;
+      const newMainUrl = mediaItem.url;
+
+      // 1. Update the preview option's main image in database
+      const { error: optErr } = await db
+        .from("package_options")
+        .update({ image_url: newMainUrl })
+        .eq("id", opt.id);
+      if (optErr) throw optErr;
+
+      // 2. Swap old main image to replace the new main image's old place in gallery
+      if (oldMainUrl) {
+        const { error: mediaErr } = await db
+          .from("package_option_media")
+          .update({ url: oldMainUrl })
+          .eq("id", mediaItem.id);
+        if (mediaErr) throw mediaErr;
+      } else {
+        const { error: delErr } = await db
+          .from("package_option_media")
+          .delete()
+          .eq("id", mediaItem.id);
+        if (delErr) throw delErr;
+      }
+
+      toast.success("تم تعيين الصورة كصورة رئيسية للاستايل");
+      setEditStyle({ ...editStyle, cover_url: newMainUrl });
+      await load();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveStyleGalleryItem(idx: number, direction: "prev" | "next") {
+    if (!previewOpt) return;
+    const mediaItems = optionMedia.filter(m => m.option_id === previewOpt.id).sort((a, b) => a.sort_order - b.sort_order);
+    const targetIdx = direction === "prev" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= mediaItems.length) return;
+
+    setBusy(true);
+    try {
+      const currentItem = mediaItems[idx];
+      const targetItem = mediaItems[targetIdx];
+
+      // Swap sort_order
+      const { error: err1 } = await db.from("package_option_media").update({ sort_order: targetItem.sort_order }).eq("id", currentItem.id);
+      if (err1) throw err1;
+
+      const { error: err2 } = await db.from("package_option_media").update({ sort_order: currentItem.sort_order }).eq("id", targetItem.id);
+      if (err2) throw err2;
+
+      toast.success("تم إعادة ترتيب صور المعرض");
+      await load();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const activePackage = packages.find(p => p.id === activePkgId);
   const packageStyles = styles.filter(s => s.package_id === activePkgId);
   const activeStyle = packageStyles.find(s => s.id === activeStyleId) || packageStyles[0];
   const styleCategories = activeStyle ? categories.filter(c => c.style_id === activeStyle.id && c.slug !== "style-preview") : [];
+
+  const previewCat = editStyle?.id ? categories.find(c => c.style_id === editStyle.id && c.slug === "style-preview") : null;
+  const previewOpt = previewCat ? options.find(o => o.category_id === previewCat.id) : null;
+  const previewMedia = previewOpt ? optionMedia.filter(m => m.option_id === previewOpt.id).sort((a, b) => a.sort_order - b.sort_order) : [];
 
   return (
     <>
@@ -1433,6 +1540,156 @@ export default function PackagesManager() {
                 accept="image/*" 
                 onUploaded={url => setEditStyle({ ...editStyle, cover_url: url })} 
               />
+            </div>
+
+            <div style={{ borderTop: "1px solid #f0ece4", paddingTop: "1rem", marginTop: "1rem" }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35", display: "block", marginBottom: "8px" }}>
+                معرض صور معاينة الاستايل (Style Preview Gallery)
+              </span>
+              
+              {!editStyle.id ? (
+                <div style={{ padding: "10px", background: "#faf8f4", border: "1px dashed #eae5dc", borderRadius: "8px", fontSize: "0.74rem", color: "#666", textAlign: "center" }}>
+                  يمكنك إضافة وإدارة صور معرض المعاينة الخاصة بالاستايل بعد حفظ الاستايل أولاً.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <MediaUploader 
+                    folder="style-media" 
+                    label="تحميل صور معرض الاستايل" 
+                    accept="image/*" 
+                    multiple={true} 
+                    onUploaded={async (url, file) => {
+                      const opt = await ensurePreviewOpt(editStyle.id);
+                      await addOptMedia(opt.id, url, file.name);
+                    }} 
+                  />
+
+                  {previewMedia.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #eae5dc", paddingBottom: "6px" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#073b35" }}>صور المعرض الإضافية</span>
+                        <span style={{ fontSize: "0.65rem", color: "#8a8578" }}>
+                          الأسماء المدخلة تظهر على الصور للعميل أثناء استعراض تفاصيل الاستايل.
+                        </span>
+                      </div>
+
+                      {previewMedia.map((m, idx, arr) => (
+                        <div key={m.id} style={{ 
+                          display: "flex", 
+                          flexDirection: "column", 
+                          gap: "10px", 
+                          background: "#fdfdfb", 
+                          border: "1px solid #e2dcd0", 
+                          borderRadius: "12px", 
+                          padding: "12px 14px",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.01)"
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", borderBottom: "1px dashed #eae5dc", paddingBottom: "8px" }}>
+                            <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", flexShrink: 0 }}>
+                              <img src={resolveMediaUrl(m.url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35" }}>
+                                صورة معرض #{idx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => makeStyleMainImage(m)}
+                                style={{
+                                  background: "rgba(193, 150, 76, 0.1)",
+                                  border: "1px solid rgba(193, 150, 76, 0.3)",
+                                  color: "#c9964c",
+                                  borderRadius: "6px",
+                                  fontSize: "0.65rem",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  padding: "3px 8px",
+                                  width: "fit-content",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  marginTop: "3px"
+                                }}
+                              >
+                                👑 تعيين كصورة غلاف للاستايل
+                              </button>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => moveStyleGalleryItem(idx, "prev")}
+                                style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                                title="نقل لأعلى"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === arr.length - 1}
+                                onClick={() => moveStyleGalleryItem(idx, "next")}
+                                style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === arr.length - 1 ? "not-allowed" : "pointer", opacity: idx === arr.length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
+                                title="نقل لأسفل"
+                              >
+                                ▼
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeOptMedia(m.id)}
+                                style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", marginInlineStart: "6px" }}
+                                title="حذف الصورة"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 65px", gap: 10 }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
+                                الاسم على الصورة (عربي) *
+                              </label>
+                              <Input
+                                value={m.alt_ar || ""}
+                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_ar: e.target.value } : item))}
+                                onBlur={e => updateOptMediaField(m.id, "alt_ar", e.target.value)}
+                                placeholder="مثال: مودرن - 01"
+                                style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
+                                Text on image (English) *
+                              </label>
+                              <Input
+                                value={m.alt_en || ""}
+                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_en: e.target.value } : item))}
+                                onBlur={e => updateOptMediaField(m.id, "alt_en", e.target.value)}
+                                placeholder="e.g. Modern - 01"
+                                dir="ltr"
+                                style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
+                                الترتيب
+                              </label>
+                              <Input
+                                type="number"
+                                value={m.sort_order ?? 0}
+                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, sort_order: Number(e.target.value) } : item))}
+                                onBlur={e => updateOptMediaField(m.id, "sort_order", Number(e.target.value) || 0)}
+                                style={{ height: 32, fontSize: "0.72rem", background: "#fff", textAlign: "center" }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </form>
         )}

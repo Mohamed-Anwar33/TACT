@@ -79,6 +79,8 @@ export default function OfficeSession() {
     notes: "",
   });
 
+  const [loaded, setLoaded] = useState(false);
+
   // On mount: load from localStorage if no urlQuestionnaireId is active
   useEffect(() => {
     if (urlQuestionnaireId) return;
@@ -100,15 +102,16 @@ export default function OfficeSession() {
         setStep(parsedStep);
       }
     }
+    setLoaded(true);
   }, [urlQuestionnaireId]);
 
   // Save to localStorage when step or data changes (if no questionnaireId is active)
   useEffect(() => {
-    if (questionnaireId || urlQuestionnaireId) return;
+    if (!loaded || questionnaireId || urlQuestionnaireId) return;
 
     localStorage.setItem("tact_office_session_data", JSON.stringify(data));
     localStorage.setItem("tact_office_session_step", step.toString());
-  }, [data, step, questionnaireId, urlQuestionnaireId]);
+  }, [data, step, questionnaireId, urlQuestionnaireId, loaded]);
 
   useEffect(() => {
     if (!loading && !user) nav("/auth");

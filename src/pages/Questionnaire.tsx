@@ -62,6 +62,8 @@ export default function Questionnaire() {
     notes: "",
   });
 
+  const [loaded, setLoaded] = useState(false);
+
   // Load initial state from localStorage
   useEffect(() => {
     const savedData = localStorage.getItem("tact_questionnaire_data");
@@ -81,6 +83,7 @@ export default function Questionnaire() {
         setStep(parsedStep);
       }
     }
+    setLoaded(true);
   }, []);
 
   // Update with auth defaults if those fields are still empty
@@ -96,9 +99,10 @@ export default function Questionnaire() {
 
   // Save to localStorage when step or data changes
   useEffect(() => {
+    if (!loaded) return;
     localStorage.setItem("tact_questionnaire_data", JSON.stringify(data));
     localStorage.setItem("tact_questionnaire_step", step.toString());
-  }, [data, step]);
+  }, [data, step, loaded]);
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
 
