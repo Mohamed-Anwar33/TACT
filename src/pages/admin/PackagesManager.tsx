@@ -444,7 +444,7 @@ export default function PackagesManager() {
     }
   }
 
-  async function ensurePreviewOpt(styleId: string) {
+  async function ensurePreviewCat(styleId: string) {
     let pCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
     if (!pCat) {
       const { data: newCat, error: catErr } = await db
@@ -462,59 +462,50 @@ export default function PackagesManager() {
       if (catErr) throw catErr;
       pCat = newCat;
     }
+    return pCat;
+  }
 
-    let pOpt = options.find(o => o.category_id === pCat.id);
-    if (!pOpt) {
+  async function addStylePreviewImage(styleId: string, url: string, fileName = "") {
+    setBusy(true);
+    try {
+      const cat = await ensurePreviewCat(styleId);
+      
+      // Calculate next sort order
+      const styleOpts = options.filter(o => o.category_id === cat.id);
+      const maxOrder = styleOpts.reduce((max, o) => Math.max(max, o.sort_order ?? 0), 0);
+      const nextOrder = maxOrder + 10;
+      
+      const nameVal = fileName.substring(0, fileName.lastIndexOf('.')) || fileName || "Image";
+
+      // 1. Insert into package_options
       const { data: newOpt, error: optErr } = await db
         .from("package_options")
         .insert({
-          category_id: pCat.id,
-          name_en: "Style Preview Option",
-          name_ar: "خيار معاينة الاستايل",
-          image_url: null,
-          sort_order: 0,
+          category_id: cat.id,
+          name_en: nameVal,
+          name_ar: nameVal,
+          image_url: url,
+          sort_order: nextOrder,
           published: true
         })
         .select()
         .single();
       if (optErr) throw optErr;
-      pOpt = newOpt;
-    }
-    return pOpt;
-  }
 
-  async function makeStyleMainImage(mediaItem: any) {
-    if (!editStyle || !editStyle.id) return;
-    setBusy(true);
-    try {
-      const opt = await ensurePreviewOpt(editStyle.id);
-      const oldMainUrl = opt.image_url;
-      const newMainUrl = mediaItem.url;
+      // 2. Insert into package_option_media
+      const { error: mediaErr } = await db
+        .from("package_option_media")
+        .insert({
+          option_id: newOpt.id,
+          url: url,
+          media_type: "image",
+          alt_ar: nameVal,
+          alt_en: nameVal,
+          sort_order: 0
+        });
+      if (mediaErr) throw mediaErr;
 
-      // 1. Update the preview option's main image in database
-      const { error: optErr } = await db
-        .from("package_options")
-        .update({ image_url: newMainUrl })
-        .eq("id", opt.id);
-      if (optErr) throw optErr;
-
-      // 2. Swap old main image to replace the new main image's old place in gallery
-      if (oldMainUrl) {
-        const { error: mediaErr } = await db
-          .from("package_option_media")
-          .update({ url: oldMainUrl })
-          .eq("id", mediaItem.id);
-        if (mediaErr) throw mediaErr;
-      } else {
-        const { error: delErr } = await db
-          .from("package_option_media")
-          .delete()
-          .eq("id", mediaItem.id);
-        if (delErr) throw delErr;
-      }
-
-      toast.success("تم تعيين الصورة كصورة رئيسية للاستايل");
-      setEditStyle({ ...editStyle, cover_url: newMainUrl });
+      toast.success("تم إضافة صورة المعاينة بنجاح");
       await load();
     } catch (err: any) {
       toast.error(err.message);
@@ -523,28 +514,92 @@ export default function PackagesManager() {
     }
   }
 
-  async function moveStyleGalleryItem(idx: number, direction: "prev" | "next") {
-    if (!previewOpt) return;
-    const mediaItems = optionMedia.filter(m => m.option_id === previewOpt.id).sort((a, b) => a.sort_order - b.sort_order);
-    const targetIdx = direction === "prev" ? idx - 1 : idx + 1;
-    if (targetIdx < 0 || targetIdx >= mediaItems.length) return;
+  async function updateStylePreviewField(optionId: string, field: "name_ar" | "name_en" | "sort_order", value: string | number) {
+    setOptions(prev => prev.map(o => o.id === optionId ? { ...o, [field]: value } : o));
+    try {
+      // Update package_options
+      const { error: optErr } = await db
+        .from("package_options")
+        .update({ [field]: value })
+        .eq("id", optionId);
+      if (optErr) throw optErr;
 
+      // Update alt text in package_option_media if name is updated
+      if (field === "name_ar" || field === "name_en") {
+        const mediaField = field === "name_ar" ? "alt_ar" : "alt_en";
+        const { error: mediaErr } = await db
+          .from("package_option_media")
+          .update({ [mediaField]: value })
+          .eq("option_id", optionId);
+        if (mediaErr) throw mediaErr;
+      }
+    } catch (err: any) {
+      toast.error("فشل تحديث بيانات الصورة");
+      await load();
+    }
+  }
+
+  async function removeStylePreviewImage(optionId: string) {
     setBusy(true);
     try {
-      const currentItem = mediaItems[idx];
-      const targetItem = mediaItems[targetIdx];
-
-      // Swap sort_order
-      const { error: err1 } = await db.from("package_option_media").update({ sort_order: targetItem.sort_order }).eq("id", currentItem.id);
-      if (err1) throw err1;
-
-      const { error: err2 } = await db.from("package_option_media").update({ sort_order: currentItem.sort_order }).eq("id", targetItem.id);
-      if (err2) throw err2;
-
-      toast.success("تم إعادة ترتيب صور المعرض");
+      const { error } = await db
+        .from("package_options")
+        .delete()
+        .eq("id", optionId);
+      if (error) throw error;
+      toast.success("تم حذف صورة المعاينة");
       await load();
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function makeStyleCoverImage(optionId: string, categoryId: string) {
+    setBusy(true);
+    try {
+      const catOpts = options.filter(o => o.category_id === categoryId);
+      const minOrder = catOpts.reduce((min, o) => Math.min(min, o.sort_order ?? 0), 0);
+      const newOrder = minOrder - 10;
+
+      const { error } = await db
+        .from("package_options")
+        .update({ sort_order: newOrder })
+        .eq("id", optionId);
+      if (error) throw error;
+
+      toast.success("تم تعيين الصورة كغلاف للاستايل");
+      await load();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveStylePreviewOrder(categoryId: string, idx: number, direction: "prev" | "next") {
+    const styleOpts = options.filter(o => o.category_id === categoryId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const targetIdx = direction === "prev" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= styleOpts.length) return;
+
+    setBusy(true);
+    try {
+      const nextOpts = [...styleOpts];
+      const temp = nextOpts[idx];
+      nextOpts[idx] = nextOpts[targetIdx];
+      nextOpts[targetIdx] = temp;
+
+      const updates = nextOpts.map((opt, index) => {
+        const newOrder = (index + 1) * 10;
+        return db.from("package_options").update({ sort_order: newOrder }).eq("id", opt.id);
+      });
+
+      await Promise.all(updates);
+      toast.success("تم إعادة ترتيب الصور");
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ أثناء إعادة الترتيب");
     } finally {
       setBusy(false);
     }
@@ -556,8 +611,7 @@ export default function PackagesManager() {
   const styleCategories = activeStyle ? categories.filter(c => c.style_id === activeStyle.id && c.slug !== "style-preview") : [];
 
   const previewCat = editStyle?.id ? categories.find(c => c.style_id === editStyle.id && c.slug === "style-preview") : null;
-  const previewOpt = previewCat ? options.find(o => o.category_id === previewCat.id) : null;
-  const previewMedia = previewOpt ? optionMedia.filter(m => m.option_id === previewOpt.id).sort((a, b) => a.sort_order - b.sort_order) : [];
+  const previewOptions = previewCat ? options.filter(o => o.category_id === previewCat.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) : [];
 
   return (
     <>
@@ -1559,12 +1613,11 @@ export default function PackagesManager() {
                     accept="image/*" 
                     multiple={true} 
                     onUploaded={async (url, file) => {
-                      const opt = await ensurePreviewOpt(editStyle.id);
-                      await addOptMedia(opt.id, url, file.name);
+                      await addStylePreviewImage(editStyle.id, url, file.name);
                     }} 
                   />
 
-                  {previewMedia.length > 0 && (
+                  {previewOptions.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #eae5dc", paddingBottom: "6px" }}>
                         <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#073b35" }}>صور المعرض الإضافية</span>
@@ -1573,8 +1626,8 @@ export default function PackagesManager() {
                         </span>
                       </div>
 
-                      {previewMedia.map((m, idx, arr) => (
-                        <div key={m.id} style={{ 
+                      {previewOptions.map((opt, idx, arr) => (
+                        <div key={opt.id} style={{ 
                           display: "flex", 
                           flexDirection: "column", 
                           gap: "10px", 
@@ -1586,7 +1639,7 @@ export default function PackagesManager() {
                         }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "12px", borderBottom: "1px dashed #eae5dc", paddingBottom: "8px" }}>
                             <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", flexShrink: 0 }}>
-                              <img src={resolveMediaUrl(m.url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
+                              <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
                             </div>
                             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
                               <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35" }}>
@@ -1594,7 +1647,7 @@ export default function PackagesManager() {
                               </span>
                               <button
                                 type="button"
-                                onClick={() => makeStyleMainImage(m)}
+                                onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
                                 style={{
                                   background: "rgba(193, 150, 76, 0.1)",
                                   border: "1px solid rgba(193, 150, 76, 0.3)",
@@ -1619,7 +1672,7 @@ export default function PackagesManager() {
                               <button
                                 type="button"
                                 disabled={idx === 0}
-                                onClick={() => moveStyleGalleryItem(idx, "prev")}
+                                onClick={() => previewCat && moveStylePreviewOrder(previewCat.id, idx, "prev")}
                                 style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
                                 title="نقل لأعلى"
                               >
@@ -1628,7 +1681,7 @@ export default function PackagesManager() {
                               <button
                                 type="button"
                                 disabled={idx === arr.length - 1}
-                                onClick={() => moveStyleGalleryItem(idx, "next")}
+                                onClick={() => previewCat && moveStylePreviewOrder(previewCat.id, idx, "next")}
                                 style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === arr.length - 1 ? "not-allowed" : "pointer", opacity: idx === arr.length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
                                 title="نقل لأسفل"
                               >
@@ -1636,7 +1689,7 @@ export default function PackagesManager() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => removeOptMedia(m.id)}
+                                onClick={() => removeStylePreviewImage(opt.id)}
                                 style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", marginInlineStart: "6px" }}
                                 title="حذف الصورة"
                               >
@@ -1651,9 +1704,9 @@ export default function PackagesManager() {
                                 الاسم على الصورة (عربي) *
                               </label>
                               <Input
-                                value={m.alt_ar || ""}
-                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_ar: e.target.value } : item))}
-                                onBlur={e => updateOptMediaField(m.id, "alt_ar", e.target.value)}
+                                value={opt.name_ar || ""}
+                                onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
+                                onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
                                 placeholder="مثال: مودرن - 01"
                                 style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
                               />
@@ -1663,9 +1716,9 @@ export default function PackagesManager() {
                                 Text on image (English) *
                               </label>
                               <Input
-                                value={m.alt_en || ""}
-                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, alt_en: e.target.value } : item))}
-                                onBlur={e => updateOptMediaField(m.id, "alt_en", e.target.value)}
+                                value={opt.name_en || ""}
+                                onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
+                                onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
                                 placeholder="e.g. Modern - 01"
                                 dir="ltr"
                                 style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
@@ -1677,9 +1730,9 @@ export default function PackagesManager() {
                               </label>
                               <Input
                                 type="number"
-                                value={m.sort_order ?? 0}
-                                onChange={e => setOptionMedia(prev => prev.map(item => item.id === m.id ? { ...item, sort_order: Number(e.target.value) } : item))}
-                                onBlur={e => updateOptMediaField(m.id, "sort_order", Number(e.target.value) || 0)}
+                                value={opt.sort_order ?? 0}
+                                onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
+                                onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
                                 style={{ height: 32, fontSize: "0.72rem", background: "#fff", textAlign: "center" }}
                               />
                             </div>
