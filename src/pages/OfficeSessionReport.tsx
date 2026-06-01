@@ -125,7 +125,7 @@ export default function OfficeSessionReport() {
   if (busy) return <div className="pt-40 pb-20 text-center text-muted-foreground">...</div>;
 
   return (
-    <section className="min-h-screen bg-[#f4efe7] py-8 print:bg-white" dir="rtl">
+    <section className="min-h-screen bg-[#f4efe7] pt-32 pb-8 print:py-0 print:bg-white" dir="rtl">
       <style>{`
         @page { size: A4; margin: 12mm; }
         @media print {
