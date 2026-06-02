@@ -67,7 +67,7 @@ export default function Header() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-[100] transition-all duration-500",
-        scrolled || open ? "bg-brand-dark/95 py-2 shadow-luxe backdrop-blur-xl" : "bg-transparent py-3",
+        scrolled || open || pathname !== "/" ? "bg-brand-dark/95 py-2 shadow-luxe backdrop-blur-xl" : "bg-transparent py-3",
       )}
       dir={lang === "ar" ? "rtl" : "ltr"}
     >
