@@ -52,6 +52,7 @@ export default function OfficeSession() {
   const [questionnaireId, setQuestionnaireId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Form structured state matching exact columns
   const [data, setData] = useState({
@@ -311,27 +312,56 @@ export default function OfficeSession() {
     const combinedHistory = `هل سبق التعامل: ${data.history} | التحديات المتوقعة: ${data.history_challenges}`;
     const combinedGoals = `المشكلات السابقة: ${data.prev_problems} | الطموحات الجديدة: ${data.new_ambitions}`;
 
-    const { data: created, error } = await supabase
-      .from("questionnaires")
-      .insert({
-        user_id: user.id,
-        name: data.name.trim(),
-        phone: data.phone.trim(),
-        email: data.email.trim(),
-        address: data.address.trim(),
-        project_type: finalType,
-        stage: finalStage,
-        family: finalFamily,
-        service: finalService,
-        expectations: combinedExpectations,
-        source: finalSource,
-        history: combinedHistory,
-        goals: combinedGoals,
-        notes: data.notes.trim(),
-        plan_images: data.plan_images,
-      })
-      .select("id")
-      .single();
+    const activeQid = questionnaireId || urlQuestionnaireId;
+    let queryPromise;
+
+    if (activeQid) {
+      queryPromise = supabase
+        .from("questionnaires")
+        .update({
+          name: data.name.trim(),
+          phone: data.phone.trim(),
+          email: data.email.trim(),
+          address: data.address.trim(),
+          project_type: finalType,
+          stage: finalStage,
+          family: finalFamily,
+          service: finalService,
+          expectations: combinedExpectations,
+          source: finalSource,
+          history: combinedHistory,
+          goals: combinedGoals,
+          notes: data.notes.trim(),
+          plan_images: data.plan_images,
+        })
+        .eq("id", activeQid)
+        .select("id")
+        .single();
+    } else {
+      queryPromise = supabase
+        .from("questionnaires")
+        .insert({
+          user_id: user.id,
+          name: data.name.trim(),
+          phone: data.phone.trim(),
+          email: data.email.trim(),
+          address: data.address.trim(),
+          project_type: finalType,
+          stage: finalStage,
+          family: finalFamily,
+          service: finalService,
+          expectations: combinedExpectations,
+          source: finalSource,
+          history: combinedHistory,
+          goals: combinedGoals,
+          notes: data.notes.trim(),
+          plan_images: data.plan_images,
+        })
+        .select("id")
+        .single();
+    }
+
+    const { data: created, error } = await queryPromise;
     setBusy(false);
 
     if (error) {
@@ -339,10 +369,10 @@ export default function OfficeSession() {
       return;
     }
 
-    setQuestionnaireId(created.id);
-    localStorage.removeItem("tact_office_session_data");
-    localStorage.removeItem("tact_office_session_step");
-    nav(`/office-session?questionnaireId=${created.id}`, { replace: true });
+    const savedId = created.id;
+    setQuestionnaireId(savedId);
+    setIsEditing(false);
+    nav(`/office-session?questionnaireId=${savedId}`, { replace: true });
     toast.success(lang === "ar" ? "تم حفظ استبيان العميل. اختر الباقة الآن." : "Questionnaire saved. Choose a package now.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -376,6 +406,7 @@ export default function OfficeSession() {
     });
     setStep(0);
     setQuestionnaireId(null);
+    setIsEditing(false);
     nav("/office-session", { replace: true });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -397,7 +428,7 @@ export default function OfficeSession() {
     );
   }
 
-  if (questionnaireId) {
+  if (questionnaireId && !isEditing) {
     return (
       <section className="pt-40 pb-32 min-h-screen bg-[#FBF7F0]" dir={lang === "ar" ? "rtl" : "ltr"}>
         <div className="container-luxe max-w-5xl">
@@ -407,10 +438,23 @@ export default function OfficeSession() {
               <h1 className="display-2 mt-4 text-teal-deep">{data.name}</h1>
               <p className="mt-3 text-sm text-muted-foreground">{lang === "ar" ? "اختر الباقة التي سيتم تطبيقها على تقرير العميل." : "Choose the package to use for this client report."}</p>
             </div>
-            <button type="button" onClick={startNewSession} className="btn-ghost-light !text-teal-deep !border-teal-deep/25 flex items-center gap-2">
-              <Plus size={16} />
-              <span>{lang === "ar" ? "جلسة جديدة" : "New session"}</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setIsEditing(true);
+                  setStep(0);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }} 
+                className="btn-ghost-light !text-teal-deep !border-teal-deep/25 flex items-center gap-2"
+              >
+                <span>{lang === "ar" ? "تعديل الاستبيان" : "Edit Questionnaire"}</span>
+              </button>
+              <button type="button" onClick={startNewSession} className="btn-ghost-light !text-teal-deep !border-teal-deep/25 flex items-center gap-2 bg-teal-deep/5">
+                <Plus size={16} />
+                <span>{lang === "ar" ? "جلسة جديدة" : "New session"}</span>
+              </button>
+            </div>
           </div>
 
           <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
@@ -1158,7 +1202,13 @@ export default function OfficeSession() {
               disabled={busy}
               className="btn-gold flex items-center gap-2 px-10 py-3.5 font-bold shadow-lg shadow-gold/20 disabled:opacity-50"
             >
-              <span>{busy ? "..." : lang === "ar" ? "حفظ الاستبيان واختيار الباقة" : "Save and Choose Package"}</span>
+              <span>
+                {busy 
+                  ? "..." 
+                  : lang === "ar" 
+                    ? (isEditing ? "حفظ التعديلات والعودة للباقات" : "حفظ الاستبيان واختيار الباقة") 
+                    : (isEditing ? "Save Changes & Return to Packages" : "Save and Choose Package")}
+              </span>
               <Check size={16} strokeWidth={3} />
             </button>
           )}

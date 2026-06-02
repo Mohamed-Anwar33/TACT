@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Globe, Menu, Phone, X } from "lucide-react";
+import { Globe, Menu, Phone, X, LogOut } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import { fallbackContact, getCmsContact, type CmsContact } from "@/lib/publicCms
 
 export default function Header() {
   const { lang, setLang } = useLang();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [contact, setContact] = useState<CmsContact>(() => fallbackContact());
@@ -115,20 +115,33 @@ export default function Header() {
         </nav>
 
         {/* Action Buttons & Language Switcher */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 md:gap-4">
           {user ? (
-            <Link
-              to={isAdmin ? "/admin" : "/customer"}
-              className="hidden items-center gap-2 rounded-sm border border-brand-gold bg-brand-gold px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold md:flex"
-            >
-              {isAdmin
-                ? (lang === "ar" ? "لوحة التحكم" : "Dashboard")
-                : (lang === "ar" ? "بوابة العميل" : "Client Portal")}
-            </Link>
+            <>
+              <Link
+                to={isAdmin ? "/admin" : "/customer"}
+                className="flex items-center gap-1.5 rounded-sm border border-brand-gold bg-brand-gold px-2.5 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold uppercase tracking-[0.10em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold"
+              >
+                {isAdmin
+                  ? (lang === "ar" ? "لوحة التحكم" : "Dashboard")
+                  : (lang === "ar" ? "بوابة العميل" : "Client Portal")}
+              </Link>
+              <button
+                onClick={async () => {
+                  await signOut();
+                  window.location.href = "/";
+                }}
+                className="flex items-center gap-1 rounded-sm border border-red-500/30 bg-red-950/20 hover:bg-red-900/40 px-2 py-1.5 md:px-3 md:py-2 text-[10px] md:text-xs font-bold uppercase tracking-[0.10em] text-red-200 transition-all hover:border-red-500 hover:text-white"
+                title={lang === "ar" ? "تسجيل الخروج" : "Logout"}
+              >
+                <LogOut size={13} className="shrink-0" />
+                <span className="hidden sm:inline">{lang === "ar" ? "خروج" : "Logout"}</span>
+              </button>
+            </>
           ) : (
             <Link
               to="/auth"
-              className="hidden items-center gap-2 rounded-sm border border-brand-gold bg-brand-gold px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold md:flex"
+              className="flex items-center gap-1.5 rounded-sm border border-brand-gold bg-brand-gold px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold uppercase tracking-[0.10em] text-brand-dark transition-all hover:bg-transparent hover:text-brand-gold"
             >
               {lang === "ar" ? "تسجيل دخول" : "Login"}
             </Link>
@@ -160,14 +173,27 @@ export default function Header() {
             </NavLink>
           ))}
           {user ? (
-            <Link 
-              to={isAdmin ? "/admin" : "/customer"} 
-              className="mt-3 rounded-sm bg-brand-gold px-3 py-3 text-center font-semibold text-brand-dark"
-            >
-              {isAdmin 
-                ? (lang === "ar" ? "لوحة التحكم" : "Dashboard")
-                : (lang === "ar" ? "بوابة العميل" : "Client Portal")}
-            </Link>
+            <>
+              <Link 
+                to={isAdmin ? "/admin" : "/customer"} 
+                className="mt-3 rounded-sm bg-brand-gold px-3 py-3 text-center font-semibold text-brand-dark"
+              >
+                {isAdmin 
+                  ? (lang === "ar" ? "لوحة التحكم" : "Dashboard")
+                  : (lang === "ar" ? "بوابة العميل" : "Client Portal")}
+              </Link>
+              <button 
+                onClick={async () => {
+                  setOpen(false);
+                  await signOut();
+                  window.location.href = "/";
+                }}
+                className="mt-2 rounded-sm border border-red-500/30 bg-red-950/20 hover:bg-red-900/40 px-3 py-3 text-center font-bold text-red-200 flex items-center justify-center gap-2"
+              >
+                <LogOut size={16} />
+                <span>{lang === "ar" ? "تسجيل خروج" : "Logout"}</span>
+              </button>
+            </>
           ) : (
             <Link 
               to="/auth" 

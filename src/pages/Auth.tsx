@@ -146,10 +146,22 @@ export default function Auth() {
   });
   const [questionnaire, setQuestionnaire] = useState<SignupQuestionnaire>(initialQuestionnaire);
   const [busy, setBusy] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   
   // Independent password visibility states
   const [showPass, setShowPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
+
+  useEffect(() => {
+    const remembered = localStorage.getItem("tact_remembered_username") || "";
+    if (remembered) {
+      setForm(prev => ({ ...prev, email: remembered }));
+    }
+    const rememberMeSetting = localStorage.getItem("tact_remember_me");
+    if (rememberMeSetting === "false") {
+      setRememberMe(false);
+    }
+  }, []);
 
   const handleModeChange = (newMode: AuthMode) => {
     setMode(newMode);
@@ -306,6 +318,15 @@ export default function Auth() {
           password: form.password 
         });
         if (error) throw error;
+
+        // Save remember choice
+        localStorage.setItem("tact_remember_me", rememberMe ? "true" : "false");
+        if (rememberMe) {
+          localStorage.setItem("tact_remembered_username", form.email.trim());
+        } else {
+          localStorage.removeItem("tact_remembered_username");
+        }
+
         toast.success(isRtl ? "أهلاً بك! تم تسجيل الدخول بنجاح" : "Welcome! Signed in successfully");
         nav("/customer");
       }
@@ -744,6 +765,22 @@ export default function Auth() {
                     className="w-full h-12 pr-11 pl-10 bg-brand-dark/40 border border-brand-gold/20 rounded-lg text-ivory placeholder-ivory/30 text-sm focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold/30 transition-all duration-300"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Remember Me Checkbox (Sign In only) */}
+            {mode === "signin" && (
+              <div className="flex items-center gap-2 select-none justify-start my-3" dir={isRtl ? "rtl" : "ltr"}>
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-brand-gold/30 text-[#C18556] bg-brand-dark/40 focus:ring-[#C18556]/30 focus:ring-offset-0 focus:ring-1 accent-[#C18556] cursor-pointer"
+                />
+                <label htmlFor="rememberMe" className="text-xs text-ivory/70 cursor-pointer hover:text-ivory transition-colors">
+                  {isRtl ? "تذكرني / البقاء متصلاً" : "Remember me / Keep me logged in"}
+                </label>
               </div>
             )}
 

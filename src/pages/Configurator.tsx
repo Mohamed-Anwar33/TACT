@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X, Upload } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X, Upload, ArrowLeft, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { useLang } from "@/i18n/LanguageProvider";
@@ -686,6 +686,27 @@ export default function Configurator() {
       <section className="pt-36 pb-12 bg-teal-deep text-ivory relative overflow-hidden" dir={lang === "ar" ? "rtl" : "ltr"}>
         <div className="absolute inset-0 arch-grid opacity-25" />
         <div className="container-luxe relative">
+          {isOfficeSession ? (
+            <button
+              onClick={() => nav(`/office-session?questionnaireId=${questionnaireId}`)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gold/30 bg-gold/10 hover:bg-gold/25 px-4 py-2 text-xs font-bold text-gold transition-all duration-300 mb-6 cursor-pointer"
+            >
+              {lang === "ar" ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
+              <span>
+                {lang === "ar" 
+                  ? `العودة لاختيار الباقة للعميل (${linkedQuestionnaire?.name || "..."})` 
+                  : `Back to client package selection (${linkedQuestionnaire?.name || "..."})`}
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => nav("/packages")}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 text-xs font-bold text-white/80 transition-all duration-300 mb-6 cursor-pointer"
+            >
+              {lang === "ar" ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
+              <span>{lang === "ar" ? "العودة لباقات التشطيب" : "Back to Packages Tiers"}</span>
+            </button>
+          )}
           <SectionEyebrow label={lang === "ar" ? "تخصيص الباقة" : "Package Configurator"} />
           <div className="mt-5 grid lg:grid-cols-[1fr_280px] gap-8 items-end">
             <div>

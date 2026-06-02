@@ -16,12 +16,24 @@ export default function AdminLogin() {
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     if (user && authIsStaff) {
       nav("/admin");
     }
   }, [user, authIsStaff, nav]);
+
+  useEffect(() => {
+    const remembered = localStorage.getItem("tact_remembered_email") || "";
+    if (remembered) {
+      setEmail(remembered);
+    }
+    const rememberMeSetting = localStorage.getItem("tact_remember_me");
+    if (rememberMeSetting === "false") {
+      setRememberMe(false);
+    }
+  }, []);
 
   const isRtl = lang === "ar";
 
@@ -31,6 +43,15 @@ export default function AdminLogin() {
     try {
       const cleanEmail = email.trim();
       const cleanPassword = pw.trim();
+      
+      // Save remember choice
+      localStorage.setItem("tact_remember_me", rememberMe ? "true" : "false");
+      if (rememberMe) {
+        localStorage.setItem("tact_remembered_email", cleanEmail);
+      } else {
+        localStorage.removeItem("tact_remembered_email");
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword });
       if (error) throw error;
       if (!data.user) throw new Error("Could not read signed-in user");
@@ -138,6 +159,20 @@ export default function AdminLogin() {
                   className="w-full h-12 pr-11 pl-10 bg-[#0a282c] border border-brand-gold/20 rounded-lg text-ivory placeholder-ivory/30 text-sm focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold/30 transition-all duration-300 font-sans"
                 />
               </div>
+            </div>
+
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center gap-2 select-none justify-start" dir="rtl">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-brand-gold/30 text-brand-gold bg-brand-dark/40 focus:ring-brand-gold/30 focus:ring-offset-0 focus:ring-1 accent-[#C18556] cursor-pointer"
+              />
+              <label htmlFor="rememberMe" className="text-xs text-ivory/70 cursor-pointer hover:text-ivory transition-colors">
+                {lang === "ar" ? "تذكرني / البقاء متصلاً" : "Remember me / Keep me logged in"}
+              </label>
             </div>
 
             {/* Submit Button */}

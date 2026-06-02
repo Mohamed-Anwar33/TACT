@@ -10,9 +10,30 @@ const SUPABASE_PUBLISHABLE_KEY =
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// A custom auth storage wrapper that decides between localStorage and sessionStorage based on rememberMe option
+const customAuthStorage = {
+  getItem(key: string): string | null {
+    return localStorage.getItem(key) || sessionStorage.getItem(key);
+  },
+  setItem(key: string, value: string): void {
+    const rememberMe = localStorage.getItem("tact_remember_me") === "true";
+    if (rememberMe) {
+      localStorage.setItem(key, value);
+      sessionStorage.removeItem(key);
+    } else {
+      sessionStorage.setItem(key, value);
+      localStorage.removeItem(key);
+    }
+  },
+  removeItem(key: string): void {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  }
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: customAuthStorage,
     persistSession: true,
     autoRefreshToken: true,
   }
