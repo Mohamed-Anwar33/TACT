@@ -39,7 +39,7 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
             alt={title} 
             loading="lazy"
             decoding="async"
-            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95"
+            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95 transition-transform duration-700 ease-out group-hover:scale-108"
           />
         ) : previewMedia?.type === "video" ? (
           <video
@@ -49,7 +49,7 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
             loop
             playsInline
             preload="metadata"
-            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95"
+            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95 transition-transform duration-700 ease-out group-hover:scale-108"
           />
         ) : (
           <div className="absolute inset-0 z-0 grid place-items-center bg-[#061F22] text-[#C18556]/70">

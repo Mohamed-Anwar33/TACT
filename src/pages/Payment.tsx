@@ -4,6 +4,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import Reveal from "@/components/ui-luxe/Reveal";
+import SEO from "@/components/layout/SEO";
 import { whatsappLink } from "@/data/site";
 import { Copy, Check, Lock, Upload, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -209,8 +210,18 @@ export default function Payment() {
         { n: "04", t: "Wait for activation", d: "After approval, the package appears in your account." },
       ];
 
+  const seoTitle = lang === "ar" ? "تسجيل الدفع والتحويل" : "Payment & Transfer Details";
+  const seoDesc = lang === "ar"
+    ? "سجل بيانات تحويل عربون باقة التشطيب الخاصة بك على إينستاباي لتفعيل الباقة والبدء في استخدام مصمم الغرف التفاعلي."
+    : "Submit payment details of your deposit transfer to activate your finishing package and start room configurations.";
+
   return (
     <>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc} 
+        keywords={lang === "ar" ? "تأكيد الدفع تاكت, تحويل عربون تشطيب, إينستاباي تاكت" : "Confirm payment Tact, deposit transfer, InstaPay Egypt"}
+      />
       <section className="pt-40 pb-16 bg-teal-deep text-ivory relative overflow-hidden">
         <div className="absolute inset-0 arch-grid opacity-25" />
         <div className="container-luxe relative">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import SEO from "@/components/layout/SEO";
 import {
   ArrowLeft,
   ArrowRight,
@@ -589,8 +590,21 @@ export default function Portfolio() {
     ? [{ title: isAr ? "ملف المشروع PDF" : "Project PDF", url: activeProject.pdf }]
     : [];
 
+  const seoTitle = isAr
+    ? `${activeTab === "designs" ? "تصاميم هندسية وثلاثية الأبعاد" : "مشاريع تنفيذ واقعية"} | معرض أعمالنا`
+    : `${activeTab === "designs" ? "3D Engineering Designs" : "Real Executed Projects"} | Our Portfolio`;
+
+  const seoDesc = isAr
+    ? "تصفح مشاريع شركة تاكت للتصميم والتشطيب في مصر. معرض أعمال متكامل يضم تصاميم ثلاثية الأبعاد مقسمة بالمساحات وفيديوهات تغطية التنفيذ الفعلي."
+    : "Explore Tact Architecture portfolio in Egypt. Architectural 3D design galleries cataloged by area sizes and high-quality executed project walk-throughs.";
+
   return (
     <div className="min-h-screen bg-[#061F22] text-white" dir={isAr ? "rtl" : "ltr"}>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc} 
+        keywords={isAr ? "معرض أعمال تاكت, مشاريع تشطيب, تصميم داخلي مصر, فيديوهات تشطيب" : "Tact portfolio, design gallery Egypt, interior design projects, real execution cairo"}
+      />
       <section className="relative overflow-hidden bg-gradient-to-br from-[#061F22] via-[#0C363A] to-[#061F22] pt-44 pb-20 md:pt-52 md:pb-24">
         <div className="absolute inset-0 arch-grid opacity-20" />
         <div className="absolute inset-0 opacity-[0.045]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/marble-similar.png")' }} />
@@ -889,7 +903,7 @@ export default function Portfolio() {
                                     alt={getProjectTitle(project, lang)}
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-full w-full object-cover image-crisp brightness-[1.08] contrast-[1.05] transition-transform duration-[800ms] group-hover:scale-105"
+                                    className="h-full w-full object-cover image-crisp brightness-[1.08] contrast-[1.05] transition-transform duration-[1200ms] ease-out group-hover:scale-110"
                                   />
                                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
                                   
@@ -987,7 +1001,7 @@ export default function Portfolio() {
                                 alt={getProjectTitle(project, lang)}
                                 loading="lazy"
                                 decoding="async"
-                                className="h-full w-full object-cover image-crisp brightness-[1.1] contrast-[1.05] transition-transform duration-[800ms] group-hover:scale-105"
+                                className="h-full w-full object-cover image-crisp brightness-[1.1] contrast-[1.05] transition-transform duration-[1200ms] ease-out group-hover:scale-110"
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
                               
@@ -1321,7 +1335,7 @@ export default function Portfolio() {
                                 setCurrentImageIndex(index);
                               }}
                               className={cn(
-                                "aspect-square w-16 h-16 md:w-20 md:h-20 flex-shrink-0 overflow-hidden rounded-md border transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5",
+                                "aspect-square w-16 h-16 md:w-20 md:h-20 flex-shrink-0 overflow-hidden rounded-md border transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5 group",
                                 isActive
                                   ? "border-gold scale-105 shadow-[0_0_12px_rgba(212,175,55,0.4)] opacity-100 ring-1 ring-gold"
                                   : "border-gold/20 opacity-55 hover:opacity-100 hover:border-gold/50"
@@ -1330,7 +1344,7 @@ export default function Portfolio() {
                               <img
                                 src={item.url}
                                 alt=""
-                                className="h-full w-full object-cover image-crisp"
+                                className="h-full w-full object-cover image-crisp transition-transform duration-500 ease-out group-hover:scale-110"
                                 decoding="async"
                               />
                             </button>

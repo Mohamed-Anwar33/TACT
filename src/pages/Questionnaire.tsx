@@ -27,12 +27,13 @@ type PlanImage = {
 
 export default function Questionnaire() {
   const { lang } = useLang();
-  const { user, profile, isOfficeConsultant } = useAuth();
+  const { user, profile, isOfficeConsultant, loading } = useAuth();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [checkingExisting, setCheckingExisting] = useState(true);
   const nextPath = searchParams.get("next");
   const safeNextPath = nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "";
 
@@ -103,6 +104,42 @@ export default function Questionnaire() {
     localStorage.setItem("tact_questionnaire_data", JSON.stringify(data));
     localStorage.setItem("tact_questionnaire_step", step.toString());
   }, [data, step, loaded]);
+
+  // Check auth and existing questionnaire
+  useEffect(() => {
+    if (loading) return;
+
+    if (!user) {
+      toast.info(lang === "ar" ? "يرجى تسجيل الدخول أو إنشاء حساب أولاً لملء الاستبيان" : "Please login or create an account first to fill the questionnaire");
+      nav(`/auth?mode=signup&next=${encodeURIComponent(window.location.pathname + window.location.search)}`, { replace: true });
+      return;
+    }
+
+    if (isOfficeConsultant) {
+      setCheckingExisting(false);
+      return;
+    }
+
+    const checkExisting = async () => {
+      try {
+        const { data: existing, error } = await supabase
+          .from("questionnaires")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!error && existing) {
+          setDone(true);
+        }
+      } catch (err) {
+        console.error("Error checking existing questionnaire:", err);
+      } finally {
+        setCheckingExisting(false);
+      }
+    };
+
+    checkExisting();
+  }, [user, loading, isOfficeConsultant, lang, nav]);
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
 
@@ -186,28 +223,54 @@ export default function Questionnaire() {
     const combinedHistory = `هل سبق التعامل: ${data.history} | التحديات المتوقعة: ${data.history_challenges}`;
     const combinedGoals = `المشكلات السابقة: ${data.prev_problems} | الطموحات الجديدة: ${data.new_ambitions}`;
 
-    const { data: created, error } = await supabase.from("questionnaires").insert({
-      user_id: user?.id ?? null,
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      address: data.address,
-      project_type: finalType,
-      stage: finalStage,
-      family: finalFamily,
-      service: finalService,
-      expectations: combinedExpectations,
-      source: finalSource,
-      history: combinedHistory,
-      goals: combinedGoals,
-      notes: data.notes,
-      plan_images: data.plan_images,
-    }).select("id").single();
+    let created = null;
+    let queryError = null;
+
+    if (isOfficeConsultant) {
+      const { data: resData, error } = await supabase.from("questionnaires").insert({
+        user_id: user?.id ?? null,
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        project_type: finalType,
+        stage: finalStage,
+        family: finalFamily,
+        service: finalService,
+        expectations: combinedExpectations,
+        source: finalSource,
+        history: combinedHistory,
+        goals: combinedGoals,
+        notes: data.notes,
+        plan_images: data.plan_images,
+      }).select("id").single();
+      created = resData;
+      queryError = error;
+    } else {
+      const { error } = await supabase.from("questionnaires").insert({
+        user_id: user?.id ?? null,
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        project_type: finalType,
+        stage: finalStage,
+        family: finalFamily,
+        service: finalService,
+        expectations: combinedExpectations,
+        source: finalSource,
+        history: combinedHistory,
+        goals: combinedGoals,
+        notes: data.notes,
+        plan_images: data.plan_images,
+      });
+      queryError = error;
+    }
 
     setBusy(false);
 
-    if (error) {
-      toast.error(error.message);
+    if (queryError) {
+      toast.error(queryError.message);
       return;
     }
 
@@ -230,6 +293,19 @@ export default function Questionnaire() {
     toast.success(lang === "ar" ? "تم استلام متطلبات مشروعك بنجاح" : "Project brief submitted successfully");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  if (loading || checkingExisting) {
+    return (
+      <div className="pt-40 pb-20 text-center container-luxe text-muted-foreground min-h-screen flex items-center justify-center bg-[#FBF7F0]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
+          <span className="text-sm font-serif-ar text-teal-deep font-bold">
+            {lang === "ar" ? "جاري التحقق من حالة الاستبيان..." : "Checking questionnaire status..."}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   const currentMeta = STEPS_META[step];
   const StepIcon = currentMeta.icon;

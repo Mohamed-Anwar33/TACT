@@ -12,6 +12,7 @@ import {
   Plus
 } from "lucide-react";
 import { CmsTeamMember, fallbackTeam, getCmsTeam } from "@/lib/publicCms";
+import SEO from "@/components/layout/SEO";
 
 // Fallback avatars
 import avatarMale from "@/assets/avatar-male.png";
@@ -129,8 +130,18 @@ export default function Team() {
   const siteList = members.filter(m => m.department === "site");
   const designList = members.filter(m => m.department === "design");
 
+  const seoTitle = isRtl ? "فريق عمل تاكت للتصميم والتشطيب" : "Our Expert Team | Tact";
+  const seoDesc = isRtl
+    ? "تعرف على مهندسي ومصممي شركة تاكت في مصر. نخبة من مهندسي الديكور والتصميم المعماري والمهندسين التنفيذيين لتشطيب الفيلات والشقق."
+    : "Meet Tact engineering and architectural design team in Egypt. Elite designers, managers, and site execution contractors in Cairo.";
+
   return (
     <div className="bg-brand-dark min-h-screen text-ivory pb-24 relative overflow-hidden font-arabic" dir={isRtl ? "rtl" : "ltr"}>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc} 
+        keywords={isRtl ? "فريق عمل تاكت, مهندسي تشطيب مصر, مهندس ديكور في التجمع" : "Tact engineers, interior designer Egypt, construction site engineer Cairo"}
+      />
       {/* Decorative architectural background lines & dots */}
       <div className="absolute inset-0 opacity-[0.04] pointer-events-none" 
            style={{ backgroundImage: `radial-gradient(hsl(var(--brand-gold)) 1.2px, transparent 1.2px)`, backgroundSize: '32px 32px' }} />

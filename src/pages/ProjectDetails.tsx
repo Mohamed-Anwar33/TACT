@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useLang } from "@/i18n/LanguageProvider";
 import ProjectCard from "@/components/ui-luxe/ProjectCard";
+import SEO from "@/components/layout/SEO";
 import {
   ArrowLeft,
   ArrowRight,
@@ -226,8 +227,28 @@ export default function ProjectDetails() {
 
   const activeImageSrc = gallery[currentIndex]?.url || currentProject.img || currentProject.cover || "";
 
+  const seoTitle = lang === "ar"
+    ? `مشروع ${currentProject.nameAr || currentProject.name} | معرض أعمالنا`
+    : `Project ${currentProject.name || currentProject.nameAr} | Portfolio`;
+
+  const seoDesc = lang === "ar"
+    ? `${currentProject.descAr || currentProject.desc || "تفاصيل وصور المشروع الهندسية والتشطيبات."}`
+    : `${currentProject.desc || currentProject.descAr || "Technical details, layouts, and executed photos of the project."}`;
+
+  const seoKeywords = lang === "ar"
+    ? `${currentProject.nameAr}, تاكت للتصميم, تشطيبات في مصر, ديكورات`
+    : `${currentProject.name}, Tact Architecture, interior design, Egypt finishing`;
+
+  const ogImg = currentProject.cover || currentProject.img || "/logo.png";
+
   return (
     <div className="min-h-screen bg-[#FBFBFA] pt-32 pb-24 text-foreground selection:bg-gold/20 selection:text-teal-deep" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc.slice(0, 160)} 
+        keywords={seoKeywords}
+        ogImage={ogImg}
+      />
       <div className="container-luxe max-w-6xl">
         
         <header className="mb-8">
@@ -463,7 +484,7 @@ export default function ProjectDetails() {
                       setZoomLevel(1);
                     }}
                     className={cn(
-                      "relative flex-shrink-0 w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5",
+                      "relative flex-shrink-0 w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5 group",
                       isActive
                         ? "border-gold shadow-md scale-105 opacity-100 ring-1 ring-gold/40"
                         : "border-transparent opacity-60 hover:opacity-100"
@@ -487,7 +508,7 @@ export default function ProjectDetails() {
                       <img 
                         src={item.url} 
                         alt="" 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110" 
                         onError={(e) => {
                           (e.currentTarget as HTMLElement).style.display = "none";
                         }}

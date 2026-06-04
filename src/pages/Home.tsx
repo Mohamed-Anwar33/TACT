@@ -13,6 +13,7 @@ import TestimonialsSection from "@/components/home/teqaan/TestimonialsSection";
 import FinalCTA from "@/components/home/teqaan/FinalCTA";
 import { cn } from "@/lib/utils";
 import { CmsSection, getCmsSections } from "@/lib/publicCms";
+import SEO from "@/components/layout/SEO";
 
 const HERO_SLIDES = [
   "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
@@ -73,8 +74,34 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [heroMode]);
 
+  const homeSchema = {
+    "@context": "https://schema.org",
+    "@type": "ProfessionalService",
+    "name": lang === "ar" ? "تاكت للتصميم والتشطيب | Tact Architecture" : "Tact Architecture, Decoration & Furniture",
+    "image": `${window.location.origin}/logo.png`,
+    "@id": `${window.location.origin}/#organization`,
+    "url": window.location.origin,
+    "telephone": "+201000000000",
+    "priceRange": "$$$",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": lang === "ar" ? "التجمع الخامس" : "Fifth Settlement",
+      "addressLocality": lang === "ar" ? "القاهرة الجديدة" : "New Cairo",
+      "addressRegion": lang === "ar" ? "القاهرة" : "Cairo",
+      "addressCountry": "EG"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 30.0264,
+      "longitude": 31.4913
+    }
+  };
+
   return (
     <>
+      <SEO 
+        schemaData={homeSchema} 
+      />
       <section className="relative h-screen min-h-[600px] w-full overflow-hidden bg-[#0C363A]">
 
         {/* CONDITIONAL HERO BACKGROUND: VIDEO OR SLIDESHOW */}

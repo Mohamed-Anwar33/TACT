@@ -764,7 +764,7 @@ export default function Configurator() {
                   {/* Cover Image Background */}
                   {coverUrl && (
                     <>
-                      <img src={coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" loading="lazy" />
+                      <img src={coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform duration-700 ease-out group-hover:scale-110" loading="lazy" />
                       <div className={cn(
                         "absolute inset-0 transition-all duration-500",
                         isActive 
@@ -954,7 +954,7 @@ export default function Configurator() {
                             alt={tile.label}
                             loading="lazy"
                             decoding="async"
-                            className="w-full h-full object-cover image-crisp bg-white/5 transition-transform duration-500 group-hover:scale-[1.03]"
+                            className="w-full h-full object-cover image-crisp bg-white/5 transition-transform duration-700 ease-out group-hover:scale-108"
                             onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                           />
                         ) : (

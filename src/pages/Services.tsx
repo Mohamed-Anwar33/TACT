@@ -5,6 +5,7 @@ import Reveal from "@/components/ui-luxe/Reveal";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CmsService, fallbackServices, getCmsServices } from "@/lib/publicCms";
+import SEO from "@/components/layout/SEO";
 
 export default function Services() {
   const { t, lang } = useLang();
@@ -21,8 +22,18 @@ export default function Services() {
     };
   }, [lang]);
 
+  const seoTitle = lang === "ar" ? "خدمات التصميم والتشطيب" : "Engineering & Design Services";
+  const seoDesc = lang === "ar"
+    ? "خدمات تاكت المتكاملة في مصر: تصميم معماري وواجهات، تصميم داخلي ثلاثي الأبعاد 3D، لاندسكيب، وتأثيث وتشطيب متكامل بأعلى معايير الدقة."
+    : "Tact integrated services: Architectural facades, 3D interior design, landscaping, decoration, and turnkey construction contracting in Egypt.";
+
   return (
     <main className="min-h-screen bg-background" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc}
+        keywords={lang === "ar" ? "خدمات تشطيب, تصميم معماري مصر, تشطيب واجهات فيلات, مصمم داخلي" : "Tact services, home design Cairo, interior decorator Egypt, building execution"}
+      />
       <section className="pt-40 pb-20 bg-teal-deep text-ivory relative overflow-hidden">
         <div className="absolute inset-0 arch-grid opacity-25" />
         <div className="container-luxe relative">

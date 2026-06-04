@@ -4,6 +4,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { whatsappLink } from "@/data/site";
 import Reveal from "@/components/ui-luxe/Reveal";
+import SEO from "@/components/layout/SEO";
 import { Lock, Check, Diamond, ArrowRight, ArrowLeft, Layout, Star, Crown, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -148,8 +149,21 @@ export default function Packages() {
     );
   }
 
+  const seoTitle = lang === "ar"
+    ? "باقات التشطيب الفاخرة"
+    : "Premium Finishing Tiers";
+
+  const seoDesc = lang === "ar"
+    ? "تصفح باقات التشطيب المتكاملة من تاكت (الاقتصادية، المميزة، والراقية). قارن بين الخدمات والميزات واختر الأنسب لمنزلك."
+    : "Explore custom finishing tiers by Tact (Economy, Medium, Luxury). Compare features, specifications, and select the best fit.";
+
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#0C363A] via-[#051E20] to-[#031314] text-ivory overflow-hidden pb-24" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc} 
+        keywords={lang === "ar" ? "باقات تشطيب, أسعار تشطيب شقق, تشطيب اقتصادي, تشطيب فيلات مصر" : "finishing packages, home renovation egypt, luxury design cost, interior contracting"}
+      />
       {/* Texture background */}
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay z-0" 
            style={{ backgroundImage: `radial-gradient(#C18556 0.7px, transparent 0.7px)`, backgroundSize: '36px 36px' }} />

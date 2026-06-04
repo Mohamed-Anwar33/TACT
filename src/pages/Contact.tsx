@@ -8,6 +8,7 @@ import { Phone, Mail, Facebook, Instagram, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CmsContact, fallbackContact, getCmsContact } from "@/lib/publicCms";
+import SEO from "@/components/layout/SEO";
 
 export default function Contact() {
   const { lang } = useLang();
@@ -24,6 +25,7 @@ export default function Contact() {
       alive = false;
     };
   }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -33,8 +35,18 @@ export default function Contact() {
     toast.success(lang === "ar" ? "تم إرسال رسالتك" : "Message sent"); setForm({ name: "", phone: "", message: "" });
   };
 
+  const seoTitle = lang === "ar" ? "اتصل بنا" : "Contact Us";
+  const seoDesc = lang === "ar"
+    ? "تواصل مع فريق عمل تاكت للتصميم والتشطيب لمناقشة مشروعك. نحن هنا لمساعدتك في التخطيط، التصميم، والتنفيذ."
+    : "Contact Tact Architecture & Finishing team. We are here to answer questions, provide estimates, and launch your project.";
+
   return (
     <>
+      <SEO 
+        title={seoTitle} 
+        description={seoDesc}
+        keywords={lang === "ar" ? "تواصل مع تاكت, رقم شركة تشطيب, مكتب ديكور التجمع" : "Contact Tact, interior design company Cairo, decoration contractors"}
+      />
       <section className="pt-40 pb-16 bg-teal-deep text-ivory relative overflow-hidden">
         <div className="absolute inset-0 arch-grid opacity-25" />
         <div className="container-luxe relative">
