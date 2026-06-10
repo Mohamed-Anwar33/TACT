@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { whatsappLink } from "@/data/site";
 import Reveal from "@/components/ui-luxe/Reveal";
 import SEO from "@/components/layout/SEO";
-import { Lock, Check, Diamond, ArrowRight, ArrowLeft, Layout, Star, Crown, Shield } from "lucide-react";
+import { Lock, Check, Diamond, ArrowRight, ArrowLeft, Layout, Star, Crown, Shield, ZoomIn, ZoomOut, RotateCcw, Maximize2, X } from "lucide-react";
+import HoverPreview from "@/components/ui-luxe/HoverPreview";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CatalogPackage, getPackages, getUnlockedPackageIds } from "@/lib/catalog";
@@ -22,6 +24,83 @@ export default function Packages() {
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(true);
+  
+  const [activeHoverPreview, setActiveHoverPreview] = useState<{ url: string; label: string } | null>(null);
+  const [zoomedCover, setZoomedCover] = useState<{ url: string; title: string; description: string } | null>(null);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+
+  const resetZoom = () => {
+    setZoomScale(1);
+    setZoomPosition({ x: 0, y: 0 });
+  };
+
+  const zoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.5, 5));
+  };
+
+  const zoomOut = () => {
+    setZoomScale((prev) => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next === 1) setZoomPosition({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoomScale <= 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - zoomPosition.x, y: e.clientY - zoomPosition.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || zoomScale <= 1) return;
+    e.preventDefault();
+    setZoomPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (zoomScale <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - zoomPosition.x, y: touch.clientY - zoomPosition.y });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || zoomScale <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setZoomPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY < 0) {
+      setZoomScale((prev) => Math.min(prev + 0.25, 5));
+    } else {
+      setZoomScale((prev) => {
+        const next = Math.max(prev - 0.25, 1);
+        if (next === 1) setZoomPosition({ x: 0, y: 0 });
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -227,14 +306,16 @@ export default function Packages() {
 
               return (
                 <Reveal key={pkg.id} delay={i * 120} className="h-full">
-                  <div className={cn(
-                    "relative h-full flex flex-col rounded-2xl transition-all duration-500 luxury-motion group overflow-hidden border hover-shine-effect",
-                    isFeatured
-                      ? "featured-gradient-border shadow-[0_25px_60px_rgba(0,0,0,0.45)] lg:-translate-y-4 hover:shadow-[0_28px_70px_rgba(193,133,86,0.22)]"
-                      : "bg-[#06201D]/75 border-white/[0.06] hover:border-[#C18556]/40 shadow-xl backdrop-blur-md hover:shadow-[0_25px_50px_rgba(0,0,0,0.3)]",
-                    "hover:-translate-y-2",
-                    !isUnlocked && "opacity-90 hover:opacity-100"
-                  )}>
+                  <div 
+                    className={cn(
+                      "relative h-full flex flex-col rounded-2xl transition-all duration-500 luxury-motion group overflow-hidden border hover-shine-effect",
+                      isFeatured
+                        ? "featured-gradient-border shadow-[0_25px_60px_rgba(0,0,0,0.45)] lg:-translate-y-4 hover:shadow-[0_28px_70px_rgba(193,133,86,0.22)]"
+                        : "bg-[#06201D]/75 border-white/[0.06] hover:border-[#C18556]/40 shadow-xl backdrop-blur-md hover:shadow-[0_25px_50px_rgba(0,0,0,0.3)]",
+                      "hover:-translate-y-2",
+                      !isUnlocked && "opacity-90 hover:opacity-100"
+                    )}
+                  >
                     
                     {/* Active / Unlocked Status Badge or Featured Ribbon */}
                     {isUnlocked ? (
@@ -273,6 +354,26 @@ export default function Packages() {
                             decoding="async"
                             className="relative w-full h-full object-contain image-crisp package-cover-zoom"
                           />
+
+                          {/* Floating Zoom Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              setZoomedCover({
+                                url: coverImg,
+                                title: lang === "ar" ? pkg.name_ar : pkg.name_en,
+                                description: lang === "ar" ? pkg.description_ar : pkg.description_en
+                              });
+                              resetZoom();
+                              setIsPresentationMode(false);
+                            }}
+                            className="absolute top-4 end-4 z-20 w-9 h-9 rounded-full bg-black/60 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 cursor-pointer shadow-lg"
+                            title={lang === "ar" ? "تكبير واستعراض غلاف الباقة" : "Zoom Package Cover"}
+                          >
+                            <ZoomIn size={16} />
+                          </button>
                         </>
                       )}
 
@@ -413,6 +514,183 @@ export default function Packages() {
         "absolute bottom-20 opacity-[0.08] pointer-events-none hidden lg:block w-24 h-24 border-b border-[#C18556]",
         lang === "ar" ? "right-20 border-r" : "left-20 border-l"
       )} />
+
+      {/* Lightbox / Zoom Dialog Modal for Package Covers */}
+      {zoomedCover && createPortal((
+        <div 
+          className="fixed inset-0 z-[9999] flex flex-col bg-[#061d20] text-white"
+          dir={lang === "ar" ? "rtl" : "ltr"}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Top Header Bar — hidden in TV Presentation Mode */}
+          <div className={cn(
+            "flex-shrink-0 bg-[#061d20]/95 backdrop-blur-md px-4 md:px-6 py-3 flex items-center justify-between gap-3 border-b border-white/10 z-20 transition-all",
+            isPresentationMode && "hidden"
+          )}>
+            <div>
+              <span className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] block mb-1">
+                {lang === "ar" ? "معاينة تصميم غلاف الباقة" : "PACKAGE TIERS DESIGN REFERENCE"}
+              </span>
+              <h2 className="font-serif-ar text-sm md:text-xl text-white font-bold drop-shadow line-clamp-1">
+                {zoomedCover.title}
+              </h2>
+            </div>
+            
+            <div className="flex shrink-0 items-center gap-2 md:gap-4">
+              {/* TV Mode Toggle button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPresentationMode(true);
+                  resetZoom();
+                }}
+                className="px-3 py-2 h-11 rounded-full text-[11px] md:text-xs font-bold bg-white/10 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 flex items-center gap-1.5 shadow-lg cursor-pointer"
+                title={lang === "ar" ? "وضع العرض التقديمي للتلفزيون" : "TV Presentation Mode"}
+              >
+                <Maximize2 size={15} />
+                <span>{lang === "ar" ? "وضع العرض" : "TV Mode"}</span>
+              </button>
+
+              <button
+                onClick={() => setZoomedCover(null)}
+                className="w-11 h-11 rounded-full bg-white/15 hover:bg-red-500 text-white flex items-center justify-center transition-all duration-300 border border-white/20 shadow-xl cursor-pointer"
+                title={lang === "ar" ? "إغلاق" : "Close"}
+                aria-label={lang === "ar" ? "إغلاق" : "Close"}
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
+
+          {/* Floating Exit TV Presentation Mode button */}
+          {isPresentationMode && (
+            <button
+              onClick={() => setIsPresentationMode(false)}
+              className={cn(
+                "absolute top-6 z-50 px-6 py-3 rounded-full bg-gold hover:bg-white border-2 border-gold text-[#0C363A] text-xs font-bold tracking-wider shadow-2xl flex items-center gap-1.5 transition-all cursor-pointer scale-110",
+                lang === "ar" ? "left-6" : "right-6"
+              )}
+            >
+              <X size={16} />
+              <span>{lang === "ar" ? "إلغاء وضع العرض" : "Exit TV Mode"}</span>
+            </button>
+          )}
+
+          {/* Main Content Area — only this scrolls */}
+          <div className={cn("flex-1 overflow-y-auto w-full bg-[#061d20]", isPresentationMode && "overflow-hidden")}>
+            <div className={cn("mx-auto w-full max-w-[1520px] px-3 md:px-6 py-5 flex flex-col gap-5", isPresentationMode && "p-0 max-w-full h-full justify-center")}>
+            
+              {/* Image Frame Card Container */}
+              <div 
+                className={cn(
+                  "relative w-full rounded-[14px] bg-[#020607] overflow-hidden flex items-center justify-center select-none cursor-zoom-in border border-white/10 transition-all duration-300",
+                  isPresentationMode 
+                    ? "h-screen max-h-screen rounded-none border-none bg-black" 
+                    : "h-[calc(100vh-220px)] min-h-[320px] max-h-[72vh] shadow-[0_22px_80px_rgba(0,0,0,0.45)]"
+                )}
+                style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onWheel={handleWheel}
+              >
+                {/* Magnifiable image wrapper */}
+                <div 
+                  className="w-full h-full flex items-center justify-center transition-transform duration-200 ease-out"
+                  style={{
+                    transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
+                    transition: isDragging ? "none" : "transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+                  }}
+                >
+                  <img
+                    src={zoomedCover.url}
+                    alt={zoomedCover.title}
+                    className={cn(
+                      "max-w-full max-h-full object-contain pointer-events-none select-none",
+                      isPresentationMode ? "max-h-screen max-w-full" : ""
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Control Bar and Details below the image frame — hidden in TV Mode */}
+              {!isPresentationMode && (
+                <div className="w-full flex flex-col gap-5 items-center">
+                  
+                  {/* Zoom Pill and Package details */}
+                  <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#0d3436] border border-white/10 p-4 rounded-[14px] shadow-xl">
+                    
+                    {/* Index and Label info */}
+                    <div className="text-center sm:text-start">
+                      <span className="text-[9px] md:text-[10px] text-gold uppercase tracking-wider block font-bold">
+                        {lang === "ar" ? "تفاصيل الباقة" : "PACKAGE SPECIFICATION"}
+                      </span>
+                      <span className="text-white/60 text-xs font-serif-ar">
+                        {zoomedCover.description}
+                      </span>
+                    </div>
+
+                    {/* Zoom Pill */}
+                    <div className="bg-[#061d20] border border-white/15 px-4 py-2 rounded-full flex items-center gap-3 md:gap-4 shadow-lg shrink-0">
+                      <button 
+                        onClick={zoomOut}
+                        disabled={zoomScale <= 1}
+                        className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
+                        title={lang === "ar" ? "تصغير" : "Zoom Out"}
+                      >
+                        <ZoomOut size={15} />
+                      </button>
+
+                      <span className="text-white text-xs font-mono font-bold w-12 text-center select-none">
+                        {Math.round(zoomScale * 100)}%
+                      </span>
+
+                      <button 
+                        onClick={zoomIn}
+                        disabled={zoomScale >= 5}
+                        className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
+                        title={lang === "ar" ? "تكبير" : "Zoom In"}
+                      >
+                        <ZoomIn size={15} />
+                      </button>
+
+                      <div className="w-px h-3 bg-white/20" />
+
+                      <button 
+                        onClick={resetZoom}
+                        className="text-white hover:text-gold transition-colors cursor-pointer"
+                        title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Hint text at bottom of scrollable area */}
+                  <span className="text-[11px] text-white/30 tracking-wider text-center select-none max-w-md pb-8">
+                    {lang === "ar" 
+                      ? "اسحب الصورة للتحريك عند التكبير • استخدم عجلة الماوس للتحكم بالزوم • أغلق بالضغط على X في الأعلى أو بالعودة للخلف"
+                      : "Drag to pan when zoomed in • Scroll mouse wheel to zoom • Close by clicking X on top or pressing back button"
+                    }
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* Hover Preview Overlay */}
+      <HoverPreview
+        imageUrl={zoomedCover ? null : (activeHoverPreview?.url || null)}
+        label={zoomedCover ? null : (activeHoverPreview?.label || null)}
+        lang={lang}
+      />
     </div>
   );
 }

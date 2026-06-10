@@ -1,6 +1,8 @@
 import { ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, FileText, Lock, Plus, Upload, X, User, Home, Layers, Users, Heart, Lightbulb, FileImage, Sparkles, Layout, Star, Crown } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, FileText, Lock, Plus, Upload, X, User, Home, Layers, Users, Heart, Lightbulb, FileImage, Sparkles, Layout, Star, Crown, ZoomIn, ZoomOut, RotateCcw, Maximize2, AlertTriangle } from "lucide-react";
+import HoverPreview from "@/components/ui-luxe/HoverPreview";
 import { toast } from "sonner";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,84 @@ export default function OfficeSession() {
   const [uploading, setUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  const [activeHoverPreview, setActiveHoverPreview] = useState<{ url: string; label: string } | null>(null);
+  const [zoomedCover, setZoomedCover] = useState<{ url: string; title: string; description: string } | null>(null);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [showConfirmReset, setShowConfirmReset] = useState(false);
+
+  const resetZoom = () => {
+    setZoomScale(1);
+    setZoomPosition({ x: 0, y: 0 });
+  };
+
+  const zoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.5, 5));
+  };
+
+  const zoomOut = () => {
+    setZoomScale((prev) => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next === 1) setZoomPosition({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoomScale <= 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - zoomPosition.x, y: e.clientY - zoomPosition.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || zoomScale <= 1) return;
+    e.preventDefault();
+    setZoomPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (zoomScale <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - zoomPosition.x, y: touch.clientY - zoomPosition.y });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || zoomScale <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setZoomPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY < 0) {
+      setZoomScale((prev) => Math.min(prev + 0.25, 5));
+    } else {
+      setZoomScale((prev) => {
+        const next = Math.max(prev - 0.25, 1);
+        if (next === 1) setZoomPosition({ x: 0, y: 0 });
+        return next;
+      });
+    }
+  };
+
   // Form structured state matching exact columns
   const [data, setData] = useState({
     name: "",
@@ -82,56 +162,20 @@ export default function OfficeSession() {
 
   const [loaded, setLoaded] = useState(false);
 
-  // On mount: load from localStorage if no urlQuestionnaireId is active
+  // Unified questionnaire state manager (handles urlQuestionnaireId loading and starting new sessions)
   useEffect(() => {
-    if (urlQuestionnaireId) return;
+    let active = true;
 
-    const savedData = localStorage.getItem("tact_office_session_data");
-    const savedStep = localStorage.getItem("tact_office_session_step");
-    
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        setData((prev) => ({ ...prev, ...parsed }));
-      } catch (e) {
-        console.error("Failed to parse saved office session data", e);
-      }
-    }
-    if (savedStep) {
-      const parsedStep = parseInt(savedStep, 10);
-      if (!isNaN(parsedStep) && parsedStep >= 0 && parsedStep < STEPS_META.length) {
-        setStep(parsedStep);
-      }
-    }
-    setLoaded(true);
-  }, [urlQuestionnaireId]);
-
-  // Save to localStorage when step or data changes (if no questionnaireId is active)
-  useEffect(() => {
-    if (!loaded || questionnaireId || urlQuestionnaireId) return;
-
-    localStorage.setItem("tact_office_session_data", JSON.stringify(data));
-    localStorage.setItem("tact_office_session_step", step.toString());
-  }, [data, step, questionnaireId, urlQuestionnaireId, loaded]);
-
-  useEffect(() => {
-    if (!loading && !user) nav("/auth");
-  }, [loading, user, nav]);
-
-  useEffect(() => {
-    if (!user || !isOfficeConsultant) return;
-    getPackages().then(setPackages);
-  }, [user, isOfficeConsultant]);
-
-  useEffect(() => {
     if (urlQuestionnaireId) {
       setQuestionnaireId(urlQuestionnaireId);
+      setIsEditing(false);
       supabase
         .from("questionnaires")
         .select("*")
         .eq("id", urlQuestionnaireId)
         .maybeSingle()
         .then(({ data: q }) => {
+          if (!active) return;
           if (q) {
             // Parse combined fields back to form state
             let expectationsFactor: string[] = [];
@@ -221,8 +265,81 @@ export default function OfficeSession() {
             });
           }
         });
+    } else {
+      // Starting a new session / no URL ID
+      setQuestionnaireId(null);
+      setIsEditing(false);
+
+      const savedData = localStorage.getItem("tact_office_session_data");
+      const savedStep = localStorage.getItem("tact_office_session_step");
+      
+      if (savedData) {
+        try {
+          const parsed = JSON.parse(savedData);
+          setData((prev) => ({ ...prev, ...parsed }));
+        } catch (e) {
+          console.error("Failed to parse saved office session data", e);
+        }
+      } else {
+        // Reset to initial blank fields
+        setData({
+          name: "",
+          phone: "",
+          email: "",
+          address: "",
+          project_type: "",
+          project_type_custom: "",
+          stage: "",
+          stage_custom: "",
+          plan_images: [] as PlanImage[],
+          family: "",
+          family_custom: "",
+          service: [] as string[],
+          service_custom: "",
+          expectations_factor: [] as string[],
+          expectations_factor_custom: "",
+          source: "",
+          source_custom: "",
+          history: "",
+          history_challenges: "",
+          prev_problems: "",
+          new_ambitions: "",
+          notes: "",
+        });
+      }
+
+      if (savedStep) {
+        const parsedStep = parseInt(savedStep, 10);
+        if (!isNaN(parsedStep) && parsedStep >= 0 && parsedStep < STEPS_META.length) {
+          setStep(parsedStep);
+        }
+      } else {
+        setStep(0);
+      }
+      setLoaded(true);
     }
+
+    return () => {
+      active = false;
+    };
   }, [urlQuestionnaireId]);
+
+  // Save to localStorage when step or data changes (if no questionnaireId is active)
+  useEffect(() => {
+    if (!loaded || questionnaireId || urlQuestionnaireId) return;
+
+    localStorage.setItem("tact_office_session_data", JSON.stringify(data));
+    localStorage.setItem("tact_office_session_step", step.toString());
+  }, [data, step, questionnaireId, urlQuestionnaireId, loaded]);
+
+  useEffect(() => {
+    if (!loading && !user) nav("/auth");
+  }, [loading, user, nav]);
+
+  useEffect(() => {
+    if (!user || !isOfficeConsultant) return;
+    getPackages().then(setPackages);
+  }, [user, isOfficeConsultant]);
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
 
@@ -369,6 +486,9 @@ export default function OfficeSession() {
       return;
     }
 
+    localStorage.removeItem("tact_office_session_data");
+    localStorage.removeItem("tact_office_session_step");
+
     const savedId = created.id;
     setQuestionnaireId(savedId);
     setIsEditing(false);
@@ -465,9 +585,8 @@ export default function OfficeSession() {
               const coverImg = pkg.cover_url || packageCovers[pkg.id];
 
               return (
-                <Link
+                <div
                   key={pkg.id}
-                  to={`/packages/${pkg.id}/configurator?questionnaireId=${questionnaireId}`}
                   className={cn(
                     "relative flex flex-col rounded-2xl transition-all duration-500 luxury-motion group overflow-hidden border hover-shine-effect text-ivory",
                     isFeatured
@@ -476,6 +595,13 @@ export default function OfficeSession() {
                     "hover:-translate-y-2"
                   )}
                 >
+                  {/* Invisible Primary Selection Action link */}
+                  <Link
+                    to={`/packages/${pkg.id}/configurator?questionnaireId=${questionnaireId}`}
+                    className="absolute inset-0 w-full h-full z-10 cursor-pointer"
+                    aria-label={lang === "ar" ? `اختيار باقة ${pkg.name_ar}` : `Select package ${pkg.name_en}`}
+                  />
+
                   {/* Featured Ribbon / Badge */}
                   {isFeatured && (
                     <div className={cn(
@@ -505,6 +631,26 @@ export default function OfficeSession() {
                           decoding="async"
                           className="relative w-full h-full object-contain image-crisp package-cover-zoom"
                         />
+
+                        {/* Floating Zoom Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setZoomedCover({
+                              url: coverImg,
+                              title: lang === "ar" ? pkg.name_ar : pkg.name_en,
+                              description: lang === "ar" ? pkg.description_ar : pkg.description_en
+                            });
+                            resetZoom();
+                            setIsPresentationMode(false);
+                          }}
+                          className="absolute top-4 end-4 z-20 w-9 h-9 rounded-full bg-black/60 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 cursor-pointer shadow-lg"
+                          title={lang === "ar" ? "تكبير واستعراض غلاف الباقة" : "Zoom Package Cover"}
+                        >
+                          <ZoomIn size={16} />
+                        </button>
                       </>
                     )}
 
@@ -519,7 +665,7 @@ export default function OfficeSession() {
                   </div>
 
                   {/* Card Content Body */}
-                  <div className="p-6 md:p-8 flex-1 flex flex-col justify-between">
+                  <div className="p-6 md:p-8 flex-1 flex flex-col justify-between relative z-10 pointer-events-none">
                     <div>
                       {/* Premium Circle Icon */}
                       <div className="flex justify-between items-center mb-4">
@@ -582,11 +728,192 @@ export default function OfficeSession() {
                     </div>
 
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
         </div>
+
+        {/* Lightbox / Zoom Dialog Modal for Package Covers */}
+        {zoomedCover && createPortal((
+          <div 
+            className="fixed inset-0 z-[9999] flex flex-col bg-[#061d20] text-white"
+            dir={lang === "ar" ? "rtl" : "ltr"}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Top Header Bar — hidden in TV Presentation Mode */}
+            <div className={cn(
+              "flex-shrink-0 bg-[#061d20]/95 backdrop-blur-md px-4 md:px-6 py-3 flex items-center justify-between gap-3 border-b border-white/10 z-20 transition-all",
+              isPresentationMode && "hidden"
+            )}>
+              <div>
+                <span className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] block mb-1">
+                  {lang === "ar" ? "معاينة تصميم غلاف الباقة" : "PACKAGE TIERS DESIGN REFERENCE"}
+                </span>
+                <h2 className="font-serif-ar text-sm md:text-xl text-white font-bold drop-shadow line-clamp-1">
+                  {zoomedCover.title}
+                </h2>
+              </div>
+              
+              <div className="flex shrink-0 items-center gap-2 md:gap-4">
+                {/* TV Mode Toggle button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPresentationMode(true);
+                    resetZoom();
+                  }}
+                  className="px-3 py-2 h-11 rounded-full text-[11px] md:text-xs font-bold bg-white/10 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 flex items-center gap-1.5 shadow-lg cursor-pointer"
+                  title={lang === "ar" ? "وضع العرض التقديمي للتلفزيون" : "TV Presentation Mode"}
+                >
+                  <Maximize2 size={15} />
+                  <span>{lang === "ar" ? "وضع العرض" : "TV Mode"}</span>
+                </button>
+
+                <button
+                  onClick={() => setZoomedCover(null)}
+                  className="w-11 h-11 rounded-full bg-white/15 hover:bg-red-500 text-white flex items-center justify-center transition-all duration-300 border border-white/20 shadow-xl cursor-pointer"
+                  title={lang === "ar" ? "إغلاق" : "Close"}
+                  aria-label={lang === "ar" ? "إغلاق" : "Close"}
+                >
+                  <X size={22} />
+                </button>
+              </div>
+            </div>
+
+            {/* Floating Exit TV Presentation Mode button */}
+            {isPresentationMode && (
+              <button
+                type="button"
+                onClick={() => setIsPresentationMode(false)}
+                className={cn(
+                  "absolute top-6 z-50 px-6 py-3 rounded-full bg-gold hover:bg-white border-2 border-gold text-[#0C363A] text-xs font-bold tracking-wider shadow-2xl flex items-center gap-1.5 transition-all cursor-pointer scale-110",
+                  lang === "ar" ? "left-6" : "right-6"
+                )}
+              >
+                <X size={16} />
+                <span>{lang === "ar" ? "إلغاء وضع العرض" : "Exit TV Mode"}</span>
+              </button>
+            )}
+
+            {/* Main Content Area — only this scrolls */}
+            <div className={cn("flex-1 overflow-y-auto w-full bg-[#061d20]", isPresentationMode && "overflow-hidden")}>
+              <div className={cn("mx-auto w-full max-w-[1520px] px-3 md:px-6 py-5 flex flex-col gap-5", isPresentationMode && "p-0 max-w-full h-full justify-center")}>
+              
+                {/* Image Frame Card Container */}
+                <div 
+                  className={cn(
+                    "relative w-full rounded-[14px] bg-[#020607] overflow-hidden flex items-center justify-center select-none cursor-zoom-in border border-white/10 transition-all duration-300",
+                    isPresentationMode 
+                      ? "h-screen max-h-screen rounded-none border-none bg-black" 
+                      : "h-[calc(100vh-220px)] min-h-[320px] max-h-[72vh] shadow-[0_22px_80px_rgba(0,0,0,0.45)]"
+                  )}
+                  style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onWheel={handleWheel}
+                >
+                  {/* Magnifiable image wrapper */}
+                  <div 
+                    className="w-full h-full flex items-center justify-center transition-transform duration-200 ease-out"
+                    style={{
+                      transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
+                      transition: isDragging ? "none" : "transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+                    }}
+                  >
+                    <img
+                      src={zoomedCover.url}
+                      alt={zoomedCover.title}
+                      className={cn(
+                        "max-w-full max-h-full object-contain pointer-events-none select-none",
+                        isPresentationMode ? "max-h-screen max-w-full" : ""
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Control Bar and Details below the image frame — hidden in TV Mode */}
+                {!isPresentationMode && (
+                  <div className="w-full flex flex-col gap-5 items-center">
+                    
+                    {/* Zoom Pill and Package details */}
+                    <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#0d3436] border border-white/10 p-4 rounded-[14px] shadow-xl">
+                      
+                      {/* Index and Label info */}
+                      <div className="text-center sm:text-start">
+                        <span className="text-[9px] md:text-[10px] text-gold uppercase tracking-wider block font-bold">
+                          {lang === "ar" ? "تفاصيل الباقة" : "PACKAGE SPECIFICATION"}
+                        </span>
+                        <span className="text-white/60 text-xs font-serif-ar">
+                          {zoomedCover.description}
+                        </span>
+                      </div>
+
+                      {/* Zoom Pill */}
+                      <div className="bg-[#061d20] border border-white/15 px-4 py-2 rounded-full flex items-center gap-3 md:gap-4 shadow-lg shrink-0">
+                        <button 
+                          type="button"
+                          onClick={zoomOut}
+                          disabled={zoomScale <= 1}
+                          className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
+                          title={lang === "ar" ? "تصغير" : "Zoom Out"}
+                        >
+                          <ZoomOut size={15} />
+                        </button>
+
+                        <span className="text-white text-xs font-mono font-bold w-12 text-center select-none">
+                          {Math.round(zoomScale * 100)}%
+                        </span>
+
+                        <button 
+                          type="button"
+                          onClick={zoomIn}
+                          disabled={zoomScale >= 5}
+                          className="text-white hover:text-gold disabled:opacity-30 disabled:hover:text-white transition-colors cursor-pointer"
+                          title={lang === "ar" ? "تكبير" : "Zoom In"}
+                        >
+                          <ZoomIn size={15} />
+                        </button>
+
+                        <div className="w-px h-3 bg-white/20" />
+
+                        <button 
+                          type="button"
+                          onClick={resetZoom}
+                          className="text-white hover:text-gold transition-colors cursor-pointer"
+                          title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Hint text at bottom of scrollable area */}
+                    <span className="text-[11px] text-white/30 tracking-wider text-center select-none max-w-md pb-8">
+                      {lang === "ar" 
+                        ? "اسحب الصورة للتحريك عند التكبير • استخدم عجلة الماوس للتحكم بالزوم • أغلق بالضغط على X في الأعلى أو بالعودة للخلف"
+                        : "Drag to pan when zoomed in • Scroll mouse wheel to zoom • Close by clicking X on top or pressing back button"
+                      }
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ), document.body)}
+
+        {/* Hover Preview Overlay */}
+        <HoverPreview
+          imageUrl={zoomedCover ? null : (activeHoverPreview?.url || null)}
+          label={zoomedCover ? null : (activeHoverPreview?.label || null)}
+          lang={lang}
+        />
       </section>
     );
   }
@@ -1186,6 +1513,18 @@ export default function OfficeSession() {
             <span>{lang === "ar" ? "الخطوة السابقة" : "Back"}</span>
           </button>
 
+          {/* Reset Fields Button */}
+          {!questionnaireId && (
+            <button
+              type="button"
+              onClick={() => setShowConfirmReset(true)}
+              className="px-6 py-3.5 border border-red-200 bg-red-50/50 hover:bg-red-50 text-red-600 hover:text-red-700 font-bold text-sm rounded-xl flex items-center gap-2 transition cursor-pointer"
+            >
+              <RotateCcw size={15} />
+              <span>{lang === "ar" ? "تفريغ الحقول" : "Reset Fields"}</span>
+            </button>
+          )}
+
           {step < STEPS_META.length - 1 ? (
             <button
               type="button"
@@ -1213,6 +1552,58 @@ export default function OfficeSession() {
             </button>
           )}
         </div>
+
+        {/* Premium Reset Confirmation Dialog Modal */}
+        {showConfirmReset && createPortal((
+          <div 
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 no-print"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div 
+              className="relative w-full max-w-md bg-gradient-to-b from-[#0C363A] to-[#082427] border border-[#C18556]/40 p-8 rounded-3xl shadow-2xl text-center space-y-6 animate-in zoom-in-95 duration-200"
+              dir={lang === "ar" ? "rtl" : "ltr"}
+            >
+              {/* Alert Icon */}
+              <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 animate-pulse">
+                <AlertTriangle size={28} />
+              </div>
+
+              {/* Title & Desc */}
+              <div className="space-y-2.5">
+                <h3 className="font-serif-ar text-xl font-bold text-white">
+                  {lang === "ar" ? "تفريغ الحقول الحالية؟" : "Reset Current Fields?"}
+                </h3>
+                <p className="text-xs text-white/70 leading-relaxed max-w-sm mx-auto">
+                  {lang === "ar" 
+                    ? "هل أنت متأكد من تفريغ كافة الحقول وإلغاء التقدم الحالي في هذه الجلسة للبدء من جديد؟" 
+                    : "Are you sure you want to clear all input fields and discard your current progress to start fresh?"}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmReset(false)}
+                  className="flex-1 py-3 px-5 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-xs transition cursor-pointer"
+                >
+                  {lang === "ar" ? "إلغاء" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConfirmReset(false);
+                    startNewSession();
+                  }}
+                  className="flex-1 py-3 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer shadow-md"
+                >
+                  {lang === "ar" ? "تأكيد التفريغ" : "Confirm Reset"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ), document.body)}
       </div>
     </section>
   );

@@ -46,7 +46,7 @@ function parseReportItems(rawSelections: any): ReportItem[] {
 export default function OfficeSessionReport() {
   const { id } = useParams();
   const { lang } = useLang();
-  const { user, isOfficeConsultant, loading } = useAuth();
+  const { user, profile, isAdmin, isOfficeConsultant, loading } = useAuth();
   const nav = useNavigate();
   const [selection, setSelection] = useState<any | null>(null);
   const [questionnaire, setQuestionnaire] = useState<any | null>(null);
@@ -60,14 +60,13 @@ export default function OfficeSessionReport() {
   useEffect(() => {
     let alive = true;
     async function load() {
-      if (!user || !isOfficeConsultant || !id) return;
+      if (!user || !id) return;
       setBusy(true);
 
       const { data: selectionData, error: selectionError } = await supabase
         .from("configurator_selections")
         .select("*")
         .eq("id", id)
-        .eq("user_id", user.id)
         .maybeSingle();
 
       if (!alive) return;
@@ -85,7 +84,6 @@ export default function OfficeSessionReport() {
           .from("questionnaires")
           .select("*")
           .eq("id", selectionData.questionnaire_id)
-          .eq("user_id", user.id)
           .maybeSingle();
         if (alive) setQuestionnaire(questionnaireData ?? null);
       }
@@ -101,7 +99,7 @@ export default function OfficeSessionReport() {
     return () => {
       alive = false;
     };
-  }, [id, user, isOfficeConsultant, lang, nav]);
+  }, [id, user, lang, nav]);
 
   const items = useMemo(() => parseReportItems(selection?.selections), [selection]);
   const clientName = questionnaire?.name || selection?.client_name || selection?.selections?.client_name || "—";
@@ -111,12 +109,19 @@ export default function OfficeSessionReport() {
 
   if (loading || !user) return <div className="pt-40 pb-20 text-center text-muted-foreground">...</div>;
 
-  if (!isOfficeConsultant) {
+  const isOwner = selection && selection.user_id === user.id;
+  const isClientMatch = selection && (
+    (profile?.phone && selection.client_phone === profile.phone) ||
+    (user.email && selection.client_email === user.email)
+  );
+  const isAuthorized = isOfficeConsultant || isAdmin || isOwner || isClientMatch;
+
+  if (!isAuthorized) {
     return (
       <section className="pt-40 pb-32 min-h-screen bg-[#0C363A] text-ivory flex items-center" dir={lang === "ar" ? "rtl" : "ltr"}>
         <div className="container-luxe max-w-2xl text-center">
           <SectionEyebrow label={lang === "ar" ? "غير مسموح" : "Not allowed"} />
-          <h1 className="display-2 mt-4">{lang === "ar" ? "التقرير متاح لحساب التابلت فقط" : "This report is only available for the tablet account"}</h1>
+          <h1 className="display-2 mt-4">{lang === "ar" ? "ليس لديك صلاحية لعرض هذا التقرير" : "You do not have permission to view this report"}</h1>
         </div>
       </section>
     );
@@ -137,10 +142,17 @@ export default function OfficeSessionReport() {
       `}</style>
 
       <div className="no-print mx-auto mb-5 flex max-w-[210mm] flex-wrap items-center justify-between gap-3 px-4 relative z-10">
-        <Link to="/office-session" className="inline-flex items-center gap-2 rounded-lg border border-teal-deep/20 bg-white px-4 py-2 text-xs font-bold text-teal-deep">
-          <ArrowRight size={15} />
-          <span>{lang === "ar" ? "جلسة جديدة" : "New session"}</span>
-        </Link>
+        {isOfficeConsultant || isAdmin ? (
+          <Link to="/office-session" className="inline-flex items-center gap-2 rounded-lg border border-teal-deep/20 bg-white px-4 py-2 text-xs font-bold text-teal-deep">
+            <ArrowRight size={15} />
+            <span>{lang === "ar" ? "جلسة جديدة" : "New session"}</span>
+          </Link>
+        ) : (
+          <Link to="/customer" className="inline-flex items-center gap-2 rounded-lg border border-teal-deep/20 bg-white px-4 py-2 text-xs font-bold text-teal-deep">
+            <ArrowRight size={15} />
+            <span>{lang === "ar" ? "العودة لحسابي" : "Back to Account"}</span>
+          </Link>
+        )}
         <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-gold px-5 py-2.5 text-xs font-bold text-teal-deep shadow">
           <Printer size={15} />
           <span>{lang === "ar" ? "طباعة / حفظ PDF" : "Print / Save PDF"}</span>
@@ -190,12 +202,38 @@ export default function OfficeSessionReport() {
 
         {planImages.length > 0 && (
           <section className="print-break mb-8">
-            <h2 className="mb-4 text-lg font-extrabold text-teal-deep">ملفات البلان المرفوعة</h2>
-            <div className="grid gap-3 text-sm">
+            <h2 className="mb-4 text-lg font-extrabold text-teal-deep">{lang === "ar" ? "ملفات البلان المرفوعة" : "Uploaded Layout Plans"}</h2>
+            <div className="no-print grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+              {planImages.map((item: any) => {
+                const isImage = typeof item.type === "string" && item.type.startsWith("image/");
+                return (
+                  <div key={item.url} className="rounded-lg border border-[#e7ded2] bg-[#fbf8f3] overflow-hidden flex flex-col justify-between shadow-sm">
+                    {isImage ? (
+                      <div className="aspect-video w-full overflow-hidden bg-white flex items-center justify-center border-b border-[#e7ded2]">
+                        <img src={item.url} alt={item.name} className="max-h-full max-w-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="aspect-video w-full bg-[#0C363A]/5 border-b border-[#e7ded2] flex items-center justify-center text-teal-deep font-bold text-xs uppercase tracking-wider font-serif">
+                        PDF FILE
+                      </div>
+                    )}
+                    <div className="p-3 flex items-center justify-between gap-2 bg-white">
+                      <span className="truncate text-xs font-semibold text-[#0C363A] flex-1" title={item.name}>{item.name}</span>
+                      <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-bold text-gold hover:underline">
+                        {lang === "ar" ? "عرض" : "View"}
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Printed list fallback */}
+            <div className="hidden print:block space-y-2 mt-2">
               {planImages.map((item: any) => (
-                <a key={item.url} href={item.url} target="_blank" rel="noreferrer" className="rounded border border-[#e7ded2] p-3 text-teal-deep underline">
-                  {item.name || item.url}
-                </a>
+                <div key={item.url} className="text-xs text-teal-deep">
+                  • <strong>{item.name}:</strong> <span className="underline font-mono text-[10px] break-all">{item.url}</span>
+                </div>
               ))}
             </div>
           </section>

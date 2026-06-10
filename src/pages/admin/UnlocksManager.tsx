@@ -46,18 +46,53 @@ export default function UnlocksManager() {
   const activeUnlocks = unlocks.filter(u => u.status === "active");
   const getUserUnlocks = (uid: string) => activeUnlocks.filter(u => u.user_id === uid);
 
+  // Find all profiles with no active unlocks and no pending payment proof
+  const getProfilesWithNoUnlocks = () => {
+    return profiles.filter(p => {
+      const userUnlocks = getUserUnlocks(p.id);
+      return userUnlocks.length === 0;
+    });
+  };
+
+  const profilesPending = getProfilesWithNoUnlocks().filter(p => {
+    return !pendingPayments.some(pay => pay.user_id === p.id);
+  });
+
+  const pendingRegistrations = profilesPending.map(p => ({
+    id: `reg-${p.id}`,
+    user_id: p.id,
+    name: p.full_name || "—",
+    phone: p.phone || "—",
+    amount: "تسجيل جديد",
+    method: "—",
+    reference: "—",
+    package_id: null,
+    created_at: p.created_at || new Date().toISOString(),
+    isNewRegistration: true,
+  }));
+
+  const combinedPending = [
+    ...pendingPayments,
+    ...pendingRegistrations,
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
   const filteredPayments = search
-    ? pendingPayments.filter(p => { const pr = getProfile(p.user_id); return (pr?.full_name || "").includes(search) || (p.phone || "").includes(search); })
-    : pendingPayments;
+    ? combinedPending.filter(p => {
+        const pr = getProfile(p.user_id);
+        const nameToSearch = pr?.full_name || p.name || "";
+        const phoneToSearch = p.phone || pr?.phone || "";
+        return nameToSearch.toLowerCase().includes(search.toLowerCase()) || phoneToSearch.includes(search);
+      })
+    : combinedPending;
 
   const filteredUnlocks = search
-    ? activeUnlocks.filter(u => { const pr = getProfile(u.user_id); return (pr?.full_name || "").includes(search) || (pr?.email || "").includes(search); })
+    ? activeUnlocks.filter(u => { const pr = getProfile(u.user_id); return (pr?.full_name || "").toLowerCase().includes(search.toLowerCase()) || (pr?.email || "").toLowerCase().includes(search.toLowerCase()); })
     : activeUnlocks;
 
   const filteredProfiles = search
     ? profiles.filter(p =>
-      (p.full_name || "").includes(search) ||
-      (p.email || "").includes(search) ||
+      (p.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.email || "").toLowerCase().includes(search.toLowerCase()) ||
       (p.phone || "").includes(search)
     )
     : profiles;
@@ -68,19 +103,37 @@ export default function UnlocksManager() {
   }
 
   async function approvePayment(payment: any) {
+    if (payment.isNewRegistration) {
+      await manualUnlock();
+      return;
+    }
     setBusy(true);
     try {
       const pkgId = payment.package_id || selectedPkg;
       if (!pkgId) { toast.error("اختر الباقة أولاً"); setBusy(false); return; }
-      // Create unlock
-      const { error: unlockErr } = await db.from("package_unlocks").upsert({
-        user_id: payment.user_id, package_id: pkgId, payment_id: payment.id, status: "active",
-      }, { onConflict: "user_id,package_id" });
-      if (unlockErr) throw unlockErr;
+      
+      if (pkgId === "all") {
+        // Unlock all packages
+        const unlockPromises = packages.map(pkg => 
+          db.from("package_unlocks").upsert({
+            user_id: payment.user_id, package_id: pkg.id, payment_id: payment.id, status: "active",
+          }, { onConflict: "user_id,package_id" })
+        );
+        const results = await Promise.all(unlockPromises);
+        const error = results.find(r => r.error)?.error;
+        if (error) throw error;
+      } else {
+        // Create unlock
+        const { error: unlockErr } = await db.from("package_unlocks").upsert({
+          user_id: payment.user_id, package_id: pkgId, payment_id: payment.id, status: "active",
+        }, { onConflict: "user_id,package_id" });
+        if (unlockErr) throw unlockErr;
+      }
+
       // Update payment status
       await db.from("payment_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", payment.id);
       await syncLegacyAccessFlag(payment.user_id, true);
-      toast.success("تم تفعيل الباقة بنجاح");
+      toast.success("تم تفعيل الباقات بنجاح");
       setActivating(null);
       setSelectedPkg("");
       await load();
@@ -89,14 +142,29 @@ export default function UnlocksManager() {
   }
 
   async function manualUnlock() {
-    if (!activating || !selectedPkg) { toast.error("اختر باقة"); return; }
+    if (!activating) return;
+    const userId = activating.isNewRegistration ? activating.user_id : activating.id;
+    const pkgId = selectedPkg;
+    if (!pkgId) { toast.error("اختر باقة"); return; }
     setBusy(true);
     try {
-      const { error } = await db.from("package_unlocks").upsert({
-        user_id: activating.id, package_id: selectedPkg, status: "active",
-      }, { onConflict: "user_id,package_id" });
-      if (error) throw error;
-      await syncLegacyAccessFlag(activating.id, true);
+      if (pkgId === "all") {
+        // Unlock all packages
+        const unlockPromises = packages.map(pkg => 
+          db.from("package_unlocks").upsert({
+            user_id: userId, package_id: pkg.id, status: "active",
+          }, { onConflict: "user_id,package_id" })
+        );
+        const results = await Promise.all(unlockPromises);
+        const error = results.find(r => r.error)?.error;
+        if (error) throw error;
+      } else {
+        const { error } = await db.from("package_unlocks").upsert({
+          user_id: userId, package_id: pkgId, status: "active",
+        }, { onConflict: "user_id,package_id" });
+        if (error) throw error;
+      }
+      await syncLegacyAccessFlag(userId, true);
       toast.success("تم التفعيل");
       setActivating(null);
       setSelectedPkg("");
@@ -123,7 +191,7 @@ export default function UnlocksManager() {
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
           {[
-            { label: "طلبات معلقة", value: pendingPayments.length, color: "#f59e0b", icon: Clock },
+            { label: "طلبات معلقة", value: combinedPending.length, color: "#f59e0b", icon: Clock },
             { label: "باقات مفعلة", value: activeUnlocks.length, color: "#059669", icon: CheckCircle2 },
             { label: "إجمالي المستخدمين", value: profiles.length, color: "#6366f1", icon: Unlock },
           ].map(s => (
@@ -141,7 +209,7 @@ export default function UnlocksManager() {
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث..." style={{ paddingInlineStart: 36 }} />
           </div>
           <div className="admin-tabs" style={{ marginBottom: 0, border: "none" }}>
-            <button className={`admin-tab ${tab === "pending" ? "active" : ""}`} onClick={() => setTab("pending")}>معلقة ({pendingPayments.length})</button>
+            <button className={`admin-tab ${tab === "pending" ? "active" : ""}`} onClick={() => setTab("pending")}>معلقة ({combinedPending.length})</button>
             <button className={`admin-tab ${tab === "active" ? "active" : ""}`} onClick={() => setTab("active")}>مفعلة ({activeUnlocks.length})</button>
             <button className={`admin-tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>المستخدمين ({profiles.length})</button>
           </div>
@@ -286,6 +354,7 @@ export default function UnlocksManager() {
                 style={{ padding: "0.5rem", borderRadius: 6, border: "1px solid #e5e0d5", fontSize: "0.85rem" }}>
                 <option value="">— اختر باقة —</option>
                 {packages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name_ar} ({pkg.price_label})</option>)}
+                <option value="all">كل الباقات (تفعيل الكل)</option>
               </select>
             </div>
           </div>

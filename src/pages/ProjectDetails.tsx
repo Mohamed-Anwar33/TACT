@@ -7,6 +7,8 @@ import SEO from "@/components/layout/SEO";
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   ZoomIn,
   ZoomOut,
@@ -20,6 +22,7 @@ import {
   Maximize2,
   Film,
 } from "lucide-react";
+import HoverPreview from "@/components/ui-luxe/HoverPreview";
 import { cn } from "@/lib/utils";
 import { CmsProject, fallbackProjects, getCmsProjects } from "@/lib/publicCms";
 
@@ -148,6 +151,17 @@ export default function ProjectDetails() {
   const [isPaused, setIsPaused] = useState(false);
   const [tour360Open, setTour360Open] = useState<string | null>(null);
 
+  // Portal Lightbox states
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [activeHoverPreview, setActiveHoverPreview] = useState<{ url: string; label: string } | null>(null);
+  
+  // For panning in the lightbox
+  const [lightboxZoomScale, setLightboxZoomScale] = useState(1);
+  const [lightboxZoomOffset, setLightboxZoomOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
   const activeImageTitle = useMemo(() => {
     const activeItem = gallery[currentIndex];
     if (!activeItem) return null;
@@ -223,6 +237,95 @@ export default function ProjectDetails() {
       if (!prev) setZoomLevel(1);
       return !prev;
     });
+  };
+
+  const resetLightboxZoom = () => {
+    setLightboxZoomScale(1);
+    setLightboxZoomOffset({ x: 0, y: 0 });
+  };
+
+  const imagesOnly = useMemo(() => {
+    return gallery.filter(item => item.type === "image");
+  }, [gallery]);
+
+  const lightboxIndex = useMemo(() => {
+    const activeItem = gallery[currentIndex];
+    if (!activeItem || activeItem.type !== "image") return -1;
+    return imagesOnly.findIndex(img => img.url === activeItem.url);
+  }, [imagesOnly, gallery, currentIndex]);
+
+  const handleNextLightboxImage = () => {
+    if (!imagesOnly.length) return;
+    resetLightboxZoom();
+    const nextIdx = (lightboxIndex + 1) % imagesOnly.length;
+    const nextImage = imagesOnly[nextIdx];
+    const newIdx = gallery.findIndex(item => item.url === nextImage.url);
+    if (newIdx !== -1) {
+      setCurrentIndex(newIdx);
+    }
+  };
+
+  const handlePrevLightboxImage = () => {
+    if (!imagesOnly.length) return;
+    resetLightboxZoom();
+    const prevIdx = lightboxIndex <= 0 ? imagesOnly.length - 1 : lightboxIndex - 1;
+    const nextImage = imagesOnly[prevIdx];
+    const newIdx = gallery.findIndex(item => item.url === nextImage.url);
+    if (newIdx !== -1) {
+      setCurrentIndex(newIdx);
+    }
+  };
+
+  // Mouse/Touch Drag Handlers for Panning in Lightbox
+  const handleLightboxMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (lightboxZoomScale <= 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - lightboxZoomOffset.x, y: e.clientY - lightboxZoomOffset.y });
+  };
+
+  const handleLightboxMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!isDragging || lightboxZoomScale <= 1) return;
+    e.preventDefault();
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    setLightboxZoomOffset({ x: newX, y: newY });
+  };
+
+  const handleLightboxMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleLightboxMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleLightboxTouchStart = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (lightboxZoomScale <= 1) return;
+    setIsDragging(true);
+    const touch = e.touches[0];
+    setDragStart({ x: touch.clientX - lightboxZoomOffset.x, y: touch.clientY - lightboxZoomOffset.y });
+  };
+
+  const handleLightboxTouchMove = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (!isDragging || lightboxZoomScale <= 1) return;
+    const touch = e.touches[0];
+    const newX = touch.clientX - dragStart.x;
+    const newY = touch.clientY - dragStart.y;
+    setLightboxZoomOffset({ x: newX, y: newY });
+  };
+
+  const handleLightboxTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleLightboxDoubleClick = () => {
+    if (lightboxZoomScale > 1) {
+      resetLightboxZoom();
+    } else {
+      setLightboxZoomScale(2.5);
+      setLightboxZoomOffset({ x: 0, y: 0 });
+    }
   };
 
   const activeImageSrc = gallery[currentIndex]?.url || currentProject.img || currentProject.cover || "";
@@ -388,14 +491,11 @@ export default function ProjectDetails() {
                   <img 
                     src={activeImageSrc} 
                     alt={currentProject.nameAr}
-                    className="w-full h-full object-cover transition-all duration-500 ease-out"
-                    style={{ 
-                      transform: `scale(${zoomLevel})`,
-                      cursor: isZoomDisabled ? "default" : zoomLevel > 1 ? "zoom-out" : "zoom-in"
-                    }}
+                    className="w-full h-full object-cover cursor-zoom-in transition-all duration-500 ease-out"
                     onClick={() => {
-                      if (isZoomDisabled) return;
-                      setZoomLevel(prev => prev === 1 ? 1.4 : 1);
+                      setIsLightboxOpen(true);
+                      resetLightboxZoom();
+                      setIsPresentationMode(false);
                     }}
                     onError={(e) => {
                       (e.currentTarget as HTMLElement).style.display = "none";
@@ -413,45 +513,18 @@ export default function ProjectDetails() {
               )}
 
               {gallery[currentIndex]?.type === "image" && (
-                <div className={`absolute top-4 ${lang === "ar" ? "left-4" : "right-4"} z-20 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-border/60 text-xs text-teal-deep font-mono`}>
-                  
-                  <button 
-                    onClick={toggleZoomDisable}
-                    className={cn("px-3 py-1.5 rounded-lg transition-all font-serif-ar", isZoomDisabled ? "bg-muted text-muted-foreground line-through" : "hover:bg-gold/20 font-medium")}
-                  >
-                    {lang === "ar" ? (isZoomDisabled ? "تفعيل التكبير" : "تعطيل التكبير") : (isZoomDisabled ? "Enable Zoom" : "Disable Zoom")}
-                  </button>
-
-                  <div className="w-[1px] h-4 bg-border mx-0.5" />
-
-                  <button 
-                    onClick={handleZoomOut}
-                    disabled={isZoomDisabled || zoomLevel <= 1}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
-                    title={lang === "ar" ? "تصغير" : "Zoom Out"}
-                  >
-                    <ZoomOut size={14} />
-                  </button>
-
-                  <button 
-                    onClick={handleZoomIn}
-                    disabled={isZoomDisabled || zoomLevel >= 2.5}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
-                    title={lang === "ar" ? "تكبير" : "Zoom In"}
-                  >
-                    <ZoomIn size={14} />
-                  </button>
-
-                  <button 
-                    onClick={handleResetZoom}
-                    disabled={zoomLevel === 1}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gold/20 disabled:opacity-30 transition-all"
-                    title={lang === "ar" ? "إعادة الضبط" : "Reset Zoom"}
-                  >
-                    <RotateCcw size={14} />
-                  </button>
-
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLightboxOpen(true);
+                    resetLightboxZoom();
+                    setIsPresentationMode(false);
+                  }}
+                  className={`absolute top-4 ${lang === "ar" ? "left-4" : "right-4"} z-20 w-11 h-11 rounded-full bg-black/60 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 cursor-pointer shadow-lg`}
+                  title={lang === "ar" ? "تكبير واستعراض الصورة كاملة" : "Zoom Fullscreen"}
+                >
+                  <ZoomIn size={20} />
+                </button>
               )}
 
               <button 
@@ -483,6 +556,15 @@ export default function ProjectDetails() {
                       setCurrentIndex(idx);
                       setZoomLevel(1);
                     }}
+                    onMouseEnter={() => {
+                      if (item.url && item.type === "image") {
+                        setActiveHoverPreview({
+                          url: item.url,
+                          label: item.title || (lang === "ar" ? "معاينة التصميم" : "Design Preview")
+                        });
+                      }
+                    }}
+                    onMouseLeave={() => setActiveHoverPreview(null)}
                     className={cn(
                       "relative flex-shrink-0 w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5 group",
                       isActive
@@ -661,6 +743,164 @@ export default function ProjectDetails() {
         </div>,
         document.body
       )}
+
+      {/* Lightbox / Zoom Dialog Modal for Project Details Gallery */}
+      {isLightboxOpen && gallery[currentIndex]?.type === "image" && createPortal((
+        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/98 p-4 select-none">
+          
+          {/* Top Bar Navigation — hidden in TV Presentation Mode */}
+          {!isPresentationMode && (
+            <div className={cn(
+              "absolute top-6 z-[250] flex items-center gap-3",
+              lang === "ar" ? "left-6" : "right-6"
+            )}>
+              {/* TV Presentation Mode Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPresentationMode(true);
+                  resetLightboxZoom();
+                }}
+                className="px-4 py-2 h-12 rounded-full text-xs font-bold bg-black/60 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 flex items-center gap-1.5 shadow-lg cursor-pointer backdrop-blur-sm"
+                title={lang === "ar" ? "وضع العرض التقديمي للتلفزيون" : "TV Presentation Mode"}
+              >
+                <Maximize2 size={16} />
+                <span>{lang === "ar" ? "وضع العرض" : "TV Mode"}</span>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Close"
+                className="grid h-12 w-12 place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-lg backdrop-blur-sm cursor-pointer"
+                onClick={() => setIsLightboxOpen(false)}
+              >
+                <X size={24} />
+              </button>
+            </div>
+          )}
+
+          {/* Floating Exit TV Presentation Mode button */}
+          {isPresentationMode && (
+            <button
+              type="button"
+              onClick={() => setIsPresentationMode(false)}
+              className={cn(
+                "absolute top-6 z-[250] px-6 py-3 rounded-full bg-gold hover:bg-white border-2 border-gold text-[#0C363A] text-xs font-bold tracking-wider shadow-2xl flex items-center gap-1.5 transition-all cursor-pointer scale-110",
+                lang === "ar" ? "left-6" : "right-6"
+              )}
+            >
+              <X size={16} />
+              <span>{lang === "ar" ? "إلغاء وضع العرض" : "Exit TV Mode"}</span>
+            </button>
+          )}
+
+          {/* Fullscreen Slider Navigation Arrows */}
+          {imagesOnly.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handlePrevLightboxImage(); }}
+                className={cn(
+                  "absolute left-6 top-1/2 -translate-y-1/2 z-[250] grid place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-2xl backdrop-blur-sm cursor-pointer",
+                  isPresentationMode ? "h-24 w-24 text-gold border-gold/40 bg-black/85" : "h-14 w-14"
+                )}
+              >
+                <ChevronLeft size={isPresentationMode ? 44 : 28} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleNextLightboxImage(); }}
+                className={cn(
+                  "absolute right-6 top-1/2 -translate-y-1/2 z-[250] grid place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-2xl backdrop-blur-sm cursor-pointer",
+                  isPresentationMode ? "h-24 w-24 text-gold border-gold/40 bg-black/85" : "h-14 w-14"
+                )}
+              >
+                <ChevronRight size={isPresentationMode ? 44 : 28} />
+              </button>
+            </>
+          )}
+
+          {/* Fullscreen Slide Image */}
+          <div className="relative max-h-[90vh] max-w-[94vw] flex items-center justify-center overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={activeImageSrc}
+              alt=""
+              onMouseDown={handleLightboxMouseDown}
+              onMouseMove={handleLightboxMouseMove}
+              onMouseUp={handleLightboxMouseUp}
+              onMouseLeave={handleLightboxMouseLeave}
+              onTouchStart={handleLightboxTouchStart}
+              onTouchMove={handleLightboxTouchMove}
+              onTouchEnd={handleLightboxTouchEnd}
+              onDoubleClick={handleLightboxDoubleClick}
+              className="max-h-[88vh] max-w-[94vw] rounded-md object-contain shadow-2xl select-none"
+              style={{
+                transform: `scale(${lightboxZoomScale}) translate(${lightboxZoomOffset.x / lightboxZoomScale}px, ${lightboxZoomOffset.y / lightboxZoomScale}px)`,
+                cursor: lightboxZoomScale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in",
+                transition: isDragging ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), translate 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
+              }}
+            />
+          </div>
+
+          {/* Floating Luxury Zoom-Pan Controls — hidden in TV mode */}
+          {!isPresentationMode && (
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[250] flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 shadow-2xl select-none">
+              <button
+                type="button"
+                onClick={() => setLightboxZoomScale(prev => Math.min(prev + 0.5, 4))}
+                className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
+                title={lang === "ar" ? "تكبير" : "Zoom In"}
+              >
+                <ZoomIn size={18} />
+              </button>
+              
+              <span className="text-[10px] text-white/60 font-mono min-w-[2.5rem] text-center">
+                {Math.round(lightboxZoomScale * 100)}%
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLightboxZoomScale(prev => {
+                    const next = Math.max(prev - 0.5, 1);
+                    if (next === 1) setLightboxZoomOffset({ x: 0, y: 0 });
+                    return next;
+                  });
+                }}
+                className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
+                title={lang === "ar" ? "تصغير" : "Zoom Out"}
+              >
+                <ZoomOut size={18} />
+              </button>
+
+              <div className="h-4 w-px bg-white/10" />
+
+              <button
+                type="button"
+                onClick={resetLightboxZoom}
+                className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
+                title={lang === "ar" ? "إعادة ضبط" : "Reset Zoom"}
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Immersive Counter Badge — hidden in TV mode */}
+          {imagesOnly.length > 1 && !isPresentationMode && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[250] bg-black/70 backdrop-blur-md border border-white/10 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-lg">
+              {lightboxIndex + 1} / {imagesOnly.length}
+            </div>
+          )}
+        </div>
+      ), document.body)}
+
+      {/* Hover Preview Overlay */}
+      <HoverPreview
+        imageUrl={(isLightboxOpen || tour360Open) ? null : (activeHoverPreview?.url || null)}
+        label={(isLightboxOpen || tour360Open) ? null : (activeHoverPreview?.label || null)}
+        lang={lang}
+      />
     </div>
   );
 }

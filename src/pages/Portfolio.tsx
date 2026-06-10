@@ -25,6 +25,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Reveal from "@/components/ui-luxe/Reveal";
+import HoverPreview from "@/components/ui-luxe/HoverPreview";
 import { useLang } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { CmsProject, fallbackProjects, getCmsProjects, parseAreaNumber, CmsAreaRange, defaultAreaRanges, getCmsAreaRanges } from "@/lib/publicCms";
@@ -167,6 +168,8 @@ export default function Portfolio() {
   const [executionPage, setExecutionPage] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [tour360Open, setTour360Open] = useState<string | null>(null);
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [activeHoverPreview, setActiveHoverPreview] = useState<{ url: string; label: string } | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -888,6 +891,16 @@ export default function Portfolio() {
                             <div
                               role="button"
                               onClick={() => setActiveProject(project)}
+                              onMouseEnter={() => {
+                                const projectImg = project.img || project.cover;
+                                if (projectImg) {
+                                  setActiveHoverPreview({
+                                    url: projectImg,
+                                    label: getProjectTitle(project, lang)
+                                  });
+                                }
+                              }}
+                              onMouseLeave={() => setActiveHoverPreview(null)}
                               className="group cursor-pointer text-start relative overflow-hidden rounded-2xl border border-white/10 bg-[#0C363A]/25 backdrop-blur-md text-white shadow-lg transition-all duration-500 hover:-translate-y-1 hover:border-gold/50 hover:shadow-2xl flex flex-col justify-between"
                             >
                               {/* Glowing luxury top line */}
@@ -986,6 +999,16 @@ export default function Portfolio() {
                             setCurrentImageIndex(0);
                             setIsAutoplay(false);
                           }}
+                          onMouseEnter={() => {
+                            const projectImg = project.cover || project.img;
+                            if (projectImg) {
+                              setActiveHoverPreview({
+                                url: projectImg,
+                                label: getProjectTitle(project, lang)
+                              });
+                            }
+                          }}
+                          onMouseLeave={() => setActiveHoverPreview(null)}
                           className="group cursor-pointer text-start relative overflow-hidden rounded-2xl border border-white/10 bg-[#0C363A]/25 backdrop-blur-md shadow-lg transition-all duration-500 hover:-translate-y-1 hover:border-gold/50 hover:shadow-2xl flex flex-col justify-between"
                         >
                           {/* Glowing luxury top line */}
@@ -1334,6 +1357,15 @@ export default function Portfolio() {
                                 setIsAutoplay(false);
                                 setCurrentImageIndex(index);
                               }}
+                              onMouseEnter={() => {
+                                if (item.url && item.type === "image") {
+                                  setActiveHoverPreview({
+                                    url: item.url,
+                                    label: item.title || (isAr ? "معاينة التصميم" : "Design Preview")
+                                  });
+                                }
+                              }}
+                              onMouseLeave={() => setActiveHoverPreview(null)}
                               className={cn(
                                 "aspect-square w-16 h-16 md:w-20 md:h-20 flex-shrink-0 overflow-hidden rounded-md border transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5 group",
                                 isActive
@@ -1480,14 +1512,53 @@ export default function Portfolio() {
 
       {activeImage && createPortal(
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/98 p-4 select-none">
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute top-6 inset-inline-end-6 z-[250] grid h-12 w-12 place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-lg backdrop-blur-sm"
-            onClick={handleCloseImage}
-          >
-            <X size={24} />
-          </button>
+          
+          {/* Top Bar Navigation — hidden in TV Presentation Mode */}
+          {!isPresentationMode && (
+            <div className={cn(
+              "absolute top-6 z-[250] flex items-center gap-3",
+              isAr ? "left-6" : "right-6"
+            )}>
+              {/* TV Presentation Mode Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPresentationMode(true);
+                  setZoomScale(1);
+                  setZoomOffset({ x: 0, y: 0 });
+                }}
+                className="px-4 py-2 h-12 rounded-full text-xs font-bold bg-black/60 border border-white/20 text-white hover:bg-gold hover:border-gold hover:text-[#0C363A] hover:scale-110 flex items-center justify-center transition-all duration-300 flex items-center gap-1.5 shadow-lg cursor-pointer backdrop-blur-sm"
+                title={isAr ? "وضع العرض التقديمي للتلفزيون" : "TV Presentation Mode"}
+              >
+                <Maximize2 size={16} />
+                <span>{isAr ? "وضع العرض" : "TV Mode"}</span>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Close"
+                className="grid h-12 w-12 place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-lg backdrop-blur-sm cursor-pointer"
+                onClick={handleCloseImage}
+              >
+                <X size={24} />
+              </button>
+            </div>
+          )}
+
+          {/* Floating Exit TV Presentation Mode button */}
+          {isPresentationMode && (
+            <button
+              type="button"
+              onClick={() => setIsPresentationMode(false)}
+              className={cn(
+                "absolute top-6 z-[250] px-6 py-3 rounded-full bg-gold hover:bg-white border-2 border-gold text-[#0C363A] text-xs font-bold tracking-wider shadow-2xl flex items-center gap-1.5 transition-all cursor-pointer scale-110",
+                isAr ? "left-6" : "right-6"
+              )}
+            >
+              <X size={16} />
+              <span>{isAr ? "إلغاء وضع العرض" : "Exit TV Mode"}</span>
+            </button>
+          )}
 
           {/* Fullscreen Slider Navigation Arrows */}
           {imagesOnly.length > 1 && (
@@ -1495,16 +1566,22 @@ export default function Portfolio() {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handlePrevLightboxImage(); }}
-                className="absolute left-6 top-1/2 -translate-y-1/2 z-[250] grid h-14 w-14 place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-2xl backdrop-blur-sm"
+                className={cn(
+                  "absolute left-6 top-1/2 -translate-y-1/2 z-[250] grid place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-2xl backdrop-blur-sm cursor-pointer",
+                  isPresentationMode ? "h-24 w-24 text-gold border-gold/40 bg-black/85" : "h-14 w-14"
+                )}
               >
-                <ChevronLeft size={28} />
+                <ChevronLeft size={isPresentationMode ? 44 : 28} />
               </button>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleNextLightboxImage(); }}
-                className="absolute right-6 top-1/2 -translate-y-1/2 z-[250] grid h-14 w-14 place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-2xl backdrop-blur-sm"
+                className={cn(
+                  "absolute right-6 top-1/2 -translate-y-1/2 z-[250] grid place-items-center rounded-full bg-black/60 text-white border border-white/20 transition-all hover:bg-gold hover:text-[#061F22] hover:border-gold hover:scale-110 active:scale-95 shadow-2xl backdrop-blur-sm cursor-pointer",
+                  isPresentationMode ? "h-24 w-24 text-gold border-gold/40 bg-black/85" : "h-14 w-14"
+                )}
               >
-                <ChevronRight size={28} />
+                <ChevronRight size={isPresentationMode ? 44 : 28} />
               </button>
             </>
           )}
@@ -1531,53 +1608,55 @@ export default function Portfolio() {
             />
           </div>
 
-          {/* Floating Luxury Zoom-Pan Controls */}
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[250] flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 shadow-2xl select-none">
-            <button
-              type="button"
-              onClick={() => setZoomScale(prev => Math.min(prev + 0.5, 4))}
-              className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
-              title={isAr ? "تكبير" : "Zoom In"}
-            >
-              <ZoomIn size={18} />
-            </button>
-            
-            <span className="text-[10px] text-white/60 font-mono min-w-[2.5rem] text-center">
-              {Math.round(zoomScale * 100)}%
-            </span>
+          {/* Floating Luxury Zoom-Pan Controls — hidden in TV mode */}
+          {!isPresentationMode && (
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[250] flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 shadow-2xl select-none">
+              <button
+                type="button"
+                onClick={() => setZoomScale(prev => Math.min(prev + 0.5, 4))}
+                className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
+                title={isAr ? "تكبير" : "Zoom In"}
+              >
+                <ZoomIn size={18} />
+              </button>
+              
+              <span className="text-[10px] text-white/60 font-mono min-w-[2.5rem] text-center">
+                {Math.round(zoomScale * 100)}%
+              </span>
 
-            <button
-              type="button"
-              onClick={() => {
-                setZoomScale(prev => {
-                  const next = Math.max(prev - 0.5, 1);
-                  if (next === 1) setZoomOffset({ x: 0, y: 0 });
-                  return next;
-                });
-              }}
-              className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
-              title={isAr ? "تصغير" : "Zoom Out"}
-            >
-              <ZoomOut size={18} />
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomScale(prev => {
+                    const next = Math.max(prev - 0.5, 1);
+                    if (next === 1) setZoomOffset({ x: 0, y: 0 });
+                    return next;
+                  });
+                }}
+                className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
+                title={isAr ? "تصغير" : "Zoom Out"}
+              >
+                <ZoomOut size={18} />
+              </button>
 
-            <div className="h-4 w-px bg-white/10" />
+              <div className="h-4 w-px bg-white/10" />
 
-            <button
-              type="button"
-              onClick={() => {
-                setZoomScale(1);
-                setZoomOffset({ x: 0, y: 0 });
-              }}
-              className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
-              title={isAr ? "إعادة ضبط" : "Reset Zoom"}
-            >
-              <RotateCcw size={16} />
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomScale(1);
+                  setZoomOffset({ x: 0, y: 0 });
+                }}
+                className="p-2 text-white/80 hover:text-gold transition-colors hover:scale-110 active:scale-95"
+                title={isAr ? "إعادة ضبط" : "Reset Zoom"}
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+          )}
 
-          {/* Immersive Counter Badge */}
-          {imagesOnly.length > 1 && (
+          {/* Immersive Counter Badge — hidden in TV mode */}
+          {imagesOnly.length > 1 && !isPresentationMode && (
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[250] bg-black/70 backdrop-blur-md border border-white/10 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-lg">
               {fullscreenIndex + 1} / {imagesOnly.length}
             </div>
@@ -1640,6 +1719,13 @@ export default function Portfolio() {
         </div>,
         document.body
       )}
+
+      {/* Hover Preview Overlay */}
+      <HoverPreview
+        imageUrl={(activeImage || activeProject || activeVideo || tour360Open) ? null : (activeHoverPreview?.url || null)}
+        label={(activeImage || activeProject || activeVideo || tour360Open) ? null : (activeHoverPreview?.label || null)}
+        lang={lang}
+      />
     </div>
   );
 }

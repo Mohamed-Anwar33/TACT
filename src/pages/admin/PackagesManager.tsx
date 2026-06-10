@@ -38,6 +38,7 @@ export default function PackagesManager() {
   
   const [busy, setBusy] = useState(false);
   const [deleteAction, setDeleteAction] = useState<{ table: string; id: string } | null>(null);
+  const [draggedPreviewIdx, setDraggedPreviewIdx] = useState<number | null>(null);
 
   function makeSlug(value: string, fallback: string) {
     return (
@@ -601,6 +602,46 @@ export default function PackagesManager() {
     } catch (err: any) {
       toast.error(err.message || "حدث خطأ أثناء إعادة الترتيب");
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePreviewDrop(targetIdx: number) {
+    if (draggedPreviewIdx === null || draggedPreviewIdx === targetIdx || !previewCat) return;
+    
+    const nextOptions = [...previewOptions];
+    const draggedItem = nextOptions[draggedPreviewIdx];
+    
+    // Remove the dragged item and insert it at the target position
+    nextOptions.splice(draggedPreviewIdx, 1);
+    nextOptions.splice(targetIdx, 0, draggedItem);
+    
+    // Update sort_order locally first for instant UI response
+    const reorderedOpts = nextOptions.map((opt, index) => {
+      const newOrder = (index + 1) * 10;
+      return { ...opt, sort_order: newOrder };
+    });
+    
+    // Set the options state locally so it updates immediately
+    setOptions(prev => {
+      return prev.map(o => {
+        const found = reorderedOpts.find(ro => ro.id === o.id);
+        return found ? { ...o, sort_order: found.sort_order } : o;
+      });
+    });
+    
+    setBusy(true);
+    try {
+      const updates = reorderedOpts.map((opt) => {
+        return db.from("package_options").update({ sort_order: opt.sort_order }).eq("id", opt.id);
+      });
+      await Promise.all(updates);
+      toast.success("تم تحديث ترتيب الصور بنجاح");
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "فشل تحديث الترتيب في قاعدة البيانات");
+    } finally {
+      setDraggedPreviewIdx(null);
       setBusy(false);
     }
   }
@@ -1622,123 +1663,134 @@ export default function PackagesManager() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #eae5dc", paddingBottom: "6px" }}>
                         <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#073b35" }}>صور المعرض الإضافية</span>
                         <span style={{ fontSize: "0.65rem", color: "#8a8578" }}>
-                          الأسماء المدخلة تظهر على الصور للعميل أثناء استعراض تفاصيل الاستايل.
+                          اسحب الصور لإعادة ترتيبها (Drag & Drop). الأسماء المدخلة تظهر على الصور للعميل.
                         </span>
                       </div>
 
-                      {previewOptions.map((opt, idx, arr) => (
-                        <div key={opt.id} style={{ 
-                          display: "flex", 
-                          flexDirection: "column", 
-                          gap: "10px", 
-                          background: "#fdfdfb", 
-                          border: "1px solid #e2dcd0", 
-                          borderRadius: "12px", 
-                          padding: "12px 14px",
-                          boxShadow: "0 2px 6px rgba(0,0,0,0.01)"
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "12px", borderBottom: "1px dashed #eae5dc", paddingBottom: "8px" }}>
-                            <div style={{ width: "80px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", flexShrink: 0 }}>
-                              <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#f5f5f5" }} />
-                            </div>
-                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
-                              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#073b35" }}>
-                                صورة معرض #{idx + 1}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
-                                style={{
-                                  background: "rgba(193, 150, 76, 0.1)",
-                                  border: "1px solid rgba(193, 150, 76, 0.3)",
-                                  color: "#c9964c",
-                                  borderRadius: "6px",
-                                  fontSize: "0.65rem",
-                                  fontWeight: 700,
-                                  cursor: "pointer",
-                                  padding: "3px 8px",
-                                  width: "fit-content",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                  marginTop: "3px"
-                                }}
-                              >
-                                👑 تعيين كصورة غلاف للاستايل
-                              </button>
+                      <div style={{ 
+                        display: "grid", 
+                        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", 
+                        gap: "12px", 
+                        marginTop: "8px" 
+                      }}>
+                        {previewOptions.map((opt, idx) => (
+                          <div 
+                            key={opt.id} 
+                            draggable={true}
+                            onDragStart={(e) => {
+                              setDraggedPreviewIdx(idx);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              handlePreviewDrop(idx);
+                            }}
+                            style={{ 
+                              display: "flex", 
+                              flexDirection: "column", 
+                              gap: "8px", 
+                              background: "#fdfdfb", 
+                              border: "1px solid #e2dcd0", 
+                              borderRadius: "12px", 
+                              padding: "10px",
+                              boxShadow: "0 2px 6px rgba(0,0,0,0.01)",
+                              cursor: "move",
+                              transition: "all 0.2s",
+                              opacity: draggedPreviewIdx === idx ? 0.4 : 1
+                            }}
+                          >
+                            <div style={{ fontSize: "9px", color: "#888", display: "flex", alignItems: "center", justifyContent: "center", gap: 3, borderBottom: "1px dashed #eae5dc", paddingBottom: 4 }}>
+                              <span>⇅ اسحب للترتيب</span>
                             </div>
 
-                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                              <button
-                                type="button"
-                                disabled={idx === 0}
-                                onClick={() => previewCat && moveStylePreviewOrder(previewCat.id, idx, "prev")}
-                                style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
-                                title="نقل لأعلى"
-                              >
-                                ▲
-                              </button>
-                              <button
-                                type="button"
-                                disabled={idx === arr.length - 1}
-                                onClick={() => previewCat && moveStylePreviewOrder(previewCat.id, idx, "next")}
-                                style={{ width: "26px", height: "26px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", color: "#666", cursor: idx === arr.length - 1 ? "not-allowed" : "pointer", opacity: idx === arr.length - 1 ? 0.3 : 1, display: "grid", placeItems: "center", fontSize: "10px" }}
-                                title="نقل لأسفل"
-                              >
-                                ▼
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeStylePreviewImage(opt.id)}
-                                style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", marginInlineStart: "6px" }}
-                                title="حذف الصورة"
-                              >
-                                ✕
-                              </button>
+                            <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", background: "#f5f5f5" }}>
+                              <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              <div style={{ position: "absolute", top: 4, insetInlineEnd: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => removeStylePreviewImage(opt.id)}
+                                  style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", fontWeight: "bold" }}
+                                  title="حذف الصورة"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              {idx === 0 && (
+                                <div style={{ position: "absolute", bottom: 4, insetInlineStart: 4, background: "#073b35", color: "#fff", fontSize: "9px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>
+                                  غلاف الاستايل
+                                </div>
+                              )}
                             </div>
-                          </div>
 
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 65px", gap: 10 }}>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
-                                الاسم على الصورة (عربي) *
-                              </label>
-                              <Input
-                                value={opt.name_ar || ""}
-                                onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
-                                onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
-                                placeholder="مثال: مودرن - 01"
-                                style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
-                              />
-                            </div>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
-                                Text on image (English) *
-                              </label>
-                              <Input
-                                value={opt.name_en || ""}
-                                onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
-                                onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
-                                placeholder="e.g. Modern - 01"
-                                dir="ltr"
-                                style={{ height: 32, fontSize: "0.72rem", background: "#fff" }}
-                              />
-                            </div>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label style={{ fontSize: "0.68rem", fontWeight: 700, color: "#6e685a", marginBottom: 3, display: "block" }}>
-                                الترتيب
-                              </label>
-                              <Input
-                                type="number"
-                                value={opt.sort_order ?? 0}
-                                onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
-                                onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
-                                style={{ height: 32, fontSize: "0.72rem", background: "#fff", textAlign: "center" }}
-                              />
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
+                                  الاسم (عربي) *
+                                </label>
+                                <Input
+                                  value={opt.name_ar || ""}
+                                  onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
+                                  onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
+                                  placeholder="مثال: مودرن - 01"
+                                  style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
+                                />
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
+                                  Name (EN) *
+                                </label>
+                                <Input
+                                  value={opt.name_en || ""}
+                                  onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
+                                  onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
+                                  placeholder="e.g. Modern - 01"
+                                  dir="ltr"
+                                  style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
+                                />
+                              </div>
+                              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", display: "block" }}>الترتيب</label>
+                                  <Input
+                                    type="number"
+                                    value={opt.sort_order ?? 0}
+                                    onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
+                                    onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
+                                    style={{ height: 26, fontSize: "0.68rem", padding: "0 4px", background: "#fff", textAlign: "center" }}
+                                  />
+                                </div>
+                                {idx > 0 && (
+                                  <div style={{ flex: 1.5, display: "flex", alignItems: "flex-end" }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
+                                      style={{
+                                        background: "rgba(193, 150, 76, 0.1)",
+                                        border: "1px solid rgba(193, 150, 76, 0.3)",
+                                        color: "#c9964c",
+                                        borderRadius: "6px",
+                                        fontSize: "0.58rem",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        height: 26,
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center"
+                                      }}
+                                    >
+                                      👑 غلاف
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

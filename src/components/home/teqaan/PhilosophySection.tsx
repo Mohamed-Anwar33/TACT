@@ -145,7 +145,7 @@ export default function PhilosophySection({ section }: { section?: CmsSection })
               <div className="relative aspect-[4/5] overflow-hidden rounded-sm shadow-2xl transition-transform duration-700 group-hover:scale-[1.02]">
                 {slides.map((src, idx) => (
                   <div
-                    key={src}
+                    key={`${src}-${idx}`}
                     className={cn(
                       "absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out",
                       idx === currentVisual ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
