@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { 
   Package, Plus, Edit2, Trash2, ChevronDown, ChevronUp, 
   Image as Img, Layers, Settings, Eye, LayoutGrid, Info, FileText
@@ -1673,123 +1673,165 @@ export default function PackagesManager() {
                         gap: "12px", 
                         marginTop: "8px" 
                       }}>
-                        {previewOptions.map((opt, idx) => (
-                          <div 
-                            key={opt.id} 
-                            draggable={true}
-                            onDragStart={(e) => {
-                              setDraggedPreviewIdx(idx);
-                              e.dataTransfer.effectAllowed = "move";
-                            }}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              handlePreviewDrop(idx);
-                            }}
-                            style={{ 
-                              display: "flex", 
-                              flexDirection: "column", 
-                              gap: "8px", 
-                              background: "#fdfdfb", 
-                              border: "1px solid #e2dcd0", 
-                              borderRadius: "12px", 
-                              padding: "10px",
-                              boxShadow: "0 2px 6px rgba(0,0,0,0.01)",
-                              cursor: "move",
-                              transition: "all 0.2s",
-                              opacity: draggedPreviewIdx === idx ? 0.4 : 1
-                            }}
-                          >
-                            <div style={{ fontSize: "9px", color: "#888", display: "flex", alignItems: "center", justifyContent: "center", gap: 3, borderBottom: "1px dashed #eae5dc", paddingBottom: 4 }}>
-                              <span>⇅ اسحب للترتيب</span>
-                            </div>
-
-                            <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", background: "#f5f5f5" }}>
-                              <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              <div style={{ position: "absolute", top: 4, insetInlineEnd: 4 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => removeStylePreviewImage(opt.id)}
-                                  style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", fontWeight: "bold" }}
-                                  title="حذف الصورة"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                              {idx === 0 && (
-                                <div style={{ position: "absolute", bottom: 4, insetInlineStart: 4, background: "#073b35", color: "#fff", fontSize: "9px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>
-                                  غلاف الاستايل
+                        {previewOptions.map((opt, idx) => {
+                          const pageNumber = Math.floor(idx / 15) + 1;
+                          return (
+                            <Fragment key={opt.id}>
+                              {/* Visual Page Divider Header */}
+                              {idx % 15 === 0 && (
+                                <div style={{ 
+                                  gridColumn: "1 / -1", 
+                                  padding: idx === 0 ? "8px 0" : "20px 0 8px 0", 
+                                  borderTop: idx === 0 ? "none" : "2px dashed #e2dcd0", 
+                                  marginTop: idx === 0 ? 0 : "12px", 
+                                  display: "flex", 
+                                  alignItems: "center", 
+                                  gap: "12px" 
+                                }}>
+                                  <span style={{ 
+                                    fontSize: "10px", 
+                                    fontWeight: "bold", 
+                                    color: "#073b35", 
+                                    background: "rgba(7, 59, 53, 0.06)", 
+                                    padding: "4px 12px", 
+                                    borderRadius: "20px", 
+                                    border: "1px solid rgba(7, 59, 53, 0.15)",
+                                    fontFamily: "serif-ar"
+                                  }}>
+                                    الصفحة {pageNumber} (الصور {idx + 1} - {Math.min(idx + 15, previewOptions.length)})
+                                  </span>
+                                  <div style={{ flex: 1, height: "1px", background: "#e2dcd0" }} />
                                 </div>
                               )}
-                            </div>
 
-                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-                              <div className="form-group" style={{ margin: 0 }}>
-                                <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
-                                  الاسم (عربي) *
-                                </label>
-                                <Input
-                                  value={opt.name_ar || ""}
-                                  onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
-                                  onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
-                                  placeholder="مثال: مودرن - 01"
-                                  style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
-                                />
-                              </div>
-                              <div className="form-group" style={{ margin: 0 }}>
-                                <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
-                                  Name (EN) *
-                                </label>
-                                <Input
-                                  value={opt.name_en || ""}
-                                  onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
-                                  onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
-                                  placeholder="e.g. Modern - 01"
-                                  dir="ltr"
-                                  style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
-                                />
-                              </div>
-                              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                                <div style={{ flex: 1 }}>
-                                  <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", display: "block" }}>الترتيب</label>
-                                  <Input
-                                    type="number"
-                                    value={opt.sort_order ?? 0}
-                                    onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
-                                    onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
-                                    style={{ height: 26, fontSize: "0.68rem", padding: "0 4px", background: "#fff", textAlign: "center" }}
-                                  />
+                              <div 
+                                draggable={true}
+                                onDragStart={(e) => {
+                                  setDraggedPreviewIdx(idx);
+                                  e.dataTransfer.effectAllowed = "move";
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  handlePreviewDrop(idx);
+                                }}
+                                style={{ 
+                                  display: "flex", 
+                                  flexDirection: "column", 
+                                  gap: "8px", 
+                                  background: "#fdfdfb", 
+                                  border: "1px solid #e2dcd0", 
+                                  borderRadius: "12px", 
+                                  padding: "10px",
+                                  boxShadow: "0 2px 6px rgba(0,0,0,0.01)",
+                                  cursor: "move",
+                                  transition: "all 0.2s",
+                                  opacity: draggedPreviewIdx === idx ? 0.4 : 1
+                                }}
+                              >
+                                <div style={{ fontSize: "9px", color: "#888", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, borderBottom: "1px dashed #eae5dc", paddingBottom: 4 }}>
+                                  <span style={{ 
+                                    background: pageNumber === 1 ? "rgba(7, 59, 53, 0.1)" : "rgba(193, 150, 76, 0.1)",
+                                    color: pageNumber === 1 ? "#073b35" : "#c9964c",
+                                    border: pageNumber === 1 ? "1px solid rgba(7, 59, 53, 0.2)" : "1px solid rgba(193, 150, 76, 0.2)",
+                                    padding: "2px 6px",
+                                    borderRadius: "6px",
+                                    fontWeight: "bold",
+                                    fontSize: "8px"
+                                  }}>
+                                    الصفحة {pageNumber}
+                                  </span>
+                                  <span>⇅ اسحب للترتيب</span>
                                 </div>
-                                {idx > 0 && (
-                                  <div style={{ flex: 1.5, display: "flex", alignItems: "flex-end" }}>
+
+                                <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", background: "#f5f5f5" }}>
+                                  <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  <div style={{ position: "absolute", top: 4, insetInlineEnd: 4 }}>
                                     <button
                                       type="button"
-                                      onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
-                                      style={{
-                                        background: "rgba(193, 150, 76, 0.1)",
-                                        border: "1px solid rgba(193, 150, 76, 0.3)",
-                                        color: "#c9964c",
-                                        borderRadius: "6px",
-                                        fontSize: "0.58rem",
-                                        fontWeight: 700,
-                                        cursor: "pointer",
-                                        height: 26,
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center"
-                                      }}
+                                      onClick={() => removeStylePreviewImage(opt.id)}
+                                      style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", fontWeight: "bold" }}
+                                      title="حذف الصورة"
                                     >
-                                      👑 غلاف
+                                      ✕
                                     </button>
                                   </div>
-                                )}
+                                  {idx === 0 && (
+                                    <div style={{ position: "absolute", bottom: 4, insetInlineStart: 4, background: "#073b35", color: "#fff", fontSize: "9px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>
+                                      غلاف الاستايل
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                                  <div className="form-group" style={{ margin: 0 }}>
+                                    <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
+                                      الاسم (عربي) *
+                                    </label>
+                                    <Input
+                                      value={opt.name_ar || ""}
+                                      onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
+                                      onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
+                                      placeholder="مثال: مودرن - 01"
+                                      style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
+                                    />
+                                  </div>
+                                  <div className="form-group" style={{ margin: 0 }}>
+                                    <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
+                                      Name (EN) *
+                                    </label>
+                                    <Input
+                                      value={opt.name_en || ""}
+                                      onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
+                                      onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
+                                      placeholder="e.g. Modern - 01"
+                                      dir="ltr"
+                                      style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
+                                    />
+                                  </div>
+                                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                                    <div style={{ flex: 1 }}>
+                                      <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", display: "block" }}>الترتيب</label>
+                                      <Input
+                                        type="number"
+                                        value={opt.sort_order ?? 0}
+                                        onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
+                                        onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
+                                        style={{ height: 26, fontSize: "0.68rem", padding: "0 4px", background: "#fff", textAlign: "center" }}
+                                      />
+                                    </div>
+                                    {idx > 0 && (
+                                      <div style={{ flex: 1.5, display: "flex", alignItems: "flex-end" }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
+                                          style={{
+                                            background: "rgba(193, 150, 76, 0.1)",
+                                            border: "1px solid rgba(193, 150, 76, 0.3)",
+                                            color: "#c9964c",
+                                            borderRadius: "6px",
+                                            fontSize: "0.58rem",
+                                            fontWeight: 700,
+                                            cursor: "pointer",
+                                            height: 26,
+                                            width: "100%",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center"
+                                          }}
+                                        >
+                                          👑 غلاف
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        ))}
+                            </Fragment>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
