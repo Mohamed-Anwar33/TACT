@@ -8,11 +8,11 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { CmsSection } from "@/lib/publicCms";
 
 const ABOUT_SLIDES = [
-  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.jpeg",
-  "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191721_.jpeg",
-  "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.jpeg",
-  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191955_.jpeg",
-  "/real-content/Designs/Landscape/Screenshot_14-5-2026_19049_.jpeg",
+  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191850_.webp",
+  "/real-content/Designs/Shop facade/Screenshot_14-5-2026_191721_.webp",
+  "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
+  "/real-content/Designs/students cafe/Screenshot_14-5-2026_191955_.webp",
+  "/real-content/Designs/Landscape/Screenshot_14-5-2026_19049_.webp",
 ];
 
 export default function PhilosophySection({ section }: { section?: CmsSection }) {
@@ -155,8 +155,10 @@ export default function PhilosophySection({ section }: { section?: CmsSection })
                       src={src} 
                       alt="Tact Project" 
                       className="w-full h-full object-cover"
-                      loading={idx === 0 ? "eager" : "lazy"}
+                      loading="lazy"
                       decoding="async"
+                      width={400}
+                      height={500}
                     />
                   </div>
                 ))}
@@ -166,7 +168,7 @@ export default function PhilosophySection({ section }: { section?: CmsSection })
                 
                 {/* Logo Mark in Corner */}
                 <div className="absolute bottom-8 right-8 z-30 opacity-60 w-12 h-12">
-                   <img src="/logo.png" alt="Tact Logo" className="w-full h-full object-contain brightness-0 invert" />
+                   <img src="/logo.png" alt="Tact Logo" className="w-full h-full object-contain brightness-0 invert" width={48} height={48} />
                 </div>
               </div>
 

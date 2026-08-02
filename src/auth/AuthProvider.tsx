@@ -36,8 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadExtras = async (uid: string) => {
-    setLoading(true);
+  const loadExtras = async (uid: string, blocking = false) => {
+    if (blocking) setLoading(true);
     try {
       const [{ data: p }, { data: roles }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (initSession?.user) {
         setSession(initSession);
         setUser(initSession.user);
-        loadExtras(initSession.user.id).finally(() => {
+        loadExtras(initSession.user.id, true).finally(() => {
           if (isMounted) {
             initialCheckDone = true;
           }
@@ -93,32 +93,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!isMounted) return;
 
-      // Skip the initial callback of onAuthStateChange if getSession hasn't finished yet
-      // to prevent setting loading to false with a brief null state.
-      if (!initialCheckDone && !newSession?.user) {
+      // Auth refreshes happen while uploads are in progress. They must not turn
+      // into a global loading state because that unmounts active dialogs/forms.
+      if (event === "TOKEN_REFRESHED") {
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
         return;
       }
 
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
+      if (event === "USER_UPDATED" && newSession?.user) {
+        setSession(newSession);
+        setUser(newSession.user);
+        void loadExtras(newSession.user.id, false);
+        return;
+      }
 
-      if (newSession?.user) {
-        setLoading(true);
-        loadExtras(newSession.user.id).finally(() => {
-          if (isMounted) {
-            initialCheckDone = true;
-          }
-        });
-      } else {
+      if (event === "INITIAL_SESSION") {
+        if (initialCheckDone) return;
+        if (!newSession?.user) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRoles([]);
+          setIsAdmin(false);
+          setIsStaff(false);
+          setIsOfficeConsultant(false);
+          setLoading(false);
+          initialCheckDone = true;
+        }
+        return;
+      }
+
+      if (event === "SIGNED_IN" && newSession?.user) {
+        // Never expose the previous user's profile/roles while the next user's
+        // profile is loading (for example when an office device changes user).
+        if (user?.id !== newSession.user.id) {
+          setProfile(null);
+          setRoles([]);
+          setIsAdmin(false);
+          setIsStaff(false);
+          setIsOfficeConsultant(false);
+        }
+        setSession(newSession);
+        setUser(newSession.user);
+        void loadExtras(newSession.user.id, !initialCheckDone);
+        initialCheckDone = true;
+        return;
+      }
+
+      if (event === "SIGNED_OUT") {
+        setSession(null);
+        setUser(null);
         setProfile(null);
         setIsAdmin(false);
         setIsStaff(false);
         setIsOfficeConsultant(false);
         setRoles([]);
-        // Only set loading to false if we're not waiting for an initial getSession check
-        if (initialCheckDone) {
-          setLoading(false);
-        }
+        setLoading(false);
+        initialCheckDone = true;
       }
     });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
@@ -33,7 +33,8 @@ export default function Questionnaire() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [checkingExisting, setCheckingExisting] = useState(true);
+  const [checkingExisting, setCheckingExisting] = useState(false);
+  const submissionKeyRef = useRef<string | null>(null);
   const nextPath = searchParams.get("next");
   const safeNextPath = nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "";
 
@@ -105,7 +106,8 @@ export default function Questionnaire() {
     localStorage.setItem("tact_questionnaire_step", step.toString());
   }, [data, step, loaded]);
 
-  // Check auth and existing questionnaire
+  // Authentication only. A customer may submit a new questionnaire later; an
+  // idempotency key prevents duplicate clicks from creating duplicate attempts.
   useEffect(() => {
     if (loading) return;
 
@@ -115,30 +117,7 @@ export default function Questionnaire() {
       return;
     }
 
-    if (isOfficeConsultant) {
-      setCheckingExisting(false);
-      return;
-    }
-
-    const checkExisting = async () => {
-      try {
-        const { data: existing, error } = await supabase
-          .from("questionnaires")
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (!error && existing) {
-          setDone(true);
-        }
-      } catch (err) {
-        console.error("Error checking existing questionnaire:", err);
-      } finally {
-        setCheckingExisting(false);
-      }
-    };
-
-    checkExisting();
+    setCheckingExisting(false);
   }, [user, loading, isOfficeConsultant, lang, nav]);
 
   const update = (k: string, v: any) => setData((prev) => ({ ...prev, [k]: v }));
@@ -198,7 +177,9 @@ export default function Questionnaire() {
   };
 
   const submit = async () => {
+    if (busy) return;
     setBusy(true);
+    submissionKeyRef.current ||= crypto.randomUUID();
 
     // Combine strings cleanly to map perfectly to DB schema columns
     const finalType = data.project_type === "أخرى" || data.project_type === "Other" ? data.project_type_custom || data.project_type : data.project_type;
@@ -226,8 +207,7 @@ export default function Questionnaire() {
     let created = null;
     let queryError = null;
 
-    if (isOfficeConsultant) {
-      const { data: resData, error } = await supabase.from("questionnaires").insert({
+    const payload = {
         user_id: user?.id ?? null,
         name: data.name,
         phone: data.phone,
@@ -243,32 +223,25 @@ export default function Questionnaire() {
         goals: combinedGoals,
         notes: data.notes,
         plan_images: data.plan_images,
-      }).select("id").single();
+        idempotency_key: submissionKeyRef.current,
+      };
+
+    if (isOfficeConsultant) {
+      const { data: resData, error } = await (supabase as any).from("questionnaires").insert(payload).select("id").single();
       created = resData;
       queryError = error;
     } else {
-      const { error } = await supabase.from("questionnaires").insert({
-        user_id: user?.id ?? null,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        address: data.address,
-        project_type: finalType,
-        stage: finalStage,
-        family: finalFamily,
-        service: finalService,
-        expectations: combinedExpectations,
-        source: finalSource,
-        history: combinedHistory,
-        goals: combinedGoals,
-        notes: data.notes,
-        plan_images: data.plan_images,
-      });
+      const { error } = await (supabase as any).from("questionnaires").insert(payload);
       queryError = error;
     }
 
     setBusy(false);
 
+    if (queryError && queryError.code === "23505") {
+      // The same request was already committed. Treat it as success rather than
+      // showing a second-submit error.
+      queryError = null;
+    }
     if (queryError) {
       toast.error(queryError.message);
       return;

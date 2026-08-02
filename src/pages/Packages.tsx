@@ -451,21 +451,16 @@ export default function Packages() {
                             {lang === "ar" ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
                           </Link>
                         ) : (
-                          <button 
-                            onClick={() => {
-                              toast.info(
-                                lang === "ar"
-                                  ? `بانتظار تفعيل باقة (${pkg.name_ar}) من قِبل الإدارة. يرجى التأكد من تحويل العربون عبر إينستاباي لتفعيل الباقة فوراً.`
-                                  : `Waiting for admin activation of (${pkg.name_en}). Please ensure you have transferred the deposit via InstaPay to unlock immediately.`
-                              );
-                            }}
-                            className="w-full py-4 rounded-sm font-bold text-[10px] uppercase tracking-[0.20em] flex items-center justify-center gap-2 transition-all duration-300 transform active:scale-95 bg-white/5 border border-white/10 text-ivory/60 hover:text-[#C18556] hover:border-[#C18556]/30 hover:bg-[#C18556]/5 shadow-md cursor-pointer"
+                          <Link 
+                            to={`/packages/${pkg.id}/configurator`} 
+                            className="w-full py-4 rounded-sm font-bold text-[10px] uppercase tracking-[0.20em] flex items-center justify-center gap-2 transition-all duration-300 transform active:scale-95 bg-gradient-to-r from-[#C18556] to-[#DDB57C] text-[#0C363A] hover:brightness-110 shadow-lg shadow-[#C18556]/15"
                           >
-                            <Lock size={12} className="text-[#C18556]" />
+                            <Lock size={12} className="text-[#0C363A]" />
                             <span>
-                              {lang === "ar" ? "بانتظار تفعيل الباقة" : "PENDING ACTIVATION"}
+                              {lang === "ar" ? "ابدأ التخصيص (نسخة تجريبية)" : "START CONFIGURING (DEMO)"}
                             </span>
-                          </button>
+                            {lang === "ar" ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
+                          </Link>
                         )}
                       </div>
 

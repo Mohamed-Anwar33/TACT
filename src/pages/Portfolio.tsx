@@ -891,16 +891,7 @@ export default function Portfolio() {
                             <div
                               role="button"
                               onClick={() => setActiveProject(project)}
-                              onMouseEnter={() => {
-                                const projectImg = project.img || project.cover;
-                                if (projectImg) {
-                                  setActiveHoverPreview({
-                                    url: projectImg,
-                                    label: getProjectTitle(project, lang)
-                                  });
-                                }
-                              }}
-                              onMouseLeave={() => setActiveHoverPreview(null)}
+
                               className="group cursor-pointer text-start relative overflow-hidden rounded-2xl border border-white/10 bg-[#0C363A]/25 backdrop-blur-md text-white shadow-lg transition-all duration-500 hover:-translate-y-1 hover:border-gold/50 hover:shadow-2xl flex flex-col justify-between"
                             >
                               {/* Glowing luxury top line */}
@@ -999,16 +990,7 @@ export default function Portfolio() {
                             setCurrentImageIndex(0);
                             setIsAutoplay(false);
                           }}
-                          onMouseEnter={() => {
-                            const projectImg = project.cover || project.img;
-                            if (projectImg) {
-                              setActiveHoverPreview({
-                                url: projectImg,
-                                label: getProjectTitle(project, lang)
-                              });
-                            }
-                          }}
-                          onMouseLeave={() => setActiveHoverPreview(null)}
+
                           className="group cursor-pointer text-start relative overflow-hidden rounded-2xl border border-white/10 bg-[#0C363A]/25 backdrop-blur-md shadow-lg transition-all duration-500 hover:-translate-y-1 hover:border-gold/50 hover:shadow-2xl flex flex-col justify-between"
                         >
                           {/* Glowing luxury top line */}
@@ -1357,15 +1339,7 @@ export default function Portfolio() {
                                 setIsAutoplay(false);
                                 setCurrentImageIndex(index);
                               }}
-                              onMouseEnter={() => {
-                                if (item.url && item.type === "image") {
-                                  setActiveHoverPreview({
-                                    url: item.url,
-                                    label: item.title || (isAr ? "معاينة التصميم" : "Design Preview")
-                                  });
-                                }
-                              }}
-                              onMouseLeave={() => setActiveHoverPreview(null)}
+
                               className={cn(
                                 "aspect-square w-16 h-16 md:w-20 md:h-20 flex-shrink-0 overflow-hidden rounded-md border transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5 group",
                                 isActive

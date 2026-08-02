@@ -1,17 +1,382 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X, Upload, ArrowLeft, ArrowRight, Maximize2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Image, Layers, Lock, Palette, StickyNote, ZoomIn, ZoomOut, RotateCcw, X, Upload, ArrowLeft, ArrowRight, Maximize2, Edit, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { useLang } from "@/i18n/LanguageProvider";
-import { CatalogOption, CatalogPackage, CatalogStyle, getPackage, getPackageStyles, isPackageUnlocked, sortPackageCategories, getPackageCategoryWeight } from "@/lib/catalog";
+import { CatalogCategory, CatalogOption, CatalogPackage, CatalogStyle, getPackage, getPackageStyles, isPackageUnlocked, sortPackageCategories, getPackageCategoryWeight } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import HoverPreview from "@/components/ui-luxe/HoverPreview";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveMediaUrl } from "@/lib/realContent";
+
+// ----------------------------------------------------
+// MEMOIZED SUB-COMPONENTS TO ELIMINATE RE-RENDER LAG
+// ----------------------------------------------------
+
+type MemoizedInputProps = {
+  value: string;
+  onSave: (val: string) => void;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  className?: string;
+  placeholder?: string;
+};
+
+const MemoizedInput = memo(({ value, onSave, onFocus, className, placeholder }: MemoizedInputProps) => {
+  const [localVal, setLocalVal] = useState(value);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (localVal !== value) {
+      onSave(localVal);
+    }
+  };
+
+  return (
+    <Input
+      value={localVal}
+      onChange={(e) => setLocalVal(e.target.value)}
+      onBlur={handleBlur}
+      onFocus={onFocus}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+});
+
+type MemoizedTextareaProps = {
+  value: string;
+  onSave: (val: string) => void;
+  onFocus?: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
+  className?: string;
+  placeholder?: string;
+};
+
+const MemoizedTextarea = memo(({ value, onSave, onFocus, className, placeholder }: MemoizedTextareaProps) => {
+  const [localVal, setLocalVal] = useState(value);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (localVal !== value) {
+      onSave(localVal);
+    }
+  };
+
+  return (
+    <Textarea
+      value={localVal}
+      onChange={(e) => setLocalVal(e.target.value)}
+      onBlur={handleBlur}
+      onFocus={onFocus}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+});
+
+type SidebarCategoriesProps = {
+  sections: CatalogCategory[];
+  selections: Record<string, SectionSelection>;
+  activeStyle: CatalogStyle;
+  activeSecIdx: number;
+  setActiveSecIdx: React.Dispatch<React.SetStateAction<number>>;
+  showStylePreview: boolean;
+  setShowStylePreview: React.Dispatch<React.SetStateAction<boolean>>;
+  requestGalleryScroll: () => void;
+  lang: string;
+};
+
+const SidebarCategories = memo(({
+  sections,
+  selections,
+  activeStyle,
+  activeSecIdx,
+  setActiveSecIdx,
+  showStylePreview,
+  setShowStylePreview,
+  requestGalleryScroll,
+  lang
+}: SidebarCategoriesProps) => {
+  return (
+    <aside className="lg:sticky lg:top-28 lg:self-start bg-white rounded-2xl border border-border shadow-sm p-5">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-secondary mb-4">
+        <Layers size={14} />
+        <span>{lang === "ar" ? "التصنيفات" : "Categories"}</span>
+      </div>
+      <div className="space-y-1.5 max-h-[56vh] overflow-auto pe-1">
+        {sections.map((section, idx) => {
+          const key = `${activeStyle.id}_${section.id}`;
+          const count = Object.keys(selections[key]?.selected ?? {}).length;
+          const isActive = activeSecIdx === idx;
+          return (
+            <button
+              key={section.id}
+              onClick={() => {
+                setShowStylePreview(false);
+                setActiveSecIdx(idx);
+                requestGalleryScroll();
+              }}
+              className={cn(
+                "w-full text-start px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-between",
+                !showStylePreview && isActive ? "bg-teal-soft/50 text-teal-deep font-bold border-s-4 border-gold" : "text-muted-foreground hover:bg-muted/70 hover:text-primary"
+              )}
+            >
+              <span className="truncate">{lang === "ar" ? section.name_ar : section.name_en}</span>
+              {count > 0 && <span className="min-w-6 h-6 rounded-full bg-gold/20 text-gold grid place-items-center text-xs font-bold">{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 pt-5 border-t border-border">
+        {activeSecIdx < sections.length - 1 ? (
+          <button
+            onClick={() => {
+              setActiveSecIdx((current) => current + 1);
+              requestGalleryScroll();
+            }}
+            className="btn-gold w-full flex items-center justify-center gap-1.5"
+          >
+            <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
+            {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
+        ) : (
+          <button
+            disabled
+            className="btn-gold w-full flex items-center justify-center gap-1.5 opacity-50 cursor-not-allowed"
+          >
+            <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
+            {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
+        )}
+      </div>
+    </aside>
+  );
+});
+
+type OptionCardProps = {
+  tile: ImageTile;
+  tileIndex: number;
+  isSelected: boolean;
+  item: SelectionItem | undefined;
+  allowed: boolean;
+  lang: string;
+  toggleTile: (tile: ImageTile) => void;
+  setZoomTile: (tile: ImageTile | null) => void;
+  resetZoom: () => void;
+  updateItemField: (itemId: string, field: 'place' | 'qty', value: string) => void;
+  updateItemNote: (itemId: string, value: string) => void;
+  setShowPaywallModal: (show: boolean) => void;
+};
+
+const OptionCard = memo(({
+  tile,
+  tileIndex,
+  isSelected,
+  item,
+  allowed,
+  lang,
+  toggleTile,
+  setZoomTile,
+  resetZoom,
+  updateItemField,
+  updateItemNote,
+  setShowPaywallModal
+}: OptionCardProps) => {
+  const isLcpCandidate = tileIndex === 0;
+
+  const responsiveImage = useMemo(() => {
+    if (!tile.imageUrl) return null;
+    const resolvedUrl = resolveMediaUrl(tile.imageUrl);
+    if (!resolvedUrl) return null;
+
+    // Supabase Image Transformation requires a paid plan.
+    // If the project is on a free plan, /render/image/public/ will fail with 404/400.
+    // We fall back to the direct public URL (resolvedUrl) to ensure images display.
+    /*
+    if (resolvedUrl.includes("/storage/v1/object/public/")) {
+      const renderUrl = resolvedUrl.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
+      return {
+        src: `${renderUrl}?width=800&quality=75`,
+        srcSet: `
+          ${renderUrl}?width=400&quality=75 400w,
+          ${renderUrl}?width=800&quality=75 800w,
+          ${renderUrl}?width=1200&quality=75 1200w,
+          ${renderUrl}?width=1600&quality=75 1600w
+        `,
+        sizes: "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+      };
+    }
+    */
+    return {
+      src: resolvedUrl,
+      srcSet: undefined,
+      sizes: undefined
+    };
+  }, [tile.imageUrl]);
+
+  return (
+    <article
+      className={cn(
+        "group self-start h-fit bg-white rounded-[14px] border overflow-hidden shadow-sm transition-all duration-300 contain-card-paint",
+        isSelected ? "border-gold ring-2 ring-gold/20 shadow-lg" : "border-border hover:border-gold/60 hover:shadow-md"
+      )}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          setZoomTile(tile);
+          resetZoom();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setZoomTile(tile);
+            resetZoom();
+          }
+        }}
+        className="block w-full text-start cursor-zoom-in"
+      >
+        <div className="aspect-[4/3] bg-muted relative overflow-hidden">
+          {tile.imageUrl ? (
+            <img
+              src={responsiveImage?.src}
+              srcSet={responsiveImage?.srcSet}
+              sizes={responsiveImage?.sizes}
+              alt={tile.label}
+              loading={isLcpCandidate ? "eager" : "lazy"}
+              fetchPriority={isLcpCandidate ? "high" : "low"}
+              decoding="async"
+              className="w-full h-full object-cover image-crisp bg-white/5 transition-transform duration-700 ease-out group-hover:scale-108"
+              onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="w-full h-full grid place-items-center text-muted-foreground"><Image size={28} /></div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+          <span className="absolute top-3 start-3 bg-black/45 backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1 rounded-full border border-white/10">
+            {String(tileIndex + 1).padStart(2, "0")}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleTile(tile);
+            }}
+            className={cn("absolute top-3 end-3 z-20 w-9 h-9 rounded-full border grid place-items-center transition-all", isSelected ? "bg-gold border-gold text-teal-deep" : "bg-black/35 border-white/25 text-white hover:bg-gold hover:border-gold hover:text-teal-deep")}
+            title={isSelected ? (lang === "ar" ? "إلغاء التحديد" : "Unselect") : (lang === "ar" ? "تحديد الصورة" : "Select image")}
+          >
+            <Check size={18} />
+          </button>
+          
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center pointer-events-none">
+            <div className="w-10 h-10 rounded-full bg-gold/90 text-brand-dark flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
+              <ZoomIn size={18} className="stroke-[2.5]" />
+            </div>
+          </div>
+
+          <div className="absolute bottom-3 start-3 end-12 text-white">
+            <h4 className="font-serif-ar text-base drop-shadow line-clamp-2">{tile.label}</h4>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomTile(tile);
+              resetZoom();
+            }}
+            className="absolute bottom-3 end-3 w-8 h-8 rounded-full bg-black/60 border border-white/20 text-white hover:bg-gold hover:text-brand-dark hover:scale-110 flex items-center justify-center transition-all duration-300 z-10"
+            title={lang === "ar" ? "تكبير واستعراض التفاصيل" : "Zoom & Details"}
+          >
+            <ZoomIn size={14} />
+          </button>
+        </div>
+      </div>
+      {isSelected && item && (
+        <div className="p-4 border-t border-gold/25 bg-gold/5 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] text-muted-foreground block mb-1">{lang === "ar" ? "مكان الاستخدام" : "Usage Location"}</label>
+              <MemoizedInput
+                value={item.place}
+                onFocus={(e) => {
+                  if (!allowed) {
+                    e.target.blur();
+                    setShowPaywallModal(true);
+                  }
+                }}
+                onSave={(val) => updateItemField(tile.id, 'place', val)}
+                className="h-9 bg-white text-xs"
+                placeholder={lang === "ar" ? "مثلاً: الصالون" : "e.g. Living room"}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground block mb-1">{lang === "ar" ? "الكمية التقديرية" : "Est. Qty"}</label>
+              <MemoizedInput
+                value={item.qty}
+                onFocus={(e) => {
+                  if (!allowed) {
+                    e.target.blur();
+                    setShowPaywallModal(true);
+                  }
+                }}
+                onSave={(val) => updateItemField(tile.id, 'qty', val)}
+                className="h-9 bg-white text-xs"
+                placeholder={lang === "ar" ? "مثلاً: 20 م²" : "e.g. 20 m²"}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-teal-deep flex items-center gap-1.5 mb-2">
+              <StickyNote size={14} className="text-gold" />
+              <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
+            </label>
+            <MemoizedTextarea
+              value={item.note}
+              onFocus={(e) => {
+                if (!allowed) {
+                  e.target.blur();
+                  setShowPaywallModal(true);
+                }
+              }}
+              onSave={(val) => updateItemNote(tile.id, val)}
+              placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
+              className="min-h-20 resize-none bg-white"
+            />
+          </div>
+        </div>
+      )}
+    </article>
+  );
+});
+
+const prefetchStyleImages = async (style: CatalogStyle) => {
+  const previewCat = style.categories.find(c => c.slug === "style-preview");
+  const options = previewCat?.options || [];
+  for (const opt of options.slice(0, 3)) {
+    const url = opt.image_url || opt.media?.[0]?.url;
+    if (!url) continue;
+    const img = new window.Image();
+    img.src = resolveMediaUrl(url);
+    try {
+      await img.decode();
+    } catch (e) {
+      // safe fallback for Safari
+    }
+  }
+};
 
 type SelectionItem = {
   id: string;
@@ -88,8 +453,14 @@ export default function Configurator() {
   const [customUploads, setCustomUploads] = useState<SelectionItem[]>([]);
   const [uploadingCustom, setUploadingCustom] = useState(false);
   const [linkedQuestionnaire, setLinkedQuestionnaire] = useState<QuestionnaireSnapshot | null>(null);
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
+  const [showAllSelectionsModal, setShowAllSelectionsModal] = useState(false);
 
   const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!allowed) {
+      setShowPaywallModal(true);
+      return;
+    }
     const files = e.target.files;
     if (!files || !files.length) return;
     const file = files[0];
@@ -150,10 +521,14 @@ export default function Configurator() {
 
   const wasLightboxOpen = useRef(false);
   const lightboxScrollRef = useRef<HTMLDivElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const scrollRequestRef = useRef(0);
+  const [scrollRequest, setScrollRequest] = useState(0);
 
   // Zoom Lightbox States
   const [searchParams, setSearchParams] = useSearchParams();
   const questionnaireId = searchParams.get("questionnaireId");
+  const editSelectionId = searchParams.get("editSelectionId");
   const isOfficeSession = isOfficeConsultant && !!questionnaireId;
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
@@ -162,6 +537,7 @@ export default function Configurator() {
   const [activeHoverPreview, setActiveHoverPreview] = useState<{ url: string; label: string } | null>(null);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [activeStyleTab, setActiveStyleTab] = useState<string>("الصفحة الأولى");
 
   const activeStyle = styles[activeStyleIdx];
   const stylePreviewSection = activeStyle?.categories.find((category) => category.slug === "style-preview");
@@ -175,20 +551,17 @@ export default function Configurator() {
     setCurrentPage(0);
   }, [activeSecIdx, activeStyleIdx]);
 
-  const scrollToContentSection = () => {
-    const element = document.getElementById("configurator-content-section");
-    if (element) {
-      const headerOffset = 90;
-      const elementTop = element.getBoundingClientRect().top + window.pageYOffset - headerOffset;
-      if (window.scrollY > elementTop) {
-        window.scrollTo({ top: elementTop, behavior: "smooth" });
-      }
-    }
-  };
+  const requestGalleryScroll = useCallback(() => {
+    // A token makes a rapid second selection cancel the older pending scroll.
+    scrollRequestRef.current += 1;
+    setScrollRequest(scrollRequestRef.current);
+  }, []);
 
   const imageTiles = useMemo<ImageTile[]>(() => {
     if (!activeSection) return [];
-    return activeSection.options.flatMap((option) => {
+    return activeSection.options
+      .filter((option) => !(activeSection.slug === "style-preview" && option.name_en === "Style Preview Option"))
+      .flatMap((option) => {
       const mediaItems = option.media?.length
         ? option.media
         : option.image_url
@@ -201,14 +574,69 @@ export default function Configurator() {
         mediaId: media.id,
         label: lang === "ar" ? media.alt_ar || option.name_ar : media.alt_en || option.name_en,
       }));
-    });
+      });
   }, [activeSection, lang]);
 
   const ITEMS_PER_PAGE = 15;
+
+  const stylePreviewTabs = useMemo(() => {
+    if (!showStylePreview || !stylePreviewSection) return [];
+    const tabs = imageTiles.map(tile => {
+      if (tile.option?.description_en && tile.option.description_en.startsWith("tab:")) {
+        return tile.option.description_en.replace("tab:", "");
+      }
+      return "الصفحة الأولى";
+    });
+    const unique = Array.from(new Set(tabs));
+    if (unique.length === 0) {
+      unique.push("الصفحة الأولى");
+    }
+    return unique;
+  }, [showStylePreview, stylePreviewSection, imageTiles]);
+
+  const getTileTab = (tile: any) => {
+    if (tile.option?.description_en && tile.option.description_en.startsWith("tab:")) {
+      return tile.option.description_en.replace("tab:", "");
+    }
+    return "الصفحة الأولى";
+  };
+
+  useEffect(() => {
+    if (stylePreviewTabs.length > 0 && !stylePreviewTabs.includes(activeStyleTab)) {
+      setActiveStyleTab(stylePreviewTabs[0]);
+    }
+  }, [stylePreviewTabs, activeStyleTab]);
+
+  useEffect(() => {
+    setActiveStyleTab("الصفحة الأولى");
+  }, [activeStyleIdx]);
+
   const paginatedTiles = useMemo(() => {
+    if (showStylePreview) {
+      return imageTiles.filter(tile => getTileTab(tile) === activeStyleTab);
+    }
     const start = currentPage * ITEMS_PER_PAGE;
     return imageTiles.slice(start, start + ITEMS_PER_PAGE);
-  }, [imageTiles, currentPage]);
+  }, [imageTiles, currentPage, showStylePreview, activeStyleTab]);
+
+  useEffect(() => {
+    if (!scrollRequest) return;
+    const requestId = scrollRequest;
+    let frameId2: number;
+
+    const frameId1 = requestAnimationFrame(() => {
+      frameId2 = requestAnimationFrame(() => {
+        if (requestId !== scrollRequestRef.current) return;
+        galleryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId1);
+      if (frameId2) cancelAnimationFrame(frameId2);
+    };
+  }, [scrollRequest, activeStyle?.id, activeSection?.id, showStylePreview, activeStyleTab, paginatedTiles.length]);
+
   const pageCount = Math.ceil(imageTiles.length / ITEMS_PER_PAGE);
 
   const zoomParam = searchParams.get("zoom");
@@ -221,7 +649,7 @@ export default function Configurator() {
       const matchedStyle = styles.find((s) => s.id === styleId);
       if (matchedStyle) {
         const previewCat = matchedStyle.categories.find((c) => c.slug === "style-preview");
-        const coverUrl = previewCat?.options?.[0]?.media?.[0]?.url || previewCat?.options?.[0]?.image_url || null;
+        const coverUrl = matchedStyle.cover_url || previewCat?.options?.[0]?.media?.[0]?.url || previewCat?.options?.[0]?.image_url || null;
         return {
           id: zoomParam,
           option: previewCat?.options?.[0] || ({ id: `style-opt-${matchedStyle.id}`, name_ar: matchedStyle.name_ar, name_en: matchedStyle.name_en, sort_order: 0 } as CatalogOption),
@@ -246,7 +674,7 @@ export default function Configurator() {
     }
   }, [zoomTile, imageTiles]);
 
-  const setZoomTile = (tile: ImageTile | null) => {
+  const setZoomTile = useCallback((tile: ImageTile | null) => {
     const next = new URLSearchParams(searchParams);
     if (tile) {
       next.set("zoom", tile.id);
@@ -254,12 +682,12 @@ export default function Configurator() {
       next.delete("zoom");
     }
     setSearchParams(next);
-  };
+  }, [searchParams, setSearchParams]);
 
-  const resetZoom = () => {
+  const resetZoom = useCallback(() => {
     setZoomScale(1);
     setZoomPosition({ x: 0, y: 0 });
-  };
+  }, []);
 
   const zoomIn = () => {
     setZoomScale((prev) => Math.min(prev + 0.5, 5));
@@ -370,10 +798,12 @@ export default function Configurator() {
     if (!loading && !user) nav("/auth");
   }, [loading, user, nav]);
 
-  // Load draft selections from localStorage
+  // Load draft selections from localStorage or database
   useEffect(() => {
     if (checking || !pkg) return;
-    const key = `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
+    const key = editSelectionId 
+      ? `tact_configurator_edit_${editSelectionId}` 
+      : `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
     const saved = localStorage.getItem(key);
     if (saved) {
       try {
@@ -383,16 +813,51 @@ export default function Configurator() {
       } catch (e) {
         console.error("Failed to parse draft configurator selections", e);
       }
+      setDraftLoaded(true);
+    } else if (editSelectionId) {
+      async function loadDbSelections() {
+        try {
+          const { data: record, error: recordErr } = await supabase
+            .from("configurator_selections")
+            .select("*")
+            .eq("id", editSelectionId)
+            .maybeSingle();
+          
+          if (record && !recordErr) {
+            const selObj = record.selections as any;
+            if (selObj && selObj.sections) {
+              const loadedSelections = { ...selObj.sections };
+              let loadedCustomUploads: SelectionItem[] = [];
+              if (loadedSelections["custom_uploads"]) {
+                loadedCustomUploads = Object.values(loadedSelections["custom_uploads"].selected ?? {});
+                delete loadedSelections["custom_uploads"];
+              }
+              setSelections(loadedSelections);
+              setCustomUploads(loadedCustomUploads);
+              // Save to draft localStorage so that it's persisted during edit
+              localStorage.setItem(key, JSON.stringify({ selections: loadedSelections, customUploads: loadedCustomUploads }));
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load selections from DB", err);
+        } finally {
+          setDraftLoaded(true);
+        }
+      }
+      loadDbSelections();
+    } else {
+      setDraftLoaded(true);
     }
-    setDraftLoaded(true);
-  }, [checking, pkg, packageId, questionnaireId]);
+  }, [checking, pkg, packageId, questionnaireId, editSelectionId]);
 
   // Save draft selections to localStorage
   useEffect(() => {
     if (!draftLoaded || checking || !pkg) return;
-    const key = `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
+    const key = editSelectionId 
+      ? `tact_configurator_edit_${editSelectionId}` 
+      : `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
     localStorage.setItem(key, JSON.stringify({ selections, customUploads }));
-  }, [selections, customUploads, packageId, questionnaireId, checking, pkg, draftLoaded]);
+  }, [selections, customUploads, packageId, questionnaireId, checking, pkg, draftLoaded, editSelectionId]);
 
   useEffect(() => {
     let alive = true;
@@ -400,7 +865,7 @@ export default function Configurator() {
       if (!user) return;
       setChecking(true);
 
-      if (isOfficeConsultant && !questionnaireId) {
+      if (isOfficeConsultant && !questionnaireId && !editSelectionId) {
         toast.info(lang === "ar" ? "ابدأ جلسة مكتب جديدة أولاً" : "Start a new office session first");
         nav("/office-session");
         return;
@@ -546,7 +1011,7 @@ export default function Configurator() {
   const selectedCount = selectedItems.length + customUploads.length;
   const zoomSelection = zoomTile && currentSectionSelection ? currentSectionSelection.selected?.[zoomTile.id] : undefined;
 
-  const updateSection = (patch: Partial<SectionSelection>) => {
+  const updateSection = useCallback((patch: Partial<SectionSelection>) => {
     if (!activeStyle || !activeSection) return;
     const key = `${activeStyle.id}_${activeSection.id}`;
     const categoryName = lang === "ar" ? activeSection.name_ar : activeSection.name_en;
@@ -557,9 +1022,9 @@ export default function Configurator() {
         ...patch,
       },
     }));
-  };
+  }, [activeStyle, activeSection, lang]);
 
-  const toggleTile = (tile: ImageTile) => {
+  const toggleTile = useCallback((tile: ImageTile) => {
     if (!activeStyle || !activeSection) return;
     const key = `${activeStyle.id}_${activeSection.id}`;
     const categoryName = lang === "ar" ? activeSection.name_ar : activeSection.name_en;
@@ -593,9 +1058,9 @@ export default function Configurator() {
         },
       };
     });
-  };
+  }, [activeStyle, activeSection, lang]);
 
-  const updateItemNote = (itemId: string, note: string) => {
+  const updateItemNote = useCallback((itemId: string, note: string) => {
     if (!currentSectionSelection) return;
     updateSection({
       selected: {
@@ -606,9 +1071,9 @@ export default function Configurator() {
         },
       },
     });
-  };
+  }, [currentSectionSelection, updateSection]);
 
-  const updateItemField = (itemId: string, field: 'place' | 'qty', value: string) => {
+  const updateItemField = useCallback((itemId: string, field: 'place' | 'qty', value: string) => {
     if (!currentSectionSelection) return;
     updateSection({
       selected: {
@@ -619,9 +1084,9 @@ export default function Configurator() {
         },
       },
     });
-  };
+  }, [currentSectionSelection, updateSection]);
 
-  const removeItem = (item: SelectionItem) => {
+  const removeItem = useCallback((item: SelectionItem) => {
     setSelections((current) => {
       const key = `${item.style_id}_${item.category_id}`;
       const section = current[key];
@@ -630,7 +1095,7 @@ export default function Configurator() {
       delete selected[item.id];
       return { ...current, [key]: { ...section, selected } };
     });
-  };
+  }, []);
 
   const submit = async () => {
     if (!user) {
@@ -638,7 +1103,7 @@ export default function Configurator() {
       return;
     }
     if (!allowed) {
-      toast.error(lang === "ar" ? "هذه الباقة غير مفعلة لحسابك" : "This package is not active for your account");
+      setShowPaywallModal(true);
       return;
     }
     if (!selectedCount) {
@@ -673,7 +1138,7 @@ export default function Configurator() {
         }
       : {};
 
-    const { data: savedSelection, error } = await supabase.from("configurator_selections").insert({
+    const payload: any = {
       user_id: user.id,
       package_id: packageId,
       questionnaire_id: linkedQuestionnaire?.id ?? null,
@@ -687,13 +1152,33 @@ export default function Configurator() {
         sections_order: finalSectionsOrder,
         sections: finalSections,
       },
-    }).select("id").single();
+    };
+
+    let query;
+    if (editSelectionId) {
+      query = supabase
+        .from("configurator_selections")
+        .update(payload)
+        .eq("id", editSelectionId)
+        .select("id")
+        .single();
+    } else {
+      query = supabase
+        .from("configurator_selections")
+        .insert(payload)
+        .select("id")
+        .single();
+    }
+
+    const { data: savedSelection, error } = await query;
     setBusy(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    const draftKey = `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
+    const draftKey = editSelectionId 
+      ? `tact_configurator_edit_${editSelectionId}` 
+      : `tact_configurator_draft_${packageId}_${questionnaireId || "client"}`;
     localStorage.removeItem(draftKey);
     toast.success(lang === "ar" ? "تم حفظ اختياراتك وملاحظاتك بنجاح" : "Selections saved successfully");
     setTimeout(() => {
@@ -709,22 +1194,7 @@ export default function Configurator() {
     return <div className="pt-40 pb-20 text-center container-luxe text-muted-foreground">...</div>;
   }
 
-  if (!allowed) {
-    return (
-      <section className="pt-40 pb-32 min-h-screen bg-teal-deep text-ivory flex items-center" dir={lang === "ar" ? "rtl" : "ltr"}>
-        <div className="container-luxe max-w-2xl text-center">
-          <Lock className="mx-auto text-gold mb-6" size={46} />
-          <SectionEyebrow label={lang === "ar" ? "الباقة غير مفعلة" : "Package locked"} />
-          <h1 className="display-2 mt-4">{lang === "ar" ? "هذه الباقة لم تفتح لحسابك بعد" : "This package is not unlocked yet"}</h1>
-          <p className="text-ivory/70 mt-5">{lang === "ar" ? "سجل بيانات العربون للباقة المطلوبة وانتظر اعتماد الإدارة." : "Submit the deposit details for this package and wait for admin approval."}</p>
-          <div className="flex flex-wrap justify-center gap-4 mt-8">
-            <Link to="/payment" className="btn-gold">{lang === "ar" ? "تسجيل الدفع" : "Submit Payment"}</Link>
-            <Link to="/packages" className="btn-ghost-light">{lang === "ar" ? "باقاتي" : "My Packages"}</Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
+
 
   if (!pkg || !activeStyle || !activeSection) {
     return (
@@ -799,19 +1269,10 @@ export default function Configurator() {
               const isActive = activeStyleIdx === idx;
               const styleCategoriesCount = style.categories.filter((category) => category.slug !== "style-preview").length;
               const previewCat = style.categories.find(c => c.slug === "style-preview");
-              const coverUrl = previewCat?.options?.[0]?.media?.[0]?.url || previewCat?.options?.[0]?.image_url || null;
+              const coverUrl = style.cover_url || previewCat?.options?.[0]?.media?.[0]?.url || previewCat?.options?.[0]?.image_url || null;
               return (
                 <div
                   key={style.id}
-                  onMouseEnter={() => {
-                    if (coverUrl) {
-                      setActiveHoverPreview({
-                        url: coverUrl,
-                        label: lang === "ar" ? `${style.name_ar} - التصميم المقترح` : `${style.name_en} - Proposed Style`
-                      });
-                    }
-                  }}
-                  onMouseLeave={() => setActiveHoverPreview(null)}
                   className={cn(
                     "group text-start rounded-2xl p-6 transition-all duration-500 relative flex flex-col justify-between min-h-[260px] overflow-hidden border",
                     isActive 
@@ -826,7 +1287,15 @@ export default function Configurator() {
                       setActiveStyleIdx(idx);
                       setActiveSecIdx(0);
                       setShowStylePreview(true);
-                      window.scrollTo({ top: 260, behavior: "smooth" });
+                      requestGalleryScroll();
+                    }}
+                    onMouseEnter={() => {
+                      // Schedule non-critical prefetching when UI is idle
+                      if (typeof window.requestIdleCallback === "function") {
+                        window.requestIdleCallback(() => prefetchStyleImages(style));
+                      } else {
+                        setTimeout(() => prefetchStyleImages(style), 50);
+                      }
                     }}
                     className="absolute inset-0 w-full h-full z-10 cursor-pointer text-start"
                     aria-label={lang === "ar" ? `اختيار ستايل ${style.name_ar}` : `Select style ${style.name_en}`}
@@ -858,7 +1327,7 @@ export default function Configurator() {
                   {/* Cover Image Background */}
                   {coverUrl && (
                     <>
-                      <img src={coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform duration-700 ease-out group-hover:scale-110" loading="lazy" />
+                      <img src={resolveMediaUrl(coverUrl) || undefined} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform duration-700 ease-out group-hover:scale-110" loading="lazy" />
                       <div className={cn(
                         "absolute inset-0 transition-all duration-500 pointer-events-none",
                         isActive 
@@ -937,61 +1406,46 @@ export default function Configurator() {
       </section>
 
       <section id="configurator-content-section" className="py-12 bg-[#f8f5ee]" dir={lang === "ar" ? "rtl" : "ltr"}>
-        <div className={cn("container-luxe grid gap-8", showStylePreview ? "lg:grid-cols-1" : "lg:grid-cols-[290px_1fr]")}>
-          {!showStylePreview && (
-          <aside className="lg:sticky lg:top-28 lg:self-start bg-white rounded-2xl border border-border shadow-sm p-5">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-secondary mb-4">
-              <Layers size={14} />
-              <span>{lang === "ar" ? "التصنيفات" : "Categories"}</span>
-            </div>
-            <div className="space-y-1.5 max-h-[56vh] overflow-auto pe-1">
-              {sections.map((section, idx) => {
-                const key = `${activeStyle.id}_${section.id}`;
-                const count = Object.keys(selections[key]?.selected ?? {}).length;
-                const isActive = activeSecIdx === idx;
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => {
-                      setShowStylePreview(false);
-                      setActiveSecIdx(idx);
-                      scrollToContentSection();
-                    }}
-                    className={cn(
-                      "w-full text-start px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-between",
-                      !showStylePreview && isActive ? "bg-teal-soft/50 text-teal-deep font-bold border-s-4 border-gold" : "text-muted-foreground hover:bg-muted/70 hover:text-primary"
-                    )}
-                  >
-                    <span className="truncate">{lang === "ar" ? section.name_ar : section.name_en}</span>
-                    {count > 0 && <span className="min-w-6 h-6 rounded-full bg-gold/20 text-gold grid place-items-center text-xs font-bold">{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 pt-5 border-t border-border">
-              {activeSecIdx < sections.length - 1 ? (
-                <button
-                  onClick={() => {
-                    scrollToContentSection();
-                    setActiveSecIdx((current) => current + 1);
-                  }}
-                  className="btn-gold w-full flex items-center justify-center gap-1.5"
-                >
-                  <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
-                  {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-                </button>
-              ) : (
-                <button
-                  disabled
-                  className="btn-gold w-full flex items-center justify-center gap-1.5 opacity-50 cursor-not-allowed"
-                >
-                  <span>{lang === "ar" ? "التصنيف التالي" : "Next Category"}</span>
-                  {lang === "ar" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-                </button>
+        {/* Sticky Breadcrumb Top Bar */}
+        <div className="sticky top-[80px] z-[30] bg-[#0A2629]/95 backdrop-blur-md border-b border-gold/30 py-3.5 px-4 shadow-[0_4px_20px_rgba(0,0,0,0.15)] mb-6 -mt-12 transition-all duration-300">
+          <div className="container-luxe flex items-center justify-between gap-4 text-xs md:text-sm text-ivory">
+            <div className="flex items-center gap-1.5 md:gap-3 flex-wrap min-w-0">
+              <span className="text-gold font-extrabold uppercase tracking-wider text-[10px] bg-gold/10 border border-gold/20 px-2 py-0.5 rounded">
+                {lang === "ar" ? "الستايل الحالي" : "Current Style"}
+              </span>
+              <span className="font-serif-ar text-sm md:text-base text-white font-bold">{lang === "ar" ? activeStyle.name_ar : activeStyle.name_en}</span>
+              <span className="text-white/40">/</span>
+              <span className="text-ivory/80 font-bold truncate">{activeSectionName}</span>
+              {showStylePreview && activeStyleTab && (
+                <>
+                  <span className="text-white/40">/</span>
+                  <span className="text-gold font-bold text-xs bg-gold/10 px-2.5 py-0.5 rounded border border-gold/20">{activeStyleTab}</span>
+                </>
               )}
             </div>
-          </aside>
+            
+            <div className="shrink-0 flex items-center gap-2">
+              <div className="text-[10px] md:text-xs font-bold text-gold bg-gold/10 px-2.5 py-1 rounded-lg border border-gold/20 flex items-center gap-1">
+                <span>{lang === "ar" ? "المختار:" : "Selected:"}</span>
+                <span className="font-mono text-white text-xs md:text-sm font-black">{selectedCount}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className={cn("container-luxe grid gap-8", showStylePreview ? "lg:grid-cols-1" : "lg:grid-cols-[290px_1fr]")}>
+          {!showStylePreview && (
+            <SidebarCategories
+              sections={sections}
+              selections={selections}
+              activeStyle={activeStyle}
+              activeSecIdx={activeSecIdx}
+              setActiveSecIdx={setActiveSecIdx}
+              showStylePreview={showStylePreview}
+              setShowStylePreview={setShowStylePreview}
+              requestGalleryScroll={requestGalleryScroll}
+              lang={lang}
+            />
           )}
 
           <div className="space-y-8">
@@ -1016,147 +1470,69 @@ export default function Configurator() {
               </div>
             </header>
 
-            <div id="package-image-grid" className={cn("grid auto-rows-max items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
+            {showStylePreview && stylePreviewTabs.length > 1 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-2 select-none no-scrollbar" dir={lang === "ar" ? "rtl" : "ltr"}>
+                {stylePreviewTabs.map((tab) => {
+                  const isActive = tab === activeStyleTab;
+                  const tabTilesCount = imageTiles.filter(tile => getTileTab(tile) === tab).length;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveStyleTab(tab)}
+                      className={cn(
+                        "flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap cursor-pointer",
+                        isActive
+                          ? "bg-teal-deep text-white border-teal-deep shadow-md"
+                          : "bg-white text-muted-foreground border-border hover:bg-teal-soft/10 hover:text-teal-deep"
+                      )}
+                    >
+                      <span>📁 {tab}</span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded-md",
+                        isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                      )}>
+                        {tabTilesCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div ref={galleryRef} id="package-image-grid" className={cn("scroll-mt-28 grid auto-rows-max items-start gap-5", showStylePreview ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")}>
               {paginatedTiles.map((tile, pageTileIndex) => {
                 const tileIndex = currentPage * ITEMS_PER_PAGE + pageTileIndex;
                 const item = currentSectionSelection?.selected?.[tile.id];
                 const isSelected = !!item;
                 return (
-                  <article
+                  <OptionCard
                     key={tile.id}
-                    onMouseEnter={() => {
-                      if (tile.imageUrl) {
-                        setActiveHoverPreview({
-                          url: tile.imageUrl,
-                          label: tile.label
-                        });
-                      }
-                    }}
-                    onMouseLeave={() => setActiveHoverPreview(null)}
-                    className={cn(
-                      "group self-start h-fit bg-white rounded-[14px] border overflow-hidden shadow-sm transition-all duration-300",
-                      isSelected ? "border-gold ring-2 ring-gold/20 shadow-lg" : "border-border hover:border-gold/60 hover:shadow-md"
-                    )}
-                  >
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setZoomTile(tile);
-                        resetZoom();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setZoomTile(tile);
-                          resetZoom();
-                        }
-                      }}
-                      className="block w-full text-start cursor-zoom-in"
-                    >
-                      <div className="aspect-[4/3] bg-muted relative overflow-hidden">
-                        {tile.imageUrl ? (
-                          <img
-                            src={tile.imageUrl}
-                            alt={tile.label}
-                            loading="lazy"
-                            decoding="async"
-                            className="w-full h-full object-cover image-crisp bg-white/5 transition-transform duration-700 ease-out group-hover:scale-108"
-                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
-                          />
-                        ) : (
-                          <div className="w-full h-full grid place-items-center text-muted-foreground"><Image size={28} /></div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                        <span className="absolute top-3 start-3 bg-black/45 backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1 rounded-full border border-white/10">
-                          {String(tileIndex + 1).padStart(2, "0")}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleTile(tile);
-                          }}
-                          className={cn("absolute top-3 end-3 z-20 w-9 h-9 rounded-full border grid place-items-center transition-all", isSelected ? "bg-gold border-gold text-teal-deep" : "bg-black/35 border-white/25 text-white hover:bg-gold hover:border-gold hover:text-teal-deep")}
-                          title={isSelected ? (lang === "ar" ? "إلغاء التحديد" : "Unselect") : (lang === "ar" ? "تحديد الصورة" : "Select image")}
-                        >
-                          <Check size={18} />
-                        </button>
-                        
-                        {/* Hover Zoom Overlay (Desktop) */}
-                        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center pointer-events-none">
-                          <div className="w-10 h-10 rounded-full bg-gold/90 text-brand-dark flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
-                            <ZoomIn size={18} className="stroke-[2.5]" />
-                          </div>
-                        </div>
-
-                        <div className="absolute bottom-3 start-3 end-12 text-white">
-                          <h4 className="font-serif-ar text-base drop-shadow line-clamp-2">{tile.label}</h4>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setZoomTile(tile);
-                            resetZoom();
-                          }}
-                          className="absolute bottom-3 end-3 w-8 h-8 rounded-full bg-black/60 border border-white/20 text-white hover:bg-gold hover:text-brand-dark hover:scale-110 flex items-center justify-center transition-all duration-300 z-10"
-                          title={lang === "ar" ? "تكبير واستعراض التفاصيل" : "Zoom & Details"}
-                        >
-                          <ZoomIn size={14} />
-                        </button>
-                      </div>
-                    </div>
-                    {isSelected && item && (
-                      <div className="p-4 border-t border-gold/25 bg-gold/5 space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[11px] text-muted-foreground block mb-1">{lang === "ar" ? "مكان الاستخدام" : "Usage Location"}</label>
-                            <Input
-                              value={item.place}
-                              onChange={(e) => updateItemField(tile.id, 'place', e.target.value)}
-                              className="h-9 bg-white text-xs"
-                              placeholder={lang === "ar" ? "مثلاً: الصالون" : "e.g. Living room"}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-muted-foreground block mb-1">{lang === "ar" ? "الكمية التقديرية" : "Est. Qty"}</label>
-                            <Input
-                              value={item.qty}
-                              onChange={(e) => updateItemField(tile.id, 'qty', e.target.value)}
-                              className="h-9 bg-white text-xs"
-                              placeholder={lang === "ar" ? "مثلاً: 20 م²" : "e.g. 20 m²"}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-teal-deep flex items-center gap-1.5 mb-2">
-                            <StickyNote size={14} className="text-gold" />
-                            <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
-                          </label>
-                          <Textarea
-                            value={item.note}
-                            onChange={(e) => updateItemNote(tile.id, e.target.value)}
-                            placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
-                            className="min-h-20 resize-none bg-white"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </article>
+                    tile={tile}
+                    tileIndex={tileIndex}
+                    isSelected={isSelected}
+                    item={item}
+                    allowed={allowed}
+                    lang={lang}
+                    toggleTile={toggleTile}
+                    setZoomTile={setZoomTile}
+                    resetZoom={resetZoom}
+                    updateItemField={updateItemField}
+                    updateItemNote={updateItemNote}
+                    setShowPaywallModal={setShowPaywallModal}
+                  />
                 );
               })}
             </div>
 
             {/* Pagination Controls */}
-            {pageCount > 1 && (
+            {!showStylePreview && pageCount > 1 && (
               <div className="flex items-center justify-center gap-2 select-none pt-2 pb-6" dir={lang === "ar" ? "rtl" : "ltr"}>
                 <button
                   type="button"
                   onClick={() => {
                     setCurrentPage((p) => Math.max(p - 1, 0));
-                    scrollToContentSection();
+                    requestGalleryScroll();
                   }}
                   disabled={currentPage === 0}
                   className="w-10 h-10 rounded-xl flex items-center justify-center border border-border bg-white text-teal-deep hover:bg-teal-soft/20 disabled:opacity-40 disabled:hover:bg-white transition-all shadow-sm cursor-pointer"
@@ -1171,7 +1547,7 @@ export default function Configurator() {
                       type="button"
                       onClick={() => {
                         setCurrentPage(i);
-                        scrollToContentSection();
+                        requestGalleryScroll();
                       }}
                       className={cn(
                         "w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all cursor-pointer",
@@ -1189,7 +1565,7 @@ export default function Configurator() {
                   type="button"
                   onClick={() => {
                     setCurrentPage((p) => Math.min(p + 1, pageCount - 1));
-                    scrollToContentSection();
+                    requestGalleryScroll();
                   }}
                   disabled={currentPage === pageCount - 1}
                   className="w-10 h-10 rounded-xl flex items-center justify-center border border-border bg-white text-teal-deep hover:bg-teal-soft/20 disabled:opacity-40 disabled:hover:bg-white transition-all shadow-sm cursor-pointer"
@@ -1205,7 +1581,7 @@ export default function Configurator() {
                   onClick={() => { 
                     setShowStylePreview(false); 
                     setActiveSecIdx(0); 
-                    scrollToContentSection(); 
+                    requestGalleryScroll(); 
                   }} 
                   className="btn-gold w-full sm:w-auto flex items-center justify-center gap-1.5 px-8 py-4 text-sm font-bold shadow-md cursor-pointer whitespace-nowrap"
                 >
@@ -1219,9 +1595,15 @@ export default function Configurator() {
               <h3 className="text-xs uppercase tracking-[0.2em] text-teal-deep font-bold mb-4">
                 {lang === "ar" ? "ملاحظات عامة على التصنيف" : "General Category Notes"}
               </h3>
-              <Textarea
+              <MemoizedTextarea
                 value={currentSectionSelection?.notes ?? ""}
-                onChange={(e) => updateSection({ notes: e.target.value })}
+                onFocus={(e) => {
+                  if (!allowed) {
+                    e.target.blur();
+                    setShowPaywallModal(true);
+                  }
+                }}
+                onSave={(val) => updateSection({ notes: val })}
                 className="min-h-20 bg-background resize-none"
                 placeholder={lang === "ar" ? "أي ملاحظات عامة على هذا التصنيف..." : "Any general notes for this category..."}
               />
@@ -1275,16 +1657,21 @@ export default function Configurator() {
                         </button>
                       </div>
 
-                      {/* Inputs */}
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-[11px] text-muted-foreground block mb-1 font-bold">
                               {lang === "ar" ? "مكان الاستخدام" : "Usage Location"}
                             </label>
-                            <Input
+                            <MemoizedInput
                               value={item.place}
-                              onChange={(e) => updateCustomUploadField(item.id, 'place', e.target.value)}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateCustomUploadField(item.id, 'place', val)}
                               className="h-10 bg-white text-xs"
                               placeholder={lang === "ar" ? "مثلاً: غرفة النوم الرئيسية" : "e.g. Master Bedroom"}
                             />
@@ -1293,9 +1680,15 @@ export default function Configurator() {
                             <label className="text-[11px] text-muted-foreground block mb-1 font-bold">
                               {lang === "ar" ? "الكمية التقديرية" : "Est. Qty"}
                             </label>
-                            <Input
+                            <MemoizedInput
                               value={item.qty}
-                              onChange={(e) => updateCustomUploadField(item.id, 'qty', e.target.value)}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateCustomUploadField(item.id, 'qty', val)}
                               className="h-10 bg-white text-xs"
                               placeholder={lang === "ar" ? "مثلاً: 12 م²" : "e.g. 12 m²"}
                             />
@@ -1306,9 +1699,15 @@ export default function Configurator() {
                           <label className="text-[11px] text-muted-foreground block mb-1 font-bold">
                             {lang === "ar" ? "ملاحظتك أو مواصفات التصميم المطلوبة" : "Image notes / specifications"}
                           </label>
-                          <Textarea
+                          <MemoizedTextarea
                             value={item.note}
-                            onChange={(e) => updateCustomUploadField(item.id, 'note', e.target.value)}
+                            onFocus={(e) => {
+                              if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                            }}
+                            onSave={(val) => updateCustomUploadField(item.id, 'note', val)}
                             placeholder={lang === "ar" ? "اكتب تفاصيل التصميم المطلوب تنفيذه من هذه الصورة..." : "Detail what you want from this image..."}
                             className="min-h-[70px] resize-none text-xs bg-white"
                           />
@@ -1327,55 +1726,8 @@ export default function Configurator() {
             </div>
 
             <h3 className="font-serif-ar text-xl text-teal-deep font-bold mb-3 mt-8">{lang === "ar" ? "البنود التالية المختارة" : "Selected Items"}</h3>
-            {selectedCount > 0 && (
-              <div className="bg-teal-deep text-ivory rounded-2xl border border-gold/25 p-6">
-                <h3 className="font-serif-ar text-2xl mb-4">{lang === "ar" ? "ملخص الصور المختارة" : "Selected Summary"}</h3>
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {/* Standard catalogue items */}
-                  {selectedItems.map((item) => (
-                    <div key={item.id} className="flex gap-3 rounded-xl bg-white/8 border border-white/10 p-2 relative group/item">
-                      {item.image_url && <img src={item.image_url} alt={item.option_name} className="w-16 h-16 rounded-lg object-cover" />}
-                      <div className="min-w-0 text-sm flex-1">
-                        <span className="inline-block text-[9px] font-bold bg-gold/20 text-gold px-1.5 py-0.5 rounded mb-0.5">{item.style}</span>
-                        <div className="text-gold/70 text-xs truncate">{item.category}</div>
-                        <div className="font-bold truncate">{item.option_name}</div>
-                        {item.note && <div className="text-ivory/65 text-xs line-clamp-2 mt-1">{item.note}</div>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item)}
-                        className="absolute top-1.5 end-1.5 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-600 text-white flex items-center justify-center transition-all duration-200 cursor-pointer"
-                        title={lang === "ar" ? "إزالة" : "Remove"}
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  {/* Custom upload items */}
-                  {customUploads.map((item) => (
-                    <div key={item.id} className="flex gap-3 rounded-xl bg-white/8 border border-amber-500/30 p-2 relative group/item ring-1 ring-amber-500/20">
-                      {item.image_url && <img src={item.image_url} alt={item.option_name} className="w-16 h-16 rounded-lg object-cover border border-amber-500/30" />}
-                      <div className="min-w-0 text-sm flex-1">
-                        <span className="inline-block text-[9px] font-bold bg-amber-500/25 text-amber-300 px-1.5 py-0.5 rounded mb-0.5">
-                          {lang === "ar" ? "صورة مخصصة خارجية" : "Custom Upload"}
-                        </span>
-                        <div className="text-amber-300/80 text-xs truncate">{item.category}</div>
-                        <div className="font-bold truncate text-white">{item.option_name}</div>
-                        {item.note && <div className="text-amber-200/70 text-xs line-clamp-2 mt-1">{item.note}</div>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeCustomUpload(item.id)}
-                        className="absolute top-1.5 end-1.5 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-600 text-white flex items-center justify-center transition-all duration-200 cursor-pointer"
-                        title={lang === "ar" ? "إزالة" : "Remove"}
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Spacer for bottom bar */}
+            <div className={cn("transition-all h-4", selectedCount > 0 && "h-24")} />
 
             {!showStylePreview && (
               <div className="flex items-center justify-between pt-4 border-t border-border">
@@ -1383,7 +1735,7 @@ export default function Configurator() {
                   disabled={activeSecIdx === 0} 
                   onClick={() => {
                     setActiveSecIdx((current) => current - 1);
-                    scrollToContentSection();
+                    requestGalleryScroll();
                   }} 
                   className="btn-ghost-light !text-teal-deep !border-teal-deep/30 disabled:opacity-30 flex items-center gap-1.5"
                 >
@@ -1552,7 +1904,7 @@ export default function Configurator() {
               >
                 {zoomTile.imageUrl ? (
                   <img
-                    src={zoomTile.imageUrl}
+                    src={resolveMediaUrl(zoomTile.imageUrl) || undefined}
                     alt={zoomTile.label}
                     className={cn(
                       "max-w-full max-h-full object-contain pointer-events-none select-none",
@@ -1654,9 +2006,15 @@ export default function Configurator() {
                               <StickyNote size={14} />
                               <span>{lang === "ar" ? "ملاحظتك على الصورة" : "Image note"}</span>
                             </label>
-                            <Textarea
+                            <MemoizedTextarea
                               value={zoomSelection.note ?? ""}
-                              onChange={(e) => updateItemNote(zoomTile.id, e.target.value)}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateItemNote(zoomTile.id, val)}
                               placeholder={lang === "ar" ? "مثلاً: عاجبني اللون، عايز نفس الفكرة في الحمام الرئيسي..." : "What do you like about this image?"}
                               className="min-h-[100px] resize-none bg-white border-white/20 text-[#0C363A] placeholder:text-[#0C363A]/45 focus:border-gold/50 focus:ring-1 focus:ring-gold/50 rounded-xl select-text text-sm"
                             />
@@ -1710,6 +2068,373 @@ export default function Configurator() {
         label={zoomTile ? null : (activeHoverPreview?.label || null)}
         lang={lang}
       />
+
+      {/* Sticky Bottom Bar for Selections */}
+      {selectedCount > 0 && createPortal((
+        <div className="fixed bottom-6 left-0 right-0 z-[85] px-4 pointer-events-none flex justify-center">
+          <div 
+            className="w-full max-w-6xl bg-[#0A2629]/95 backdrop-blur-md border border-gold/45 py-3 px-4 md:py-3.5 md:px-6 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.6)] pointer-events-auto flex items-center justify-between gap-4 animate-page-entrance" 
+            dir={lang === "ar" ? "rtl" : "ltr"}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="hidden sm:block shrink-0">
+                <span className="text-[9px] text-gold font-extrabold uppercase tracking-wider block">
+                  {lang === "ar" ? "الاختيارات المعتمدة" : "APPROVED SELECTIONS"}
+                </span>
+                <span className="text-white text-xs font-bold font-serif-ar mt-0.5 block">
+                  {selectedCount} {lang === "ar" ? "صورة مضافة" : "selections added"}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {/* Last 2 selected thumbnails */}
+                {selectedItems.concat(customUploads).slice(-2).map((item) => (
+                  <div key={item.id} className="relative w-11 h-11 md:w-12 md:h-12 rounded-xl border border-gold/30 overflow-hidden shrink-0 shadow-md transition-transform duration-300 hover:scale-105">
+                    {item.image_url ? (
+                      <img src={resolveMediaUrl(item.image_url) || undefined} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-[#072528] flex items-center justify-center text-white/30"><Image size={14} /></div>
+                    )}
+                  </div>
+                ))}
+                
+                {selectedCount > 2 && (
+                  <button
+                    onClick={() => setShowAllSelectionsModal(true)}
+                    className="text-[10px] md:text-xs font-bold text-gold hover:text-white bg-gold/10 hover:bg-gold/20 border border-gold/25 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    {lang === "ar" ? `+ ${selectedCount - 2} عرض الكل` : `+ ${selectedCount - 2} see more`}
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowAllSelectionsModal(true)}
+                className="rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white text-xs font-bold px-3 md:px-4 py-2.5 h-10 transition-all flex items-center gap-1.5 cursor-pointer hover:border-white/30"
+              >
+                <span>{lang === "ar" ? "عرض وتعديل الكل" : "View & Edit All"}</span>
+              </button>
+              
+              <button
+                disabled={busy}
+                onClick={submit}
+                className="btn-gold !py-2.5 !px-4 md:!px-6 text-xs font-bold flex items-center gap-1.5 h-10 shadow-lg shadow-gold/15 cursor-pointer hover:bg-white text-[#0A2629]"
+              >
+                <Check size={14} className="stroke-[2.5]" />
+                <span>{busy ? "..." : lang === "ar" ? "حفظ الاختيارات" : "Save"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* View All Selections Drawer Modal */}
+      {showAllSelectionsModal && createPortal((
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-teal-deep/80 backdrop-blur-md" dir={lang === "ar" ? "rtl" : "ltr"}>
+          <div className="bg-white rounded-3xl border border-[#e3d8c9] w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-page-entrance text-[#0C363A]">
+            {/* Header */}
+            <div className="p-6 border-b border-[#e5e0d5] flex items-center justify-between bg-[#0C363A] text-white">
+              <div>
+                <span className="text-[10px] text-gold uppercase font-bold tracking-wider block mb-1">
+                  {lang === "ar" ? "مراجعة وحفظ التقرير" : "REVIEW & SAVE REPORT"}
+                </span>
+                <h3 className="font-serif-ar text-xl font-bold">
+                  {lang === "ar" ? "جميع الاختيارات المحددة حتى الآن" : "All Selected Items So Far"} ({selectedCount})
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowAllSelectionsModal(false)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer border border-white/10"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#fcfbfa]">
+              {selectedItems.length === 0 && customUploads.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  {lang === "ar" ? "لم تقم باختيار أي صور بعد." : "No selections made yet."}
+                </div>
+              ) : (
+                <>
+                  {/* Catalogue items */}
+                  {selectedItems.map((item) => (
+                    <div key={item.id} className="p-4 rounded-2xl bg-white border border-[#e7ded2] shadow-sm flex flex-col md:flex-row gap-4 items-start relative group/item">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden border border-[#e7ded2] shrink-0 bg-muted">
+                        {item.image_url ? (
+                          <img src={resolveMediaUrl(item.image_url) || undefined} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Image size={18} /></div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[9px] font-bold bg-gold/15 text-gold border border-gold/20 px-2 py-0.5 rounded">
+                              {item.style}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-bold">
+                              {item.category}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm text-teal-deep mt-1 truncate">{item.option_name}</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-0.5 font-bold">{lang === "ar" ? "مكان الاستخدام" : "Location"}</label>
+                            <MemoizedInput
+                              value={item.place}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateItemField(item.id, 'place', val)}
+                              className="h-8.5 bg-[#fcfbfa] border-[#e2d6c3] text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: الصالون" : "e.g. Living room"}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-0.5 font-bold">{lang === "ar" ? "الكمية" : "Qty"}</label>
+                            <MemoizedInput
+                              value={item.qty}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateItemField(item.id, 'qty', val)}
+                              className="h-8.5 bg-[#fcfbfa] border-[#e2d6c3] text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: 20 م²" : "e.g. 20 m²"}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-0.5 font-bold">{lang === "ar" ? "ملاحظتك" : "Note"}</label>
+                          <MemoizedTextarea
+                            value={item.note}
+                            onFocus={(e) => {
+                              if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                            }}
+                            onSave={(val) => updateItemNote(item.id, val)}
+                            className="min-h-16 resize-none bg-[#fcfbfa] border-[#e2d6c3] text-xs"
+                            placeholder={lang === "ar" ? "اكتب ملاحظتك على هذا البند..." : "Write your note here..."}
+                          />
+                        </div>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item)}
+                        className="absolute top-4 end-4 w-7 h-7 rounded-full bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                        title={lang === "ar" ? "إزالة" : "Remove"}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Custom upload items */}
+                  {customUploads.map((item) => (
+                    <div key={item.id} className="p-4 rounded-2xl bg-[#fffcf5] border border-amber-500/20 shadow-sm flex flex-col md:flex-row gap-4 items-start relative group/item">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden border border-amber-500/20 shrink-0 bg-muted">
+                        {item.image_url ? (
+                          <img src={resolveMediaUrl(item.image_url) || undefined} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Image size={18} /></div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[9px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-0.5 rounded">
+                              {lang === "ar" ? "صورة خارجية" : "Custom Upload"}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-bold">
+                              {item.category}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm text-teal-deep mt-1 truncate">{item.option_name}</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-0.5 font-bold">{lang === "ar" ? "مكان الاستخدام" : "Location"}</label>
+                            <MemoizedInput
+                              value={item.place}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateCustomUploadField(item.id, 'place', val)}
+                              className="h-8.5 bg-[#fcfbfa] border-[#e2d6c3] text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: الصالون" : "e.g. Living room"}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-0.5 font-bold">{lang === "ar" ? "الكمية" : "Qty"}</label>
+                            <MemoizedInput
+                              value={item.qty}
+                              onFocus={(e) => {
+                                if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                              }}
+                              onSave={(val) => updateCustomUploadField(item.id, 'qty', val)}
+                              className="h-8.5 bg-[#fcfbfa] border-[#e2d6c3] text-xs"
+                              placeholder={lang === "ar" ? "مثلاً: 20 م²" : "e.g. 20 m²"}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-0.5 font-bold">{lang === "ar" ? "ملاحظتك" : "Note"}</label>
+                          <MemoizedTextarea
+                            value={item.note}
+                            onFocus={(e) => {
+                              if (!allowed) {
+                                  e.target.blur();
+                                  setShowPaywallModal(true);
+                                }
+                            }}
+                            onSave={(val) => updateCustomUploadField(item.id, 'note', val)}
+                            className="min-h-16 resize-none bg-[#fcfbfa] border-[#e2d6c3] text-xs"
+                            placeholder={lang === "ar" ? "اكتب ملاحظتك على هذا البند..." : "Write your note here..."}
+                          />
+                        </div>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => removeCustomUpload(item.id)}
+                        className="absolute top-4 end-4 w-7 h-7 rounded-full bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                        title={lang === "ar" ? "إزالة" : "Remove"}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-[#e5e0d5] bg-white flex items-center justify-between gap-4">
+              <button
+                onClick={() => setShowAllSelectionsModal(false)}
+                className="rounded-xl border border-[#e2d6c3] px-6 py-3 text-xs font-bold text-teal-deep hover:bg-teal-soft/10 transition-all cursor-pointer"
+              >
+                {lang === "ar" ? "إغلاق" : "Close"}
+              </button>
+              
+              <button
+                disabled={busy || !selectedCount}
+                onClick={() => {
+                  setShowAllSelectionsModal(false);
+                  submit();
+                }}
+                className="btn-gold !py-3 !px-8 text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer"
+              >
+                <Check size={15} />
+                <span>{busy ? "..." : lang === "ar" ? "تأكيد وحفظ التقرير" : "Save All Selections"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* Premium Paywall Modal */}
+      {showPaywallModal && createPortal((
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-teal-deep/95 backdrop-blur-sm animate-fade-in" dir={lang === "ar" ? "rtl" : "ltr"}>
+          <div className="bg-[#0C363A] rounded-3xl border border-gold/40 max-w-md w-full p-6 text-center text-white relative shadow-2xl overflow-hidden animate-scale-up">
+            {/* Subtle background golden aura */}
+            <div className="absolute -right-16 -bottom-16 w-36 h-36 rounded-full bg-gold/10 blur-2xl pointer-events-none" />
+            <div className="absolute -left-16 -top-16 w-36 h-36 rounded-full bg-gold/15 blur-2xl pointer-events-none" />
+
+            <button 
+              onClick={() => setShowPaywallModal(false)}
+              className="absolute top-4 end-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer border border-white/10"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-16 h-16 rounded-full bg-gold/20 border border-gold/45 text-gold flex items-center justify-center mx-auto mb-5 shadow-lg shadow-gold/10">
+              <Lock size={28} className="stroke-[2.5]" />
+            </div>
+
+            <h3 className="font-serif-ar text-2xl text-white font-extrabold mb-3">
+              {lang === "ar" ? "تفعيل باقة التشطيب" : "Unlock Finishing Package"}
+            </h3>
+            
+            <p className="text-sm text-ivory/80 leading-relaxed mb-6 font-sans">
+              {lang === "ar"
+                ? "لتدوين الملاحظات والمواصفات للمهندسين، ولحفظ اختياراتك وتصدير تقرير التنفيذ النهائي، يرجى تفعيل الباقة عن طريق سداد العربون."
+                : "To write design specifications for engineers, save choices, and generate the execution report, please activate the package by transferring the deposit."}
+            </p>
+
+            <div className="bg-black/25 border border-white/10 rounded-2xl p-4.5 mb-6 text-start space-y-3 text-xs md:text-sm font-sans">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-gold font-bold">{lang === "ar" ? "طريقة الدفع الأولى:" : "Primary Payment:"}</span>
+                <span className="text-white/80 font-bold">{lang === "ar" ? "تحويل عبر إينستاباي" : "InstaPay Transfer"}</span>
+              </div>
+              <div className="flex justify-between items-center text-ivory/90">
+                <span>{lang === "ar" ? "عنوان الدفع (IPA):" : "IPA Address:"}</span>
+                <span className="font-mono text-white font-bold select-all bg-white/5 px-2 py-0.5 rounded">tact@instapay</span>
+              </div>
+              <div className="flex justify-between items-center text-ivory/90">
+                <span>{lang === "ar" ? "رقم الهاتف للمحفظة:" : "Wallet Mobile No:"}</span>
+                <span className="font-mono text-white font-bold select-all bg-white/5 px-2 py-0.5 rounded">01007202302</span>
+              </div>
+              <p className="text-[10px] text-white/50 text-center pt-1 leading-normal">
+                {lang === "ar"
+                  ? "بعد تحويل العربون، اضغط على زر تسجيل الدفع لإرفاق رقم العملية وصورة الإيصال."
+                  : "After transferring, click Submit Payment to attach your transaction ID and transfer slip."}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Link 
+                to="/payment"
+                className="w-full btn-gold !py-3 font-extrabold flex items-center justify-center gap-1.5 shadow-lg shadow-gold/15 cursor-pointer text-sm text-[#0C363A] hover:bg-white"
+              >
+                <span>{lang === "ar" ? "تسجيل الدفع وتأكيد التفعيل" : "Submit Payment & Unlock"}</span>
+              </Link>
+              
+              <button 
+                onClick={() => setShowPaywallModal(false)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white py-3 text-xs font-bold transition-all cursor-pointer"
+              >
+                {lang === "ar" ? "متابعة التصفح فقط" : "Continue Browsing Only"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* Saving Overlay */}
+      {busy && createPortal((
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-teal-deep/80 backdrop-blur-sm animate-fade-in">
+          <div className="flex flex-col items-center gap-5">
+            <div className="w-14 h-14 rounded-full border-4 border-gold/30 border-t-gold animate-spin" />
+            <span className="text-white text-sm font-bold font-serif-ar tracking-wide">
+              {lang === "ar" ? "جاري حفظ وتجهيز الاختيارات..." : "Saving selections..."}
+            </span>
+          </div>
+        </div>
+      ), document.body)}
     </>
   );
 }

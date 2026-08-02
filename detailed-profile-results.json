@@ -1,0 +1,433 @@
+{
+  "generatedAt": "2026-07-05T07:49:58.700Z",
+  "summary": {
+    "totalRealContentSizeMB": "818.50",
+    "totalStaticAssetsSizeMB": "20.07",
+    "totalBuildSizeMB": "2.93",
+    "rcImagesCount": 1689,
+    "rcVideosCount": 12,
+    "srcImagesCount": 35
+  },
+  "buildChunks": [
+    {
+      "name": "index--y642Trw.js",
+      "sizeBytes": 1524981,
+      "sizeKB": "1489.2",
+      "type": "JavaScript"
+    },
+    {
+      "name": "avatar-male-DrXgFoKh.png",
+      "sizeBytes": 715166,
+      "sizeKB": "698.4",
+      "type": "Asset"
+    },
+    {
+      "name": "avatar-female-BujvvWtT.png",
+      "sizeBytes": 628738,
+      "sizeKB": "614.0",
+      "type": "Asset"
+    },
+    {
+      "name": "index-B_Un6fHe.css",
+      "sizeBytes": 205614,
+      "sizeKB": "200.8",
+      "type": "CSS"
+    }
+  ],
+  "largeImagesAudit": [
+    {
+      "name": "Screenshot_14-5-2026_192037_.jpeg",
+      "source": "catalogue",
+      "path": "Designs\\students cafe\\Screenshot_14-5-2026_192037_.jpeg",
+      "dimensions": "1670x1665",
+      "format": "jpeg",
+      "sizeKB": "2085.7",
+      "suggestedSizeKB": 150,
+      "wastePercent": "92.8%"
+    },
+    {
+      "name": "Screenshot_14-5-2026_19206_.jpeg",
+      "source": "catalogue",
+      "path": "Designs\\students cafe\\Screenshot_14-5-2026_19206_.jpeg",
+      "dimensions": "1663x1666",
+      "format": "jpeg",
+      "sizeKB": "1907.6",
+      "suggestedSizeKB": 150,
+      "wastePercent": "92.1%"
+    },
+    {
+      "name": "Screenshot_14-5-2026_191913_.jpeg",
+      "source": "catalogue",
+      "path": "Designs\\students cafe\\Screenshot_14-5-2026_191913_.jpeg",
+      "dimensions": "1461x1462",
+      "format": "jpeg",
+      "sizeKB": "1631.5",
+      "suggestedSizeKB": 150,
+      "wastePercent": "90.8%"
+    },
+    {
+      "name": "Screenshot_14-5-2026_19194_.jpeg",
+      "source": "catalogue",
+      "path": "Designs\\students cafe\\Screenshot_14-5-2026_19194_.jpeg",
+      "dimensions": "1461x1455",
+      "format": "jpeg",
+      "sizeKB": "1509.7",
+      "suggestedSizeKB": 150,
+      "wastePercent": "90.1%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\art deco\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\boho\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\maximalism\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\minimalism\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\modern\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\scandinavian\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\traditional\\2 stle items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "خشب باركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\wabi sabi\\2 style items\\Flooring\\Parquite\\خشب باركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1414.0",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.4%"
+    },
+    {
+      "name": "Screenshot_14-5-2026_192028_.jpeg",
+      "source": "catalogue",
+      "path": "Designs\\students cafe\\Screenshot_14-5-2026_192028_.jpeg",
+      "dimensions": "1667x1283",
+      "format": "jpeg",
+      "sizeKB": "1393.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.2%"
+    },
+    {
+      "name": "3.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\art deco\\2 style items\\Walls\\3.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1376.2",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.1%"
+    },
+    {
+      "name": "3.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\traditional\\2 stle items\\Walls\\3.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1376.2",
+      "suggestedSizeKB": 150,
+      "wastePercent": "89.1%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\art deco\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\boho\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\maximalism\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\minimalism\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\modern\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\scandinavian\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\traditional\\2 stle items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "رخام.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\wabi sabi\\2 style items\\Flooring\\Marble\\رخام.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1237.3",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.9%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\art deco\\2 style items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\boho\\2 style items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\maximalism\\2 style items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\minimalism\\2 style items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\modern\\2 style items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\scandinavian\\2 style items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    },
+    {
+      "name": "سيراميك شبيه الباركيه.jpg",
+      "source": "catalogue",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles\\traditional\\2 stle items\\Flooring\\ceramic\\سيراميك شبيه الباركيه.jpg",
+      "dimensions": "2481x1754",
+      "format": "jpeg",
+      "sizeKB": "1233.4",
+      "suggestedSizeKB": 150,
+      "wastePercent": "87.8%"
+    }
+  ],
+  "videos": [
+    {
+      "name": "تجاري كلاسيك.mp4",
+      "path": "Finishing videos\\تجاري كلاسيك.mp4",
+      "sizeBytes": 37009251,
+      "sizeMB": "35.29"
+    },
+    {
+      "name": "شقة مودرن.mp4",
+      "path": "Finishing videos\\شقة مودرن.mp4",
+      "sizeBytes": 34426668,
+      "sizeMB": "32.83"
+    },
+    {
+      "name": "شقة مودرن ٢٢٠ م.mp4",
+      "path": "Finishing videos\\شقة مودرن ٢٢٠ م.mp4",
+      "sizeBytes": 28440315,
+      "sizeMB": "27.12"
+    },
+    {
+      "name": "Luxury modern.mp4",
+      "path": "Finishing videos\\Luxury modern.mp4",
+      "sizeBytes": 26913108,
+      "sizeMB": "25.67"
+    },
+    {
+      "name": "New classic.mp4",
+      "path": "Finishing videos\\New classic.mp4",
+      "sizeBytes": 14373806,
+      "sizeMB": "13.71"
+    },
+    {
+      "name": "شقة مودرن 1.mp4",
+      "path": "Finishing videos\\شقة مودرن 1.mp4",
+      "sizeBytes": 13413119,
+      "sizeMB": "12.79"
+    },
+    {
+      "name": "فيديو اراء العملاء.mp4",
+      "path": "Customers Reviews\\فيديو اراء العملاء.mp4",
+      "sizeBytes": 12562185,
+      "sizeMB": "11.98"
+    },
+    {
+      "name": "Luxury New classic.mp4",
+      "path": "Finishing videos\\Luxury New classic.mp4",
+      "sizeBytes": 11069622,
+      "sizeMB": "10.56"
+    },
+    {
+      "name": "شقة مودرن ١٥٠ م.mp4",
+      "path": "Finishing videos\\شقة مودرن ١٥٠ م.mp4",
+      "sizeBytes": 9676723,
+      "sizeMB": "9.23"
+    },
+    {
+      "name": "تجاري مودرن.mp4",
+      "path": "Finishing videos\\تجاري مودرن.mp4",
+      "sizeBytes": 5632549,
+      "sizeMB": "5.37"
+    },
+    {
+      "name": "شقة كلاسيك.mp4",
+      "path": "Finishing videos\\شقة كلاسيك.mp4",
+      "sizeBytes": 5484846,
+      "sizeMB": "5.23"
+    },
+    {
+      "name": "Customers Reviews.mp4",
+      "path": "Customers Reviews\\Customers Reviews.mp4",
+      "sizeBytes": 1290061,
+      "sizeMB": "1.23"
+    }
+  ],
+  "rars": [
+    {
+      "name": "styles.rar",
+      "path": "Packages\\economy-20260514T162446Z-3-001\\economy\\styles.rar",
+      "sizeBytes": 19097464,
+      "sizeMB": "18.21"
+    },
+    {
+      "name": "styles.rar",
+      "path": "Packages\\luxury-20260514T162445Z-3-001\\luxury\\styles.rar",
+      "sizeBytes": 182866526,
+      "sizeMB": "174.40"
+    },
+    {
+      "name": "styles.rar",
+      "path": "Packages\\medium-20260514T162444Z-3-001\\medium\\styles.rar",
+      "sizeBytes": 34327506,
+      "sizeMB": "32.74"
+    }
+  ]
+}

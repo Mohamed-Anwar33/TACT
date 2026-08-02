@@ -26,6 +26,8 @@ export default function UsersManager() {
   // Stage Tracking Admin States
   const [selectedUserForTracking, setSelectedUserForTracking] = useState<any | null>(null);
   const [adminStages, setAdminStages] = useState<any[]>([]);
+  const [adminProjects, setAdminProjects] = useState<any[]>([]);
+  const [adminProjectId, setAdminProjectId] = useState<string | null>(null);
   const [adminStageFiles, setAdminStageFiles] = useState<any[]>([]);
   const [adminStageNotes, setAdminStageNotes] = useState<any[]>([]);
   const [adminSelectedStage, setAdminSelectedStage] = useState<any | null>(null);
@@ -74,61 +76,53 @@ export default function UsersManager() {
   // Load stages when client is selected
   useEffect(() => {
     if (selectedUserForTracking) {
-      loadAdminStagesForUser(selectedUserForTracking.id);
+      void loadProjectsForUser(selectedUserForTracking.id);
     } else {
       setAdminStages([]);
       setAdminStageFiles([]);
       setAdminStageNotes([]);
       setAdminSelectedStage(null);
+      setAdminProjects([]);
+      setAdminProjectId(null);
     }
   }, [selectedUserForTracking]);
 
-  async function loadAdminStagesForUser(userId: string) {
+  async function loadProjectsForUser(userId: string) {
+    const { data, error } = await db.from("client_projects").select("*").eq("user_id", userId).is("archived_at", null).order("created_at", { ascending: false });
+    if (error) { toast.error(error.message); return; }
+    const projects = data || [];
+    setAdminProjects(projects);
+    setAdminProjectId(projects[0]?.id ?? null);
+    if (projects[0]) void loadAdminStagesForProject(projects[0].id);
+    else { setAdminStages([]); setAdminStageFiles([]); setAdminStageNotes([]); setAdminSelectedStage(null); }
+  }
+
+  async function createClientProject() {
+    if (!selectedUserForTracking) return;
+    const name = window.prompt("اسم مشروع العميل");
+    if (!name?.trim()) return;
+    const requestId = crypto.randomUUID();
+    const { data, error } = await db.rpc("create_client_project_with_stages", {
+      p_client_id: selectedUserForTracking.id, p_name_ar: name.trim(), p_name_en: null, p_creation_request_id: requestId,
+    });
+    if (error) { toast.error(error.message); return; }
+    await loadProjectsForUser(selectedUserForTracking.id);
+    if (data?.id) { setAdminProjectId(data.id); void loadAdminStagesForProject(data.id); }
+  }
+
+  async function loadAdminStagesForProject(projectId: string) {
     setLoadingAdminStages(true);
     try {
       let { data: stages, error } = await db
         .from("project_stages")
         .select("*")
-        .eq("user_id", userId)
+        .eq("project_id", projectId)
         .order("stage_number", { ascending: true });
 
       if (error) throw error;
 
-      if (!stages || stages.length === 0) {
-        // Initialize default stages
-        const defaultStages = [
-          { user_id: userId, stage_number: 1, title_ar: "مرحلة أولى: التأسيسات", title_en: "Stage 1: Foundations", status: "pending" },
-          { user_id: userId, stage_number: 2, title_ar: "مرحلة ثانية: التشطيبات الأساسية", title_en: "Stage 2: Basic Finishes", status: "pending" },
-          { user_id: userId, stage_number: 3, title_ar: "مرحلة ثالثة: التشطيبات النهائية", title_en: "Stage 3: Final Finishes", status: "pending" },
-          { user_id: userId, stage_number: 4, title_ar: "مرحلة رابعة: الديكور والفرش", title_en: "Stage 4: Decor & Furnishing", status: "pending" },
-        ];
-        const { data: inserted, error: insertError } = await db
-          .from("project_stages")
-          .insert(defaultStages)
-          .select("*")
-          .order("stage_number", { ascending: true });
-
-        if (insertError) throw insertError;
-        stages = inserted;
-      }
-
-      // Create virtual Stage 0 linked to Stage 1's ID for file storage
-      const stage1 = stages.find(s => s.stage_number === 1);
-      const virtualStage0 = {
-        id: "virtual_stage_zero",
-        user_id: userId,
-        stage_number: 0,
-        title_ar: "التصميم والملفات الفنية والـ PDF",
-        title_en: "Design & Technical Files (PDF)",
-        status: "completed",
-        notes_ar: "تحتوي هذه المرحلة على كافة ملفات الـ PDF الخاصة باختيارات العميل للمواد، بالإضافة إلى التصميم النهائي المعتمد للمشروع.",
-        notes_en: "This section contains all PDF files of client selections and the final approved project design.",
-        stage_1_id: stage1?.id || ""
-      };
-
-      const allStages = [virtualStage0, ...(stages || [])];
-      setAdminStages(allStages);
-      setAdminSelectedStage(virtualStage0);
+      setAdminStages(stages || []);
+      setAdminSelectedStage(stages?.[0] || null);
 
       if (stages && stages.length > 0) {
         const stageIds = stages.map(s => s.id);
@@ -270,60 +264,42 @@ export default function UsersManager() {
 
   async function uploadStageFile(event: React.ChangeEvent<HTMLInputElement>, stageId: string, category: 'site_photo' | 'invoice' | 'statement') {
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || !adminProjectId) return;
     setUploadingFile(true);
     
     let successCount = 0;
     let failCount = 0;
     
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
+      for (const file of Array.from(files)) {
         try {
+          if (file.size > 25 * 1024 * 1024) throw new Error("FILE_TOO_LARGE");
           const safeName = file.name.replace(/[^\w.\-]+/g, "-").toLowerCase();
-          const storagePath = `projects/stages/${stageId}/${Date.now()}-${safeName}`;
+          const storagePath = `projects/stages/${adminProjectId}/${stageId}/${crypto.randomUUID()}-${safeName}`;
+          const fileType = file.type.startsWith("image/") ? "image" : file.type.includes("pdf") ? "pdf" : "other";
+          const finalCategory = fileType === 'pdf' && category === 'site_photo' ? 'invoice' : category;
+          const { data: operation, error: operationError } = await db.rpc("create_upload_operation", {
+            p_request_id: crypto.randomUUID(), p_project_id: adminProjectId, p_stage_id: stageId,
+            p_storage_path: storagePath, p_file_name: file.name, p_file_type: fileType, p_category: finalCategory,
+          });
+          if (operationError) throw operationError;
           
           const { error: uploadError } = await supabase.storage
-            .from("tact-media")
+            .from("client-project-media")
             .upload(storagePath, file, { contentType: file.type, upsert: false });
             
           if (uploadError) throw uploadError;
           
-          const { data: publicData } = supabase.storage.from("tact-media").getPublicUrl(storagePath);
-          const fileUrl = publicData.publicUrl;
-          
-          const fileType = file.type.startsWith("image/") ? "image" : file.type.includes("pdf") ? "pdf" : "other";
-          
-          let finalCategory = category;
-          if (fileType === 'pdf' && category === 'site_photo') {
-            finalCategory = 'invoice';
-          }
-          
-          const { data, error: dbError } = await db
-            .from("project_stage_files")
-            .insert({
-              stage_id: stageId,
-              file_url: fileUrl,
-              file_name: file.name,
-              file_type: fileType,
-              category: finalCategory,
-            })
-            .select()
-            .single();
-            
+          const { data, error: dbError } = await db.rpc("finalize_stage_upload", { p_operation_id: operation.id, p_file_url: storagePath });
           if (dbError) throw dbError;
           successCount++;
-          return data;
+          if (data) setAdminStageFiles(prev => [data, ...prev]);
         } catch (err) {
           console.error("Failed to upload file:", file.name, err);
           failCount++;
-          return null;
+          const message = (err as any)?.message || "Upload failed";
+          toast.error(message === "FILE_TOO_LARGE" ? `الملف ${file.name} أكبر من 25MB` : `فشل رفع ${file.name}: ${message}`);
         }
-      });
-      
-      const results = await Promise.all(uploadPromises);
-      const added = results.filter((f): f is any => f !== null);
-      if (added.length > 0) {
-        setAdminStageFiles(prev => [...added, ...prev]);
       }
       
       if (successCount > 0) {
@@ -575,6 +551,16 @@ export default function UsersManager() {
                 </div>
               ) : (
                 <>
+                  <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#e1dbce] bg-white p-4">
+                    <label className="flex-1 text-xs font-bold text-[#0C363A]">
+                      المشروع
+                      <select value={adminProjectId ?? ""} onChange={(event) => { setAdminProjectId(event.target.value); void loadAdminStagesForProject(event.target.value); }} className="mt-1 block h-10 w-full rounded-xl border border-[#e1dbce] bg-[#FBF7F0] px-3">
+                        <option value="" disabled>اختر مشروعًا</option>
+                        {adminProjects.map((project) => <option key={project.id} value={project.id}>{project.name_ar}</option>)}
+                      </select>
+                    </label>
+                    <button type="button" onClick={createClientProject} className="h-10 rounded-xl bg-[#0C363A] px-4 text-xs font-bold text-white hover:bg-[#124b51]">+ مشروع جديد</button>
+                  </div>
                   {/* Stages Selector Tabs */}
                   <div className="grid grid-cols-5 gap-2 md:gap-3 border-b border-[#e1dbce] pb-5">
                     {adminStages.map((stage) => {

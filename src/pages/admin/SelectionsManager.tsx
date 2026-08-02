@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { FileText, Search, Printer, Eye, Trash2, Download } from "lucide-react";
+import { Link } from "react-router-dom";
+import { FileText, Search, Printer, Eye, Trash2, Download, Edit } from "lucide-react";
 import { toast } from "sonner";
 import AdminHeader from "@/components/admin/AdminHeader";
 import EditDrawer from "@/components/admin/EditDrawer";
@@ -629,6 +630,25 @@ export default function SelectionsManager() {
                           >
                             <Eye size={12} /> عرض وتصدير PDF
                           </button>
+                          <Link
+                            to={`/packages/${s.package_id}/configurator?questionnaireId=${s.questionnaire_id || ""}&editSelectionId=${s.id}`}
+                            style={{ 
+                              padding: "5px 12px", 
+                              borderRadius: 6, 
+                              background: "#c9964c", 
+                              color: "#fff", 
+                              border: "none", 
+                              cursor: "pointer", 
+                              fontSize: "0.75rem", 
+                              fontWeight: 600, 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: 4,
+                              textDecoration: "none"
+                            }}
+                          >
+                            <Edit size={12} /> تعديل
+                          </Link>
                           <button 
                             onClick={() => setDeleteTarget(s)}
                             style={{ 

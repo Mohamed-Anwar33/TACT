@@ -14,9 +14,10 @@ import {
 import { CmsTeamMember, fallbackTeam, getCmsTeam } from "@/lib/publicCms";
 import SEO from "@/components/layout/SEO";
 
-// Fallback avatars
-import avatarMale from "@/assets/avatar-male.png";
-import avatarFemale from "@/assets/avatar-female.png";
+// Fallback avatars (lightweight SVGs to avoid loading 1.3MB PNGs)
+const avatarMale = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%230C363A'><rect width='100' height='100' fill='%230C363A'/><circle cx='50' cy='40' r='18' fill='%23C18556' opacity='0.35'/><path d='M50 65c-18 0-28 8-28 17v5h56v-5c0-9-10-17-28-17z' fill='%23C18556' opacity='0.35'/></svg>";
+const avatarFemale = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%230C363A'><rect width='100' height='100' fill='%230C363A'/><circle cx='50' cy='40' r='18' fill='%23C18556' opacity='0.35'/><path d='M50 65c-18 0-28 8-28 17v5h56v-5c0-9-10-17-28-17z' fill='%23C18556' opacity='0.35'/></svg>";
+
 
 const CATEGORIES = [
   { id: "all", labelAr: "كل الفريق", labelEn: "All Members", icon: Users },

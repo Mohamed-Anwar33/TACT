@@ -1,0 +1,202 @@
+[
+  {
+    "name": "@swc/core-win32-x64-msvc",
+    "sizeBytes": 46118785,
+    "sizeMB": "43.98"
+  },
+  {
+    "name": "lucide-react",
+    "sizeBytes": 28500300,
+    "sizeMB": "27.18"
+  },
+  {
+    "name": "typescript",
+    "sizeBytes": 22867703,
+    "sizeMB": "21.81"
+  },
+  {
+    "name": "date-fns",
+    "sizeBytes": 22153202,
+    "sizeMB": "21.13"
+  },
+  {
+    "name": "@img/sharp-win32-x64",
+    "sizeBytes": 19890145,
+    "sizeMB": "18.97"
+  },
+  {
+    "name": ".vite",
+    "sizeBytes": 10818934,
+    "sizeMB": "10.32"
+  },
+  {
+    "name": "@esbuild/win32-x64",
+    "sizeBytes": 9914373,
+    "sizeMB": "9.46"
+  },
+  {
+    "name": "tailwindcss",
+    "sizeBytes": 5734489,
+    "sizeMB": "5.47"
+  },
+  {
+    "name": "recharts",
+    "sizeBytes": 4650058,
+    "sizeMB": "4.43"
+  },
+  {
+    "name": "react-dom",
+    "sizeBytes": 4513549,
+    "sizeMB": "4.30"
+  },
+  {
+    "name": "zod",
+    "sizeBytes": 3594196,
+    "sizeMB": "3.43"
+  },
+  {
+    "name": "@rollup/rollup-win32-x64-msvc",
+    "sizeBytes": 3278821,
+    "sizeMB": "3.13"
+  },
+  {
+    "name": "vite",
+    "sizeBytes": 3278469,
+    "sizeMB": "3.13"
+  },
+  {
+    "name": "eslint",
+    "sizeBytes": 2957501,
+    "sizeMB": "2.82"
+  },
+  {
+    "name": "jsdom",
+    "sizeBytes": 2860000,
+    "sizeMB": "2.73"
+  },
+  {
+    "name": "@remix-run/router",
+    "sizeBytes": 2744132,
+    "sizeMB": "2.62"
+  },
+  {
+    "name": "rollup",
+    "sizeBytes": 2589816,
+    "sizeMB": "2.47"
+  },
+  {
+    "name": "tus-js-client",
+    "sizeBytes": 2563242,
+    "sizeMB": "2.44"
+  },
+  {
+    "name": "@supabase/auth-js",
+    "sizeBytes": 2551479,
+    "sizeMB": "2.43"
+  },
+  {
+    "name": "@testing-library/dom",
+    "sizeBytes": 2426344,
+    "sizeMB": "2.31"
+  },
+  {
+    "name": "@types/node",
+    "sizeBytes": 2382560,
+    "sizeMB": "2.27"
+  },
+  {
+    "name": "caniuse-lite",
+    "sizeBytes": 2270970,
+    "sizeMB": "2.17"
+  },
+  {
+    "name": "@typescript-eslint/eslint-plugin",
+    "sizeBytes": 2065473,
+    "sizeMB": "1.97"
+  },
+  {
+    "name": "@tanstack/query-core",
+    "sizeBytes": 2034276,
+    "sizeMB": "1.94"
+  },
+  {
+    "name": "jiti",
+    "sizeBytes": 1947802,
+    "sizeMB": "1.86"
+  },
+  {
+    "name": "vitest",
+    "sizeBytes": 1470947,
+    "sizeMB": "1.40"
+  },
+  {
+    "name": "lodash",
+    "sizeBytes": 1412415,
+    "sizeMB": "1.35"
+  },
+  {
+    "name": "@supabase/postgrest-js",
+    "sizeBytes": 1385480,
+    "sizeMB": "1.32"
+  },
+  {
+    "name": "csstype",
+    "sizeBytes": 1246074,
+    "sizeMB": "1.19"
+  },
+  {
+    "name": "react-hook-form",
+    "sizeBytes": 1155439,
+    "sizeMB": "1.10"
+  },
+  {
+    "name": "sucrase",
+    "sizeBytes": 1136988,
+    "sizeMB": "1.08"
+  },
+  {
+    "name": "esquery",
+    "sizeBytes": 1037210,
+    "sizeMB": "0.99"
+  },
+  {
+    "name": "react-resizable-panels",
+    "sizeBytes": 1028536,
+    "sizeMB": "0.98"
+  },
+  {
+    "name": "@supabase/storage-js",
+    "sizeBytes": 972079,
+    "sizeMB": "0.93"
+  },
+  {
+    "name": "ajv",
+    "sizeBytes": 929154,
+    "sizeMB": "0.89"
+  },
+  {
+    "name": "glob",
+    "sizeBytes": 921253,
+    "sizeMB": "0.88"
+  },
+  {
+    "name": "react-day-picker",
+    "sizeBytes": 913316,
+    "sizeMB": "0.87"
+  },
+  {
+    "name": "react-router-dom",
+    "sizeBytes": 902307,
+    "sizeMB": "0.86"
+  },
+  {
+    "name": "react-router",
+    "sizeBytes": 857563,
+    "sizeMB": "0.82"
+  },
+  {
+    "name": "@typescript-eslint/typescript-estree",
+    "sizeBytes": 851020,
+    "sizeMB": "0.81"
+  }
+]

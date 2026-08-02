@@ -178,6 +178,8 @@ export default function TestimonialsSection({ section }: { section?: any }) {
                 className="absolute inset-0 w-full h-full object-cover image-crisp opacity-85"
                 loading="lazy"
                 decoding="async"
+                width={600}
+                height={350}
               />
               {/* Smooth cinematic gradient */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#061F22] via-[#061F22]/30 to-transparent z-10" />
@@ -224,6 +226,8 @@ export default function TestimonialsSection({ section }: { section?: any }) {
                 className="absolute inset-0 w-full h-full object-cover image-crisp opacity-85"
                 loading="lazy"
                 decoding="async"
+                width={600}
+                height={350}
               />
               {/* Smooth cinematic gradient */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#061F22] via-[#061F22]/30 to-transparent z-10" />
@@ -381,6 +385,8 @@ export default function TestimonialsSection({ section }: { section?: any }) {
                       className="w-full h-full object-cover image-crisp"
                       loading="lazy"
                       decoding="async"
+                      width={300}
+                      height={400}
                     />
                     
                     {/* Hover Overlay */}

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowLeft, Play, X, Compass, Palette, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowLeft, Play, X, Compass, Palette, Sparkles, Film } from "lucide-react";
 import Reveal from "@/components/ui-luxe/Reveal";
 import { useLang } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
@@ -13,10 +13,15 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
   const isVideo = !!videoUrl || previewMedia?.type === "video";
   const title = lang === "ar" ? p.nameAr || p.title_ar : p.name || p.title_en;
   const imageUrl = previewMedia?.type === "image" ? previewMedia.url : "";
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <Reveal delay={index * 120} className="w-full">
-      <div className="group relative w-full h-[320px] md:h-[360px] overflow-hidden rounded-[12px] border border-[#C18556]/22 bg-[#061F22] shadow-[0_20px_45px_rgba(0,0,0,0.25)] transition-all duration-500 hover:translate-y-[-6px] hover:border-[#C18556]/65 hover:shadow-[0_25px_50px_rgba(193,133,86,0.22)]">
+      <div 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="group relative w-full h-[320px] md:h-[360px] overflow-hidden rounded-[12px] border border-[#C18556]/22 bg-[#061F22] shadow-[0_20px_45px_rgba(0,0,0,0.25)] transition-all duration-500 hover:translate-y-[-6px] hover:border-[#C18556]/65 hover:shadow-[0_25px_50px_rgba(193,133,86,0.22)]"
+      >
         {/* Full Card Link or Video Click Overlay */}
         {isVideo ? (
           <button 
@@ -39,18 +44,25 @@ function ProjectCard({ p, index, lang, onPlayVideo }: { p: any; index: number; l
             alt={title} 
             loading="lazy"
             decoding="async"
+            width={360}
+            height={360}
             className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95 transition-transform duration-700 ease-out group-hover:scale-108"
           />
         ) : previewMedia?.type === "video" ? (
-          <video
-            src={previewMedia.url}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95 transition-transform duration-700 ease-out group-hover:scale-108"
-          />
+          isHovered ? (
+            <video
+              src={previewMedia.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover image-crisp z-0 opacity-95 transition-transform duration-700 ease-out group-hover:scale-108"
+            />
+          ) : (
+            <div className="absolute inset-0 z-0 grid place-items-center bg-[#061F22] text-[#C18556]/70">
+              <Film size={40} className="opacity-40 animate-pulse" />
+            </div>
+          )
         ) : (
           <div className="absolute inset-0 z-0 grid place-items-center bg-[#061F22] text-[#C18556]/70">
             <Palette size={34} />

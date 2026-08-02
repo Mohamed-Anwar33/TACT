@@ -39,29 +39,9 @@ export default function Testimonials() {
   useEffect(() => {
     async function loadReviews() {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("testimonials")
-        .select("*")
-        .eq("published", true)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        const dynamicMapped = data.map((d) => ({
-          id: d.id,
-          name: d.name,
-          role: lang === "en" ? (d.role_en || d.role_ar || "Client") : (d.role_ar || d.role_en || "عميل تاكت"),
-          quote: lang === "en" ? (d.quote_en || d.quote_ar) : (d.quote_ar || d.quote_en),
-          rating: d.rating || 5,
-          date: d.created_at.split("T")[0],
-          videoUrl: d.video_url,
-        }));
-        setReviews([...dynamicMapped, ...STATIC_REVIEWS]);
-      } else {
-        setReviews(STATIC_REVIEWS);
-      }
       const cmsReviews = await getCmsReviews();
-      if (cmsReviews.length) {
-        setReviews(cmsReviews.map((review) => ({
+      if (cmsReviews && cmsReviews.length) {
+        const dynamicMapped = cmsReviews.map((review) => ({
           id: review.id,
           name: lang === "ar" ? review.nameAr : review.name,
           role: lang === "ar" ? review.roleAr : review.role,
@@ -69,8 +49,11 @@ export default function Testimonials() {
           rating: review.rating,
           date: "",
           videoUrl: review.videoUrl,
-          imageUrl: review.imageUrl,
-        })));
+          imageUrl: review.imageUrl || review.image_url,
+        }));
+        setReviews([...dynamicMapped, ...STATIC_REVIEWS]);
+      } else {
+        setReviews(STATIC_REVIEWS);
       }
       setLoading(false);
     }

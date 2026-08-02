@@ -1,0 +1,112 @@
+{
+  "scores": {
+    "performance": 92,
+    "accessibility": 94,
+    "bestPractices": 96,
+    "seo": 100
+  },
+  "metrics": {
+    "fcp": "0.5 s",
+    "lcp": "0.8 s",
+    "tbt": "0 ms",
+    "cls": "0.073",
+    "speedIndex": "2.5 s",
+    "ttfb": "Root document took 0 ms",
+    "inp": "0.8 s"
+  },
+  "diagnostic": {
+    "renderBlocking": null,
+    "unusedJs": {
+      "type": "opportunity",
+      "headings": [
+        {
+          "key": "url",
+          "valueType": "url",
+          "subItemsHeading": {
+            "key": "source",
+            "valueType": "code"
+          },
+          "label": "URL"
+        },
+        {
+          "key": "totalBytes",
+          "valueType": "bytes",
+          "subItemsHeading": {
+            "key": "sourceBytes"
+          },
+          "label": "Transfer Size"
+        },
+        {
+          "key": "wastedBytes",
+          "valueType": "bytes",
+          "subItemsHeading": {
+            "key": "sourceWastedBytes"
+          },
+          "label": "Est Savings"
+        }
+      ],
+      "items": [
+        {
+          "url": "http://127.0.0.1:4173/assets/index-mNCDKKkQ.js",
+          "totalBytes": 170679,
+          "wastedBytes": 92200,
+          "wastedPercent": 54.01923888576252
+        }
+      ],
+      "overallSavingsMs": 120,
+      "overallSavingsBytes": 92200,
+      "sortedBy": [
+        "wastedBytes"
+      ],
+      "debugData": {
+        "type": "debugdata",
+        "metricSavings": {
+          "FCP": 80,
+          "LCP": 120
+        }
+      }
+    },
+    "unusedCss": {
+      "type": "opportunity",
+      "headings": [
+        {
+          "key": "url",
+          "valueType": "url",
+          "label": "URL"
+        },
+        {
+          "key": "totalBytes",
+          "valueType": "bytes",
+          "label": "Transfer Size"
+        },
+        {
+          "key": "wastedBytes",
+          "valueType": "bytes",
+          "label": "Est Savings"
+        }
+      ],
+      "items": [
+        {
+          "url": "http://127.0.0.1:4173/assets/index-DMg92gmX.css",
+          "wastedBytes": 20596,
+          "wastedPercent": 76.60292103818877,
+          "totalBytes": 26887
+        }
+      ],
+      "overallSavingsMs": 0,
+      "overallSavingsBytes": 20596,
+      "sortedBy": [
+        "wastedBytes"
+      ],
+      "debugData": {
+        "type": "debugdata",
+        "metricSavings": {
+          "FCP": 0,
+          "LCP": 0
+        }
+      }
+    },
+    "hugePayloads": "Total size was 11,486 KiB",
+    "efficientCache": null
+  }
+}

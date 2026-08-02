@@ -13,6 +13,7 @@ const ROLE_PERMISSIONS: Record<StaffRole, AdminPermission[]> = {
 };
 
 const ROUTE_PERMISSIONS: { prefix: string; permission: AdminPermission; exact?: boolean }[] = [
+  { prefix: "/admin/system-stats", permission: "dashboard" },
   { prefix: "/admin", permission: "dashboard", exact: true },
   { prefix: "/admin/pages/", permission: "content" },
   { prefix: "/admin/services", permission: "content" },

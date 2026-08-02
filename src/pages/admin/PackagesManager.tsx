@@ -23,6 +23,7 @@ export default function PackagesManager() {
   const [categories, setCategories] = useState<any[]>([]);
   const [options, setOptions] = useState<any[]>([]);
   const [optionMedia, setOptionMedia] = useState<any[]>([]);
+  const [previewTabs, setPreviewTabs] = useState<any[]>([]);
 
   // Selection states (for interactive navigation)
   const [activePkgId, setActivePkgId] = useState<string | null>(null);
@@ -39,6 +40,11 @@ export default function PackagesManager() {
   const [busy, setBusy] = useState(false);
   const [deleteAction, setDeleteAction] = useState<{ table: string; id: string } | null>(null);
   const [draggedPreviewIdx, setDraggedPreviewIdx] = useState<number | null>(null);
+  const [localTabs, setLocalTabs] = useState<string[]>([]);
+  const [activeStyleTab, setActiveStyleTab] = useState<string>("الصفحة الأولى");
+  const [showNewTabModal, setShowNewTabModal] = useState(false);
+  const [newTabName, setNewTabName] = useState("");
+  const [confirmTabDelete, setConfirmTabDelete] = useState<string | null>(null);
 
   function makeSlug(value: string, fallback: string) {
     return (
@@ -79,13 +85,36 @@ export default function PackagesManager() {
   }, []);
 
   async function load() {
-    const [a, b, c, d, e] = await Promise.all([
+    async function fetchAll(table: string, orderField = "sort_order") {
+      let allData: any[] = [];
+      let from = 0;
+      const limit = 1000;
+      while (true) {
+        const { data, error } = await db
+          .from(table)
+          .select("*")
+          .order(orderField)
+          .range(from, from + limit - 1);
+        if (error) throw error;
+        allData = [...allData, ...(data || [])];
+        if (!data || data.length < limit) break;
+        from += limit;
+      }
+      return allData;
+    }
+
+    const [a, b, c, optsData, mediaData, tabsData] = await Promise.all([
       db.from("packages").select("*").order("sort_order"),
       db.from("package_styles").select("*").order("sort_order"),
       db.from("package_categories").select("*").order("sort_order"),
-      db.from("package_options").select("*").order("sort_order"),
-      db.from("package_option_media").select("*").order("sort_order"),
+      fetchAll("package_options"),
+      fetchAll("package_option_media"),
+      fetchAll("package_style_preview_tabs")
     ]);
+
+    for (const result of [a, b, c]) {
+      if (result.error) throw result.error;
+    }
 
     const pkgs = (a.data || []).map((pkg: any) => ({
       ...pkg,
@@ -94,16 +123,17 @@ export default function PackagesManager() {
     setPackages(pkgs);
     setStyles(b.data || []);
     setCategories(c.data || []);
-    const opts = (d.data || []).map((opt: any) => ({
+    const opts = optsData.map((opt: any) => ({
       ...opt,
       image_url: resolveMediaUrl(opt.image_url) || opt.image_url
     }));
     setOptions(opts);
-    const media = (e.data || []).map((m: any) => ({
+    const media = mediaData.map((m: any) => ({
       ...m,
       url: resolveMediaUrl(m.url) || m.url
     }));
     setOptionMedia(media);
+    setPreviewTabs(tabsData);
 
     // Set default active selections if none chosen
     if (pkgs.length > 0 && !activePkgId) {
@@ -179,6 +209,7 @@ export default function PackagesManager() {
         package_id: editStyle.package_id,
         name_en: editStyle.name_en,
         name_ar: editStyle.name_ar,
+        cover_url: editStyle.cover_url || null,
         sort_order: Number(editStyle.sort_order) || 0,
         published: editStyle.published ?? true
       };
@@ -192,6 +223,7 @@ export default function PackagesManager() {
       if (error) throw error;
       const styleId = savedStyle.id;
 
+      /* Legacy cover-option workflow retained below for reference only.
       // 2. Handle cover image via style-preview category (Always ensure category & option exist)
       let previewCat = categories.find(c => c.style_id === styleId && c.slug === "style-preview");
       if (!previewCat) {
@@ -211,8 +243,16 @@ export default function PackagesManager() {
         previewCat = newCat;
       }
 
-      const previewOpt = options.find(o => o.category_id === previewCat.id);
-      if (previewOpt) {
+      const { data: existingOpt, error: fetchErr } = await db
+        .from("package_options")
+        .select("id")
+        .eq("category_id", previewCat.id)
+        .eq("name_en", "Style Preview Option")
+        .maybeSingle();
+      
+      if (fetchErr) throw fetchErr;
+
+      if (existingOpt) {
         const { error: optErr } = await db
           .from("package_options")
           .update({ 
@@ -220,7 +260,7 @@ export default function PackagesManager() {
             name_en: "Style Preview Option",
             name_ar: "خيار معاينة الاستايل"
           })
-          .eq("id", previewOpt.id);
+          .eq("id", existingOpt.id);
         if (optErr) throw optErr;
       } else {
         const { error: optErr } = await db
@@ -236,6 +276,9 @@ export default function PackagesManager() {
         if (optErr) throw optErr;
       }
 
+      toast.success("تم حفظ الاستايل بنجاح");
+      }
+      */
       toast.success("تم حفظ الاستايل بنجاح");
       setEditStyle(null);
       await load();
@@ -466,7 +509,7 @@ export default function PackagesManager() {
     return pCat;
   }
 
-  async function addStylePreviewImage(styleId: string, url: string, fileName = "") {
+  async function addStylePreviewImage(styleId: string, url: string, fileName = "", tabName = "الصفحة الأولى") {
     setBusy(true);
     try {
       const cat = await ensurePreviewCat(styleId);
@@ -476,18 +519,25 @@ export default function PackagesManager() {
       const maxOrder = styleOpts.reduce((max, o) => Math.max(max, o.sort_order ?? 0), 0);
       const nextOrder = maxOrder + 10;
       
-      const nameVal = fileName.substring(0, fileName.lastIndexOf('.')) || fileName || "Image";
+      const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName || "Image";
+      let uniqueName = baseName;
+      let counter = 1;
+      while (options.some(o => o.category_id === cat.id && o.name_en === uniqueName)) {
+        uniqueName = `${baseName} (${counter})`;
+        counter++;
+      }
 
       // 1. Insert into package_options
       const { data: newOpt, error: optErr } = await db
         .from("package_options")
         .insert({
           category_id: cat.id,
-          name_en: nameVal,
-          name_ar: nameVal,
+          name_en: uniqueName,
+          name_ar: uniqueName,
           image_url: url,
           sort_order: nextOrder,
-          published: true
+          published: true,
+          description_en: `tab:${tabName}`
         })
         .select()
         .single();
@@ -500,8 +550,8 @@ export default function PackagesManager() {
           option_id: newOpt.id,
           url: url,
           media_type: "image",
-          alt_ar: nameVal,
-          alt_en: nameVal,
+          alt_ar: uniqueName,
+          alt_en: uniqueName,
           sort_order: 0
         });
       if (mediaErr) throw mediaErr;
@@ -516,12 +566,27 @@ export default function PackagesManager() {
   }
 
   async function updateStylePreviewField(optionId: string, field: "name_ar" | "name_en" | "sort_order", value: string | number) {
-    setOptions(prev => prev.map(o => o.id === optionId ? { ...o, [field]: value } : o));
+    let finalValue = value;
+    if (field === "name_en") {
+      const currentOpt = options.find(o => o.id === optionId);
+      if (currentOpt) {
+        const baseName = String(value).trim();
+        let uniqueName = baseName;
+        let counter = 1;
+        while (options.some(o => o.category_id === currentOpt.category_id && o.id !== optionId && o.name_en === uniqueName)) {
+          uniqueName = `${baseName} (${counter})`;
+          counter++;
+        }
+        finalValue = uniqueName;
+      }
+    }
+
+    setOptions(prev => prev.map(o => o.id === optionId ? { ...o, [field]: finalValue } : o));
     try {
       // Update package_options
       const { error: optErr } = await db
         .from("package_options")
-        .update({ [field]: value })
+        .update({ [field]: finalValue })
         .eq("id", optionId);
       if (optErr) throw optErr;
 
@@ -530,9 +595,13 @@ export default function PackagesManager() {
         const mediaField = field === "name_ar" ? "alt_ar" : "alt_en";
         const { error: mediaErr } = await db
           .from("package_option_media")
-          .update({ [mediaField]: value })
+          .update({ [mediaField]: finalValue })
           .eq("option_id", optionId);
         if (mediaErr) throw mediaErr;
+      }
+
+      if (finalValue !== value) {
+        await load();
       }
     } catch (err: any) {
       toast.error("فشل تحديث بيانات الصورة");
@@ -606,23 +675,171 @@ export default function PackagesManager() {
     }
   }
 
+
+
+  const activePackage = packages.find(p => p.id === activePkgId);
+  const packageStyles = styles.filter(s => s.package_id === activePkgId);
+  const activeStyle = packageStyles.find(s => s.id === activeStyleId) || packageStyles[0];
+  const styleCategories = activeStyle ? categories.filter(c => c.style_id === activeStyle.id && c.slug !== "style-preview") : [];
+
+  const previewCat = editStyle?.id ? categories.find(c => c.style_id === editStyle.id && c.slug === "style-preview") : null;
+  const previewOptions = previewCat ? options.filter(o => o.category_id === previewCat.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) : [];
+
+  const savedPreviewTabs = editStyle?.id
+    ? previewTabs.filter(tab => tab.style_id === editStyle.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    : [];
+  const optionTabsKey = `${previewOptions.map(o => `${o.id}:${o.description_en || ""}`).join(",")}|${savedPreviewTabs.map(tab => `${tab.id}:${tab.name}`).join(",")}`;
+
+  useEffect(() => {
+    if (editStyle?.id) {
+      const tabs = previewOptions.map(opt => {
+        if (opt.description_en && opt.description_en.startsWith("tab:")) {
+          return opt.description_en.replace("tab:", "");
+        }
+        return "الصفحة الأولى";
+      });
+      const unique = Array.from(new Set([...savedPreviewTabs.map(tab => tab.name), ...tabs]));
+      if (unique.length === 0) {
+        unique.push("الصفحة الأولى");
+      }
+      setLocalTabs(unique);
+      if (!unique.includes(activeStyleTab)) {
+        setActiveStyleTab(unique[0]);
+      }
+    } else {
+      setLocalTabs(["الصفحة الأولى"]);
+      setActiveStyleTab("الصفحة الأولى");
+    }
+  }, [editStyle?.id, optionTabsKey]);
+
+  const handleCreateTab = () => {
+    setNewTabName("");
+    setShowNewTabModal(true);
+  };
+
+  const submitCreateTab = async () => {
+    if (newTabName && newTabName.trim()) {
+      const trimmed = newTabName.trim();
+      if (localTabs.includes(trimmed)) {
+        toast.error("هذه الصفحة موجودة بالفعل");
+        return;
+      }
+      if (!editStyle?.id) return;
+      setBusy(true);
+      try {
+        const { error } = await db.from("package_style_preview_tabs").insert({
+          style_id: editStyle.id,
+          name: trimmed,
+          sort_order: (savedPreviewTabs.at(-1)?.sort_order ?? 0) + 10
+        });
+        if (error) throw error;
+        setLocalTabs(prev => [...prev, trimmed]);
+        setActiveStyleTab(trimmed);
+        setShowNewTabModal(false);
+        await load();
+      } catch (err: any) {
+        toast.error(err.message || "فشل حفظ التبويب");
+      } finally {
+        setBusy(false);
+      }
+    }
+  };
+
+  const handleDeleteTab = (tabToDelete: string) => {
+    if (tabToDelete === "الصفحة الأولى") {
+      toast.error("لا يمكن حذف الصفحة الافتراضية");
+      return;
+    }
+    const hasImages = previewOptions.some(opt => {
+      const optTab = opt.description_en?.startsWith("tab:") ? opt.description_en.replace("tab:", "") : "الصفحة الأولى";
+      return optTab === tabToDelete;
+    });
+    if (hasImages) {
+      setConfirmTabDelete(tabToDelete);
+    } else {
+      const savedTab = savedPreviewTabs.find(tab => tab.name === tabToDelete);
+      if (savedTab) {
+        void db.from("package_style_preview_tabs").delete().eq("id", savedTab.id).then(({ error }) => {
+          if (error) toast.error(error.message);
+        });
+      }
+      setLocalTabs(prev => prev.filter(t => t !== tabToDelete));
+      if (activeStyleTab === tabToDelete) {
+        setActiveStyleTab("الصفحة الأولى");
+      }
+    }
+  };
+
+  const submitDeleteTab = () => {
+    if (!confirmTabDelete) return;
+    const tabToDelete = confirmTabDelete;
+    const optsToDelete = previewOptions.filter(opt => {
+      const optTab = opt.description_en?.startsWith("tab:") ? opt.description_en.replace("tab:", "") : "الصفحة الأولى";
+      return optTab === tabToDelete;
+    });
+    setBusy(true);
+    Promise.all(optsToDelete.map(opt => db.from("package_options").delete().eq("id", opt.id)))
+      .then(async (results) => {
+        const failed = results.find(result => result.error);
+        if (failed?.error) throw failed.error;
+        const savedTab = savedPreviewTabs.find(tab => tab.name === tabToDelete);
+        if (savedTab) {
+          const { error } = await db.from("package_style_preview_tabs").delete().eq("id", savedTab.id);
+          if (error) throw error;
+        }
+        toast.success("تم حذف الصفحة وصورها بنجاح");
+        setConfirmTabDelete(null);
+        load();
+      })
+      .catch((err) => toast.error(err.message))
+      .finally(() => setBusy(false));
+  };
+
+  const handleMoveOptionToTab = async (targetTab: string) => {
+    if (draggedPreviewIdx === null || !previewCat) return;
+    
+    const tabOptions = previewOptions.filter(opt => {
+      const optTab = opt.description_en?.startsWith("tab:") ? opt.description_en.replace("tab:", "") : "الصفحة الأولى";
+      return optTab === activeStyleTab;
+    });
+    
+    const draggedOpt = tabOptions[draggedPreviewIdx];
+    if (!draggedOpt) return;
+    
+    setBusy(true);
+    try {
+      const newDesc = `tab:${targetTab}`;
+      const { error } = await db.from("package_options").update({ description_en: newDesc }).eq("id", draggedOpt.id);
+      if (error) throw error;
+      toast.success(`تم نقل الصورة إلى (${targetTab}) بنجاح`);
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || "فشل نقل الصورة");
+    } finally {
+      setDraggedPreviewIdx(null);
+      setBusy(false);
+    }
+  };
+
   async function handlePreviewDrop(targetIdx: number) {
     if (draggedPreviewIdx === null || draggedPreviewIdx === targetIdx || !previewCat) return;
     
-    const nextOptions = [...previewOptions];
-    const draggedItem = nextOptions[draggedPreviewIdx];
+    const tabOptions = previewOptions.filter(opt => {
+      const optTab = opt.description_en?.startsWith("tab:") ? opt.description_en.replace("tab:", "") : "الصفحة الأولى";
+      return optTab === activeStyleTab;
+    });
     
-    // Remove the dragged item and insert it at the target position
-    nextOptions.splice(draggedPreviewIdx, 1);
-    nextOptions.splice(targetIdx, 0, draggedItem);
+    const nextTabOptions = [...tabOptions];
+    const draggedItem = nextTabOptions[draggedPreviewIdx];
     
-    // Update sort_order locally first for instant UI response
-    const reorderedOpts = nextOptions.map((opt, index) => {
+    nextTabOptions.splice(draggedPreviewIdx, 1);
+    nextTabOptions.splice(targetIdx, 0, draggedItem);
+    
+    const reorderedOpts = nextTabOptions.map((opt, index) => {
       const newOrder = (index + 1) * 10;
       return { ...opt, sort_order: newOrder };
     });
     
-    // Set the options state locally so it updates immediately
     setOptions(prev => {
       return prev.map(o => {
         const found = reorderedOpts.find(ro => ro.id === o.id);
@@ -635,24 +852,18 @@ export default function PackagesManager() {
       const updates = reorderedOpts.map((opt) => {
         return db.from("package_options").update({ sort_order: opt.sort_order }).eq("id", opt.id);
       });
-      await Promise.all(updates);
+      const results = await Promise.all(updates);
+      const failed = results.find(result => result.error);
+      if (failed?.error) throw failed.error;
       toast.success("تم تحديث ترتيب الصور بنجاح");
       await load();
     } catch (err: any) {
-      toast.error(err.message || "فشل تحديث الترتيب في قاعدة البيانات");
+      toast.error(err.message || "فشل تحديث الترتيب");
     } finally {
       setDraggedPreviewIdx(null);
       setBusy(false);
     }
   }
-
-  const activePackage = packages.find(p => p.id === activePkgId);
-  const packageStyles = styles.filter(s => s.package_id === activePkgId);
-  const activeStyle = packageStyles.find(s => s.id === activeStyleId) || packageStyles[0];
-  const styleCategories = activeStyle ? categories.filter(c => c.style_id === activeStyle.id && c.slug !== "style-preview") : [];
-
-  const previewCat = editStyle?.id ? categories.find(c => c.style_id === editStyle.id && c.slug === "style-preview") : null;
-  const previewOptions = previewCat ? options.filter(o => o.category_id === previewCat.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) : [];
 
   return (
     <>
@@ -884,9 +1095,7 @@ export default function PackagesManager() {
                         <button 
                           type="button"
                           onClick={() => {
-                            const previewCat = categories.find(c => c.style_id === activeStyle.id && c.slug === "style-preview");
-                            const previewOpt = previewCat ? options.find(o => o.category_id === previewCat.id) : null;
-                            setEditStyle({ ...activeStyle, cover_url: previewOpt?.image_url || "" });
+                            setEditStyle({ ...activeStyle, cover_url: activeStyle.cover_url || "" });
                           }}
                           style={{ padding: "4px 8px", borderRadius: "6px", border: "1px solid #e5e0d5", background: "#fff", cursor: "pointer", fontSize: "0.7rem", color: "#666" }}
                           title="تعديل اسم الاستايل"
@@ -1648,193 +1857,260 @@ export default function PackagesManager() {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <MediaUploader 
-                    folder="style-media" 
-                    label="تحميل صور معرض الاستايل" 
-                    accept="image/*" 
-                    multiple={true} 
-                    onUploaded={async (url, file) => {
-                      await addStylePreviewImage(editStyle.id, url, file.name);
-                    }} 
-                  />
-
-                  {previewOptions.length > 0 && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #eae5dc", paddingBottom: "6px" }}>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#073b35" }}>صور المعرض الإضافية</span>
-                        <span style={{ fontSize: "0.65rem", color: "#8a8578" }}>
-                          اسحب الصور لإعادة ترتيبها (Drag & Drop). الأسماء المدخلة تظهر على الصور للعميل.
-                        </span>
-                      </div>
-
-                      <div style={{ 
-                        display: "grid", 
-                        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", 
-                        gap: "12px", 
-                        marginTop: "8px" 
-                      }}>
-                        {previewOptions.map((opt, idx) => {
-                          const pageNumber = Math.floor(idx / 15) + 1;
+                  {/* Custom Pages/Tabs System */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", borderBottom: "1px solid #eae5dc", paddingBottom: "12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", flex: 1 }}>
+                        {localTabs.map((tab) => {
+                          const isActive = tab === activeStyleTab;
                           return (
-                            <Fragment key={opt.id}>
-                              {/* Visual Page Divider Header */}
-                              {idx % 15 === 0 && (
-                                <div style={{ 
-                                  gridColumn: "1 / -1", 
-                                  padding: idx === 0 ? "8px 0" : "20px 0 8px 0", 
-                                  borderTop: idx === 0 ? "none" : "2px dashed #e2dcd0", 
-                                  marginTop: idx === 0 ? 0 : "12px", 
-                                  display: "flex", 
-                                  alignItems: "center", 
-                                  gap: "12px" 
-                                }}>
-                                  <span style={{ 
-                                    fontSize: "10px", 
-                                    fontWeight: "bold", 
-                                    color: "#073b35", 
-                                    background: "rgba(7, 59, 53, 0.06)", 
-                                    padding: "4px 12px", 
-                                    borderRadius: "20px", 
-                                    border: "1px solid rgba(7, 59, 53, 0.15)",
-                                    fontFamily: "serif-ar"
-                                  }}>
-                                    الصفحة {pageNumber} (الصور {idx + 1} - {Math.min(idx + 15, previewOptions.length)})
-                                  </span>
-                                  <div style={{ flex: 1, height: "1px", background: "#e2dcd0" }} />
-                                </div>
+                            <div
+                              key={tab}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                handleMoveOptionToTab(tab);
+                              }}
+                              onClick={() => setActiveStyleTab(tab)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "6px 14px",
+                                borderRadius: "10px",
+                                background: isActive ? "#073b35" : "#fbfaf8",
+                                border: isActive ? "1px solid #073b35" : "1px solid #eae5dc",
+                                color: isActive ? "#fff" : "#6e685a",
+                                fontSize: "0.74rem",
+                                fontWeight: isActive ? 700 : 500,
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                                boxShadow: isActive ? "0 2px 8px rgba(7, 59, 53, 0.2)" : "none"
+                              }}
+                            >
+                              <span>📁 {tab}</span>
+                              {tab !== "الصفحة الأولى" && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTab(tab);
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: isActive ? "rgba(255,255,255,0.7)" : "#dc2626",
+                                    cursor: "pointer",
+                                    padding: "0 2px",
+                                    fontSize: "0.68rem",
+                                    marginLeft: "4px"
+                                  }}
+                                  title="حذف الصفحة"
+                                >
+                                  ✕
+                                </button>
                               )}
-
-                              <div 
-                                draggable={true}
-                                onDragStart={(e) => {
-                                  setDraggedPreviewIdx(idx);
-                                  e.dataTransfer.effectAllowed = "move";
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  handlePreviewDrop(idx);
-                                }}
-                                style={{ 
-                                  display: "flex", 
-                                  flexDirection: "column", 
-                                  gap: "8px", 
-                                  background: "#fdfdfb", 
-                                  border: "1px solid #e2dcd0", 
-                                  borderRadius: "12px", 
-                                  padding: "10px",
-                                  boxShadow: "0 2px 6px rgba(0,0,0,0.01)",
-                                  cursor: "move",
-                                  transition: "all 0.2s",
-                                  opacity: draggedPreviewIdx === idx ? 0.4 : 1
-                                }}
-                              >
-                                <div style={{ fontSize: "9px", color: "#888", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, borderBottom: "1px dashed #eae5dc", paddingBottom: 4 }}>
-                                  <span style={{ 
-                                    background: pageNumber === 1 ? "rgba(7, 59, 53, 0.1)" : "rgba(193, 150, 76, 0.1)",
-                                    color: pageNumber === 1 ? "#073b35" : "#c9964c",
-                                    border: pageNumber === 1 ? "1px solid rgba(7, 59, 53, 0.2)" : "1px solid rgba(193, 150, 76, 0.2)",
-                                    padding: "2px 6px",
-                                    borderRadius: "6px",
-                                    fontWeight: "bold",
-                                    fontSize: "8px"
-                                  }}>
-                                    الصفحة {pageNumber}
-                                  </span>
-                                  <span>⇅ اسحب للترتيب</span>
-                                </div>
-
-                                <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", background: "#f5f5f5" }}>
-                                  <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  <div style={{ position: "absolute", top: 4, insetInlineEnd: 4 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeStylePreviewImage(opt.id)}
-                                      style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", fontWeight: "bold" }}
-                                      title="حذف الصورة"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                  {idx === 0 && (
-                                    <div style={{ position: "absolute", bottom: 4, insetInlineStart: 4, background: "#073b35", color: "#fff", fontSize: "9px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>
-                                      غلاف الاستايل
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-                                  <div className="form-group" style={{ margin: 0 }}>
-                                    <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
-                                      الاسم (عربي) *
-                                    </label>
-                                    <Input
-                                      value={opt.name_ar || ""}
-                                      onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
-                                      onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
-                                      placeholder="مثال: مودرن - 01"
-                                      style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
-                                    />
-                                  </div>
-                                  <div className="form-group" style={{ margin: 0 }}>
-                                    <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
-                                      Name (EN) *
-                                    </label>
-                                    <Input
-                                      value={opt.name_en || ""}
-                                      onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
-                                      onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
-                                      placeholder="e.g. Modern - 01"
-                                      dir="ltr"
-                                      style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
-                                    />
-                                  </div>
-                                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                                    <div style={{ flex: 1 }}>
-                                      <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", display: "block" }}>الترتيب</label>
-                                      <Input
-                                        type="number"
-                                        value={opt.sort_order ?? 0}
-                                        onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
-                                        onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
-                                        style={{ height: 26, fontSize: "0.68rem", padding: "0 4px", background: "#fff", textAlign: "center" }}
-                                      />
-                                    </div>
-                                    {idx > 0 && (
-                                      <div style={{ flex: 1.5, display: "flex", alignItems: "flex-end" }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
-                                          style={{
-                                            background: "rgba(193, 150, 76, 0.1)",
-                                            border: "1px solid rgba(193, 150, 76, 0.3)",
-                                            color: "#c9964c",
-                                            borderRadius: "6px",
-                                            fontSize: "0.58rem",
-                                            fontWeight: 700,
-                                            cursor: "pointer",
-                                            height: 26,
-                                            width: "100%",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center"
-                                          }}
-                                        >
-                                          👑 غلاف
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </Fragment>
+                            </div>
                           );
                         })}
                       </div>
+                      
+                      <button
+                        type="button"
+                        onClick={handleCreateTab}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "10px",
+                          border: "1px dashed #c1964c",
+                          color: "#c1964c",
+                          background: "rgba(193, 150, 76, 0.04)",
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        + إضافة صفحة جديدة
+                      </button>
                     </div>
-                  )}
+                  </div>
+
+                  <MediaUploader 
+                    folder="style-media" 
+                    label={`تحميل صور معرض الاستايل لـ (${activeStyleTab})`} 
+                    accept="image/*" 
+                    multiple={true} 
+                    onUploaded={async (url, file) => {
+                      await addStylePreviewImage(editStyle.id, url, file.name, activeStyleTab);
+                    }} 
+                  />
+
+                  {(() => {
+                    const tabOptions = previewOptions.filter(opt => {
+                      const optTab = opt.description_en?.startsWith("tab:") ? opt.description_en.replace("tab:", "") : "الصفحة الأولى";
+                      return optTab === activeStyleTab;
+                    });
+                    if (tabOptions.length > 0) {
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #eae5dc", paddingBottom: "6px" }}>
+                            <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#073b35" }}>صور المعرض الإضافية ({activeStyleTab})</span>
+                            <span style={{ fontSize: "0.65rem", color: "#8a8578" }}>
+                              اسحب الصور لإعادة ترتيبها (Drag & Drop) داخل هذه الصفحة. اسحب الصورة وضعها على اسم تبويب بالأعلى لنقلها لصفحة أخرى.
+                            </span>
+                          </div>
+
+                          <div style={{ 
+                            display: "grid", 
+                            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", 
+                            gap: "12px", 
+                            marginTop: "8px" 
+                          }}>
+                            {tabOptions.map((opt, idx) => {
+                              const isGlobalCover = opt.id === previewOptions[0]?.id;
+                              return (
+                                <div 
+                                  key={opt.id} 
+                                  draggable={true}
+                                  onDragStart={(e) => {
+                                    setDraggedPreviewIdx(idx);
+                                    e.dataTransfer.effectAllowed = "move";
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    handlePreviewDrop(idx);
+                                  }}
+                                  style={{ 
+                                    display: "flex", 
+                                    flexDirection: "column", 
+                                    gap: "8px", 
+                                    background: "#fdfdfb", 
+                                    border: "1px solid #e2dcd0", 
+                                    borderRadius: "12px", 
+                                    padding: "10px",
+                                    boxShadow: "0 2px 6px rgba(0,0,0,0.01)",
+                                    cursor: "move",
+                                    transition: "all 0.2s",
+                                    opacity: draggedPreviewIdx === idx ? 0.4 : 1
+                                  }}
+                                >
+                                  <div style={{ fontSize: "9px", color: "#888", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, borderBottom: "1px dashed #eae5dc", paddingBottom: 4 }}>
+                                    <span style={{ 
+                                      background: "rgba(7, 59, 53, 0.1)",
+                                      color: "#073b35",
+                                      border: "1px solid rgba(7, 59, 53, 0.2)",
+                                      padding: "2px 6px",
+                                      borderRadius: "6px",
+                                      fontWeight: "bold",
+                                      fontSize: "8px"
+                                    }}>
+                                      {activeStyleTab}
+                                    </span>
+                                    <span>⇅ اسحب للترتيب</span>
+                                  </div>
+
+                                  <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", borderRadius: "8px", overflow: "hidden", border: "1px solid #d4ceb8", background: "#f5f5f5" }}>
+                                    <img src={resolveMediaUrl(opt.image_url) || ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    <div style={{ position: "absolute", top: 4, insetInlineEnd: 4 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeStylePreviewImage(opt.id)}
+                                        style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#fecaca", color: "#dc2626", border: "none", cursor: "pointer", display: "grid", placeItems: "center", fontSize: "10px", fontWeight: "bold" }}
+                                        title="حذف الصورة"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                    {isGlobalCover && (
+                                      <div style={{ position: "absolute", bottom: 4, insetInlineStart: 4, background: "#073b35", color: "#fff", fontSize: "9px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px" }}>
+                                        غلاف الاستايل
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                      <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
+                                        الاسم (عربي) *
+                                      </label>
+                                      <Input
+                                        value={opt.name_ar || ""}
+                                        onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_ar: e.target.value } : item))}
+                                        onBlur={e => updateStylePreviewField(opt.id, "name_ar", e.target.value)}
+                                        placeholder="مثال: مودرن - 01"
+                                        style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
+                                      />
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                      <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", marginBottom: 2, display: "block" }}>
+                                        Name (EN) *
+                                      </label>
+                                      <Input
+                                        value={opt.name_en || ""}
+                                        onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, name_en: e.target.value } : item))}
+                                        onBlur={e => updateStylePreviewField(opt.id, "name_en", e.target.value)}
+                                        placeholder="e.g. Modern - 01"
+                                        dir="ltr"
+                                        style={{ height: 26, fontSize: "0.68rem", padding: "0 6px", background: "#fff" }}
+                                      />
+                                    </div>
+                                    <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                                      <div style={{ flex: 1 }}>
+                                        <label style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6e685a", display: "block" }}>الترتيب</label>
+                                        <Input
+                                          type="number"
+                                          value={opt.sort_order ?? 0}
+                                          onChange={e => setOptions(prev => prev.map(item => item.id === opt.id ? { ...item, sort_order: Number(e.target.value) } : item))}
+                                          onBlur={e => updateStylePreviewField(opt.id, "sort_order", Number(e.target.value) || 0)}
+                                          style={{ height: 26, fontSize: "0.68rem", padding: "0 4px", background: "#fff", textAlign: "center" }}
+                                        />
+                                      </div>
+                                      {!isGlobalCover && (
+                                        <div style={{ flex: 1.5, display: "flex", alignItems: "flex-end" }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => previewCat && makeStyleCoverImage(opt.id, previewCat.id)}
+                                            style={{
+                                              background: "rgba(193, 150, 76, 0.1)",
+                                              border: "1px solid rgba(193, 150, 76, 0.3)",
+                                              color: "#c9964c",
+                                              borderRadius: "6px",
+                                              fontSize: "0.58rem",
+                                              fontWeight: 700,
+                                              cursor: "pointer",
+                                              height: 26,
+                                              width: "100%",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center"
+                                            }}
+                                          >
+                                            👑 غلاف
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div style={{ padding: "30px", background: "#faf8f4", border: "1px dashed #eae5dc", borderRadius: "12px", textAlign: "center", fontSize: "0.76rem", color: "#8a8578", marginTop: "12px" }}>
+                          لا توجد صور في هذه الصفحة حالياً. قم بتحميل بعض الصور أو اسحب صوراً من صفحات أخرى وضعها هنا.
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
               )}
             </div>
@@ -2112,6 +2388,172 @@ export default function PackagesManager() {
       </EditDrawer>
 
       <ConfirmDialog open={!!deleteAction} onConfirm={doDelete} onCancel={() => setDeleteAction(null)} />
+
+      {/* Custom Modal for Creating a New Tab/Page */}
+      {showNewTabModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          background: "rgba(0,0,0,0.65)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "16px"
+        }}>
+          <div style={{
+            background: "#fdfdfb",
+            border: "1px solid #eae5dc",
+            borderRadius: "16px",
+            padding: "24px",
+            width: "100%",
+            maxWidth: "400px",
+            boxShadow: "0 10px 25px rgba(7, 59, 53, 0.15)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px"
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#073b35", fontFamily: "serif-ar" }}>إضافة صفحة جديدة لمعرض المعاينة</span>
+              <span style={{ fontSize: "0.74rem", color: "#8a8578" }}>أدخل اسماً مميزاً لتنظيم الصور (مثال: صالون، جلسة خارجية)</span>
+            </div>
+            
+            <Input 
+              value={newTabName}
+              onChange={(e) => setNewTabName(e.target.value)}
+              placeholder="مثال: نوم رئيسية، معيشة..."
+              autoFocus
+              style={{
+                height: "40px",
+                fontSize: "0.82rem",
+                borderRadius: "8px",
+                border: "1px solid #d4ceb8",
+                background: "#fff",
+                padding: "0 12px"
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  submitCreateTab();
+                }
+              }}
+            />
+            
+            <div style={{ display: "flex", justifySelf: "flex-end", gap: "8px", marginTop: "4px" }}>
+              <button
+                type="button"
+                onClick={() => setShowNewTabModal(false)}
+                style={{
+                  flex: 1,
+                  height: "38px",
+                  borderRadius: "8px",
+                  border: "1px solid #eae5dc",
+                  background: "#fdfdfb",
+                  color: "#6e685a",
+                  fontSize: "0.76rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={submitCreateTab}
+                style={{
+                  flex: 1,
+                  height: "38px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#073b35",
+                  color: "#fff",
+                  fontSize: "0.76rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  boxShadow: "0 2px 8px rgba(7, 59, 53, 0.25)"
+                }}
+              >
+                إنشاء الصفحة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Modal for Confirming Tab Deletion */}
+      {confirmTabDelete && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          background: "rgba(0,0,0,0.65)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "16px"
+        }}>
+          <div style={{
+            background: "#fdfdfb",
+            border: "1px solid #eae5dc",
+            borderRadius: "16px",
+            padding: "24px",
+            width: "100%",
+            maxWidth: "400px",
+            boxShadow: "0 10px 25px rgba(7, 59, 53, 0.15)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px"
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#dc2626", fontFamily: "serif-ar" }}>تأكيد حذف الصفحة ومحتوياتها</span>
+              <span style={{ fontSize: "0.74rem", color: "#8a8578" }}>هذه الصفحة تحتوي على صور. هل أنت متأكد من رغبتك في حذف الصفحة وكل الصور التي بداخلها؟ لا يمكن التراجع عن هذا الإجراء.</span>
+            </div>
+            
+            <div style={{ display: "flex", justifySelf: "flex-end", gap: "8px", marginTop: "4px" }}>
+              <button
+                type="button"
+                onClick={() => setConfirmTabDelete(null)}
+                style={{
+                  flex: 1,
+                  height: "38px",
+                  borderRadius: "8px",
+                  border: "1px solid #eae5dc",
+                  background: "#fdfdfb",
+                  color: "#6e685a",
+                  fontSize: "0.76rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                onClick={submitDeleteTab}
+                style={{
+                  flex: 1,
+                  height: "38px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#dc2626",
+                  color: "#fff",
+                  fontSize: "0.76rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  boxShadow: "0 2px 8px rgba(220, 38, 38, 0.25)"
+                }}
+              >
+                تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowRight, Film, Image as ImageIcon } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
@@ -14,6 +14,55 @@ import FinalCTA from "@/components/home/teqaan/FinalCTA";
 import { cn } from "@/lib/utils";
 import { CmsSection, getCmsSections } from "@/lib/publicCms";
 import SEO from "@/components/layout/SEO";
+import { resolveMediaUrl } from "@/lib/realContent";
+import cmsSnapshot from "@/data/cms-snapshot.json";
+
+function getCmsSectionsSync(pageSlug: string): Record<string, CmsSection> {
+  try {
+    const cached = localStorage.getItem(`tact_cms_sections_${pageSlug}`);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    // Ignore
+  }
+
+  const sections = cmsSnapshot.cms_sections.filter((row: any) => row.page_slug === pageSlug && row.visible !== false);
+  const mediaRows = cmsSnapshot.cms_section_media;
+
+  const mapped = sections.map((row: any) => ({
+    id: row.id,
+    pageSlug: row.page_slug,
+    sectionKey: row.section_key,
+    sectionNameEn: row.section_name_en,
+    sectionNameAr: row.section_name_ar,
+    titleEn: row.title_en,
+    titleAr: row.title_ar,
+    bodyEn: row.body_en,
+    bodyAr: row.body_ar,
+    ctaLabelEn: row.cta_label_en,
+    ctaLabelAr: row.cta_label_ar,
+    ctaUrl: row.cta_url,
+    metadata: row.metadata,
+    media: mediaRows
+      .filter((item: any) => item.section_id === row.id)
+      .map((item: any) => ({
+        id: item.id,
+        role: item.role,
+        mediaType: item.media_type,
+        url: resolveMediaUrl(item.url) || item.url,
+        titleEn: item.title_en,
+        titleAr: item.title_ar,
+        altEn: item.alt_en,
+        altAr: item.alt_ar,
+      })),
+  }));
+
+  return Object.fromEntries(mapped.map((row) => [row.sectionKey, row]));
+}
 
 const HERO_SLIDES = [
   "/real-content/Designs/Landscape/Screenshot_14-5-2026_185926_.webp",
@@ -29,7 +78,10 @@ export default function Home() {
   const [heroMode, setHeroMode] = useState(() => {
     return localStorage.getItem("tact_hero_bg_mode") || "video";
   });
-  const [sections, setSections] = useState<Record<string, CmsSection>>({});
+  const [sections, setSections] = useState<Record<string, CmsSection>>(() => {
+    return getCmsSectionsSync("home");
+  });
+  const [isMobile, setIsMobile] = useState(false);
   const heroSection = sections.hero;
   const heroVideo = heroSection?.media.find((item) => (item.role === "video" || item.role === "section") && item.mediaType === "video")?.url || "/real-content/Finishing videos/Luxury modern.mp4";
   const heroPoster = heroSection?.media.find((item) => item.role === "poster" || item.role === "cover" || (item.role === "section" && item.mediaType === "image"))?.url || "/real-content/Finishing videos/Luxury modern-thumb.webp";
@@ -37,6 +89,16 @@ export default function Home() {
   const heroBody = lang === "ar" ? heroSection?.bodyAr || t("hero_subtitle") : heroSection?.bodyEn || t("hero_subtitle");
   const heroCtaLabel = lang === "ar" ? heroSection?.ctaLabelAr || t("cta_start") : heroSection?.ctaLabelEn || t("cta_start");
   const heroCtaUrl = heroSection?.ctaUrl || "/questionnaire";
+
+  // Check if device is mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Listen to live switches from the Admin Dashboard
   useEffect(() => {
@@ -58,7 +120,13 @@ export default function Home() {
     let alive = true;
     getCmsSections("home").then((rows) => {
       if (!alive) return;
-      setSections(Object.fromEntries(rows.map((row) => [row.sectionKey, row])));
+      const mapped = Object.fromEntries(rows.map((row) => [row.sectionKey, row]));
+      try {
+        localStorage.setItem("tact_cms_sections_home", JSON.stringify(mapped));
+      } catch (e) {
+        // Ignore
+      }
+      setSections(mapped);
     });
     return () => {
       alive = false;
@@ -97,6 +165,31 @@ export default function Home() {
     }
   };
 
+  const heroVideoMp4 = heroVideo;
+  const heroVideoWebM = heroVideo.replace(/\.mp4$/i, ".webm");
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || heroMode !== "video" || isMobile) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(video);
+    return () => {
+      observer.unobserve(video);
+    };
+  }, [heroMode, heroVideo, isMobile]);
+
   return (
     <>
       <SEO 
@@ -105,16 +198,41 @@ export default function Home() {
       <section className="relative h-screen min-h-[600px] w-full overflow-hidden bg-[#0C363A]">
 
         {/* CONDITIONAL HERO BACKGROUND: VIDEO OR SLIDESHOW */}
-        {heroMode === "video" ? (
+        {heroMode === "video" && !isMobile ? (
           <div className="absolute inset-0 w-full h-full z-0">
             <video
-              src={heroVideo}
+              ref={videoRef}
               poster={heroPoster}
-              autoPlay
+              preload="metadata"
               loop
               muted
               playsInline
               className="w-full h-full object-cover"
+            >
+              <source src={heroVideoWebM} type="video/webm" />
+              <source src={heroVideoMp4} type="video/mp4" />
+            </video>
+            {/* Dark overlay */}
+            <div className="absolute inset-0 bg-[#0C363A]/72 pointer-events-none" />
+            <div className={cn(
+              "absolute inset-0 pointer-events-none",
+              lang === "ar"
+                ? "bg-gradient-to-l from-[#0C363A] via-[#0C363A]/40 to-transparent"
+                : "bg-gradient-to-r from-[#0C363A] via-[#0C363A]/40 to-transparent"
+            )} />
+            <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(12,54,58,0.9)] pointer-events-none" />
+          </div>
+        ) : heroMode === "video" && isMobile ? (
+          <div className="absolute inset-0 w-full h-full z-0">
+            <img
+              src={heroPoster}
+              alt="تاكت للتصميم والتشطيب"
+              className="w-full h-full object-cover image-crisp"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              width={768}
+              height={1024}
             />
             {/* Dark overlay */}
             <div className="absolute inset-0 bg-[#0C363A]/72 pointer-events-none" />
@@ -140,7 +258,10 @@ export default function Home() {
                 alt="مشروع حقيقي لشركة تاكت"
                 className="w-full h-full object-cover image-crisp"
                 loading={idx === 0 ? "eager" : "lazy"}
+                fetchPriority={idx === 0 ? "high" : "low"}
                 decoding="async"
+                width={1920}
+                height={1080}
                 onError={(e) => {
                   (e.currentTarget as HTMLElement).style.display = "none";
                 }}

@@ -56,6 +56,7 @@ export type CatalogStyle = {
   package_id: string;
   name_en: string;
   name_ar: string;
+  cover_url?: string | null;
   sort_order: number;
   categories: CatalogCategory[];
 };
@@ -337,29 +338,59 @@ export async function getPackageStyles(packageId: string): Promise<CatalogStyle[
     .order("sort_order", { ascending: true });
 
   const categoryIds = (categories ?? []).map((category: any) => category.id);
-  const { data: options } = categoryIds.length
-    ? await db
-        .from("package_options")
-        .select("*")
-        .in("category_id", categoryIds)
-        .eq("published", true)
-        .order("sort_order", { ascending: true })
-    : { data: [] };
+  
+  let options: any[] = [];
+  if (categoryIds.length) {
+    const chunkSize = 100;
+    for (let i = 0; i < categoryIds.length; i += chunkSize) {
+      const chunk = categoryIds.slice(i, i + chunkSize);
+      let from = 0;
+      const limit = 1000;
+      while (true) {
+        const { data, error: optErr } = await db
+          .from("package_options")
+          .select("*")
+          .in("category_id", chunk)
+          .eq("published", true)
+          .order("sort_order", { ascending: true })
+          .range(from, from + limit - 1);
+        if (optErr) throw optErr;
+        options = [...options, ...(data || [])];
+        if (!data || data.length < limit) break;
+        from += limit;
+      }
+    }
+  }
 
-  const optionIds = (options ?? []).map((option: any) => option.id);
-  const { data: media } = optionIds.length
-    ? await db
-        .from("package_option_media")
-        .select("*")
-        .in("option_id", optionIds)
-        .order("sort_order", { ascending: true })
-    : { data: [] };
+  const optionIds = options.map((option: any) => option.id);
+  let media: any[] = [];
+  if (optionIds.length) {
+    const chunkSize = 100;
+    for (let i = 0; i < optionIds.length; i += chunkSize) {
+      const chunk = optionIds.slice(i, i + chunkSize);
+      let from = 0;
+      const limit = 1000;
+      while (true) {
+        const { data, error: mediaErr } = await db
+          .from("package_option_media")
+          .select("*")
+          .in("option_id", chunk)
+          .order("sort_order", { ascending: true })
+          .range(from, from + limit - 1);
+        if (mediaErr) throw mediaErr;
+        media = [...media, ...(data || [])];
+        if (!data || data.length < limit) break;
+        from += limit;
+      }
+    }
+  }
 
   return styles.map((style: any) => ({
     id: style.id,
     package_id: style.package_id,
     name_en: style.name_en,
     name_ar: style.name_ar,
+    cover_url: normalizePackageImageUrl(style.cover_url) ?? style.cover_url ?? null,
     sort_order: style.sort_order ?? 0,
     categories: sortPackageCategories((categories ?? [])
       .filter((category: any) => category.style_id === style.id)

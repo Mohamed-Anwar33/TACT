@@ -33,6 +33,8 @@ function OwnerPreviewCard({ m, index, lang }: { m: any; index: number; lang: str
                 className="w-full h-full object-cover image-crisp"
                 loading="lazy"
                 decoding="async"
+                width={128}
+                height={128}
               />
             </div>
           </div>

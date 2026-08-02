@@ -556,15 +556,7 @@ export default function ProjectDetails() {
                       setCurrentIndex(idx);
                       setZoomLevel(1);
                     }}
-                    onMouseEnter={() => {
-                      if (item.url && item.type === "image") {
-                        setActiveHoverPreview({
-                          url: item.url,
-                          label: item.title || (lang === "ar" ? "معاينة التصميم" : "Design Preview")
-                        });
-                      }
-                    }}
-                    onMouseLeave={() => setActiveHoverPreview(null)}
+
                     className={cn(
                       "relative flex-shrink-0 w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 active:scale-95 bg-white/5 group",
                       isActive

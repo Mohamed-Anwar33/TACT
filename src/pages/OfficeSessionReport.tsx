@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, FileText, Printer } from "lucide-react";
+import { ArrowRight, FileText, Printer, Edit } from "lucide-react";
 import { toast } from "sonner";
 import SectionEyebrow from "@/components/ui-luxe/SectionEyebrow";
 import { useAuth } from "@/auth/AuthProvider";
@@ -153,10 +153,21 @@ export default function OfficeSessionReport() {
             <span>{lang === "ar" ? "العودة لحسابي" : "Back to Account"}</span>
           </Link>
         )}
-        <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-gold px-5 py-2.5 text-xs font-bold text-teal-deep shadow">
-          <Printer size={15} />
-          <span>{lang === "ar" ? "طباعة / حفظ PDF" : "Print / Save PDF"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {selection && (isOfficeConsultant || isAdmin) && (
+            <Link 
+              to={`/packages/${selection.package_id}/configurator?questionnaireId=${selection.questionnaire_id || ""}&editSelectionId=${selection.id}`} 
+              className="inline-flex items-center gap-2 rounded-lg bg-[#0C363A] hover:bg-[#0F4D52] px-5 py-2.5 text-xs font-bold text-white shadow transition-all cursor-pointer border border-white/10"
+            >
+              <Edit size={15} />
+              <span>{lang === "ar" ? "تعديل الاختيارات" : "Edit Selections"}</span>
+            </Link>
+          )}
+          <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-gold px-5 py-2.5 text-xs font-bold text-teal-deep shadow cursor-pointer">
+            <Printer size={15} />
+            <span>{lang === "ar" ? "طباعة / حفظ PDF" : "Print / Save PDF"}</span>
+          </button>
+        </div>
       </div>
 
       <article className="print-sheet mx-auto max-w-[210mm] border border-[#e0d6c7] bg-white p-8 shadow-2xl">

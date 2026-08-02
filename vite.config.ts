@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const DEFAULT_REAL_CONTENT_BASE_URL =
   "https://lnzxissivnzpjvvxulvc.supabase.co/storage/v1/object/public/real-content";
@@ -60,12 +61,38 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
     },
-    plugins: [realContentCdnPlugin(env.VITE_REAL_CONTENT_BASE_URL, mode === "development"), react(), omitLocalRealContentFromDistPlugin()],
+    plugins: [
+      realContentCdnPlugin(env.VITE_REAL_CONTENT_BASE_URL, mode === "development"),
+      react(),
+      omitLocalRealContentFromDistPlugin(),
+      visualizer({
+        open: false,
+        filename: "bundle-analysis.html",
+        gzipSize: true,
+        brotliSize: true,
+      }),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
       dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("recharts") || id.includes("d3")) {
+                return "vendor-charts";
+              }
+              if (id.includes("lucide-react")) {
+                return "vendor-icons";
+              }
+            }
+          }
+        }
+      }
+    }
   };
 });

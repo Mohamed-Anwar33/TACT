@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Home, FileText, Briefcase, Image, Users, MessageSquare,
   Mail, Settings, LogOut, LayoutDashboard, Menu, X, BookOpen,
-  Package, Unlock, Shield, UserRound,
+  Package, Unlock, Shield, UserRound, HardDrive,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { AdminPermission, hasAdminPermission } from "@/auth/adminPermissions";
@@ -11,6 +11,7 @@ import { useState } from "react";
 const NAV_ITEMS: { group: string; groupEn: string; items: { path: string; icon: any; ar: string; en: string; exact?: boolean; permission: AdminPermission }[] }[] = [
   { group: "لوحة التحكم", groupEn: "Dashboard", items: [
     { path: "/admin", icon: LayoutDashboard, ar: "نظرة عامة", en: "Overview", exact: true, permission: "dashboard" },
+    { path: "/admin/system-stats", icon: HardDrive, ar: "إحصائيات النظام", en: "System Stats", permission: "dashboard" },
   ]},
   { group: "إدارة الصفحات والمحتوى", groupEn: "Content", items: [
     { path: "/admin/pages/home", icon: Home, ar: "الرئيسية", en: "Home Page", permission: "content" },

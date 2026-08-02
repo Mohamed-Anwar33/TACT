@@ -11,7 +11,7 @@ import {
   ChevronLeft, ChevronRight, Wrench, Paintbrush, Sparkles, Sofa, Download, 
   ChevronDown, ChevronUp, Image as ImageIcon, LayoutGrid, CreditCard, 
   User, Building, Clock, MapPin, Phone, Mail, ExternalLink, Check, X, 
-  AlertCircle, Calendar, Activity, Clipboard
+  AlertCircle, Calendar, Activity, Clipboard, Edit
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,8 @@ export default function CustomerArea() {
 
   // Project Stage Tracking States
   const [projectStages, setProjectStages] = useState<any[]>([]);
+  const [clientProjects, setClientProjects] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [stageFiles, setStageFiles] = useState<any[]>([]);
   const [stageNotes, setStageNotes] = useState<any[]>([]);
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
@@ -41,50 +43,18 @@ export default function CustomerArea() {
   const [selectedQuestionnaireForView, setSelectedQuestionnaireForView] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "stages" | "files" | "billing">("overview");
 
-  async function fetchAndInitializeStages(clientId: string) {
+  async function fetchProjectStages(projectId: string) {
     setLoadingStages(true);
     try {
       let { data: stages, error } = await (supabase as any)
         .from("project_stages")
         .select("*")
-        .eq("user_id", clientId)
+        .eq("project_id", projectId)
         .order("stage_number", { ascending: true });
 
       if (error) throw error;
 
-      if (!stages || stages.length === 0) {
-        // Create 4 default stages
-        const defaultStages = [
-          { user_id: clientId, stage_number: 1, title_ar: "مرحلة أولى: التأسيسات", title_en: "Stage 1: Foundations", status: "pending" },
-          { user_id: clientId, stage_number: 2, title_ar: "مرحلة ثانية: التشطيبات الأساسية", title_en: "Stage 2: Basic Finishes", status: "pending" },
-          { user_id: clientId, stage_number: 3, title_ar: "مرحلة ثالثة: التشطيبات النهائية", title_en: "Stage 3: Final Finishes", status: "pending" },
-          { user_id: clientId, stage_number: 4, title_ar: "مرحلة رابعة: الديكور والفرش", title_en: "Stage 4: Decor & Furnishing", status: "pending" },
-        ];
-        const { data: inserted, error: insertError } = await (supabase as any)
-          .from("project_stages")
-          .insert(defaultStages)
-          .select("*")
-          .order("stage_number", { ascending: true });
-
-        if (insertError) throw insertError;
-        stages = inserted;
-      }
-
-      const stage1 = stages?.find(s => s.stage_number === 1);
-      const virtualStage0 = {
-        id: "virtual_stage_zero",
-        user_id: clientId,
-        stage_number: 0,
-        title_ar: "التصميم والملفات الفنية والـ PDF",
-        title_en: "Design & Technical Files (PDF)",
-        status: "completed",
-        notes_ar: "تحتوي هذه المرحلة على كافة ملفات الـ PDF الخاصة باختيارات العميل للمواد، بالإضافة إلى التصميم النهائي المعتمد للمشروع.",
-        notes_en: "This section contains all PDF files of client selections and the final approved project design.",
-        stage_1_id: stage1?.id || ""
-      };
-
-      const allStages = [virtualStage0, ...(stages || [])];
-      setProjectStages(allStages);
+      setProjectStages(stages || []);
 
       if (stages && stages.length > 0) {
         const stageIds = stages.map(s => s.id);
@@ -95,7 +65,12 @@ export default function CustomerArea() {
           .select("*")
           .in("stage_id", stageIds)
           .order("created_at", { ascending: false });
-        setStageFiles(filesData || []);
+        const signedFiles = await Promise.all((filesData || []).map(async (file: any) => {
+          if (!file.storage_path) return file;
+          const { data } = await supabase.storage.from("client-project-media").createSignedUrl(file.storage_path, 60 * 60);
+          return { ...file, file_url: data?.signedUrl || null };
+        }));
+        setStageFiles(signedFiles.filter((file: any) => file.file_url));
 
         // Fetch notes
         const { data: notesData } = await (supabase as any)
@@ -111,6 +86,11 @@ export default function CustomerArea() {
       setLoadingStages(false);
     }
   }
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    void fetchProjectStages(selectedProjectId);
+  }, [selectedProjectId]);
 
   // Set default expanded stage to the active stage or stage 1
   useEffect(() => {
@@ -212,7 +192,12 @@ export default function CustomerArea() {
       setUserQuestionnaires(questionnairesRes.data ?? []);
 
       if (!isOfficeConsultant) {
-        fetchAndInitializeStages(user.id);
+        void (supabase as any).from("client_projects").select("*").eq("user_id", user.id).is("archived_at", null).order("created_at", { ascending: false })
+          .then((projectsRes: any) => {
+            const projects = projectsRes.data ?? [];
+            setClientProjects(projects);
+            setSelectedProjectId((current) => current && projects.some((p: any) => p.id === current) ? current : projects[0]?.id ?? null);
+          });
       }
     });
   }, [user, profile?.packages_unlocked, isOfficeConsultant]);
@@ -432,6 +417,17 @@ export default function CustomerArea() {
           </button>
         </div>
 
+        <div className="mb-6 rounded-2xl border border-[#e3d8c9] bg-white p-4">
+          <label className="mb-2 block text-xs font-bold text-[#0C363A]">{lang === "ar" ? "المشروع الحالي" : "Current project"}</label>
+          {clientProjects.length ? (
+            <select value={selectedProjectId ?? ""} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-10 w-full rounded-xl border border-[#e3d8c9] bg-[#FBF7F0] px-3 text-sm text-[#0C363A]">
+              {clientProjects.map((project) => <option key={project.id} value={project.id}>{lang === "ar" ? project.name_ar : project.name_en || project.name_ar}</option>)}
+            </select>
+          ) : (
+            <p className="text-xs text-muted-foreground">{lang === "ar" ? "لا يوجد مشروع تنفيذ مضاف إلى حسابك بعد." : "No execution project has been added to your account yet."}</p>
+          )}
+        </div>
+
         {/* Tab Navigation Segmented Bar */}
         <div className="bg-white p-2 rounded-2xl border border-[#e3d8c9] shadow-sm flex flex-wrap md:flex-nowrap gap-1 mb-8 sticky top-20 z-30 no-print">
           {[
@@ -608,11 +604,7 @@ export default function CustomerArea() {
               <div className="space-y-4">
                 {projectStages.map((stage) => {
                     const isExpanded = expandedStage === stage.id;
-                    const files = stage.stage_number === 0
-                      ? stageFiles.filter((f) => f.stage_id === stage.stage_1_id && f.category === 'statement')
-                      : stage.stage_number === 1
-                        ? stageFiles.filter((f) => f.stage_id === stage.id && f.category !== 'statement')
-                        : stageFiles.filter((f) => f.stage_id === stage.id);
+                    const files = stageFiles.filter((f) => f.stage_id === stage.id);
                     const photos = files.filter((f) => f.file_type === "image");
                     const docs = files.filter((f) => f.file_type !== "image");
                     const notes = stage.stage_number === 0 ? [] : stageNotes.filter((n) => n.stage_id === stage.id);
@@ -862,10 +854,19 @@ export default function CustomerArea() {
                             </div>
                           </div>
                         </div>
-                        <Link to={`/office-session/report/${report.id}`} className="btn-gold !py-2 !px-4.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] transition-all font-bold">
-                          <Download size={13} />
-                          <span>{lang === "ar" ? "عرض وتحميل PDF" : "View & Save PDF"}</span>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/packages/${report.package_id}/configurator?questionnaireId=${report.questionnaire_id || ""}&editSelectionId=${report.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-deep/20 bg-white hover:bg-teal-soft/10 px-4.5 py-2 text-xs font-bold text-teal-deep transition-all shadow-sm cursor-pointer"
+                          >
+                            <Edit size={13} />
+                            <span>{lang === "ar" ? "تعديل الاختيارات" : "Edit Selections"}</span>
+                          </Link>
+                          <Link to={`/office-session/report/${report.id}`} className="btn-gold !py-2 !px-4.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] transition-all font-bold">
+                            <Download size={13} />
+                            <span>{lang === "ar" ? "عرض وتحميل PDF" : "View & Save PDF"}</span>
+                          </Link>
+                        </div>
                       </div>
                     );
                   })}
@@ -887,13 +888,24 @@ export default function CustomerArea() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => setSelectedQuestionnaireForView(q)}
-                          className="btn-gold !py-2 !px-4.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] transition-all font-bold"
-                        >
-                          <Download size={13} />
-                          <span>{lang === "ar" ? "عرض وتنزيل الاستبيان" : "View & Print Questionnaire"}</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {(isOfficeConsultant || isAdmin) && (
+                            <Link
+                              to={`/office-session?questionnaireId=${q.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-teal-deep/20 bg-white hover:bg-teal-soft/10 px-4.5 py-2 text-xs font-bold text-teal-deep transition-all shadow-sm cursor-pointer"
+                            >
+                              <Edit size={13} />
+                              <span>{lang === "ar" ? "تعديل الاستبيان" : "Edit Questionnaire"}</span>
+                            </Link>
+                          )}
+                          <button
+                            onClick={() => setSelectedQuestionnaireForView(q)}
+                            className="btn-gold !py-2 !px-4.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] transition-all font-bold"
+                          >
+                            <Download size={13} />
+                            <span>{lang === "ar" ? "عرض وتنزيل الاستبيان" : "View & Print Questionnaire"}</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
